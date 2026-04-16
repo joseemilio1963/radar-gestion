@@ -18,14 +18,19 @@ export default function App() {
     const [pinObjetivo, setPinObjetivo] = useState("");
     const [accionPendiente, setAccionPendiente] = useState(null);
     const [errorPin, setErrorPin] = useState(false);
-
-    // Estado para la edición de empleados
     const [editandoEmp, setEditandoEmp] = useState(false);
     const [nuevoNumEmp, setNuevoNumEmp] = useState(0);
 
+    // FUNCIÓN DE CONTACTO REFORZADA
     const contactarAsesoria = (asunto) => {
         const mail = "jose@aulagentia.eu";
-        window.location.href = `mailto:${mail}?subject=${encodeURIComponent(asunto)}`;
+        const mailtoUrl = `mailto:${mail}?subject=${encodeURIComponent(asunto)}`;
+
+        // Acción 1: Intentar abrir el correo
+        window.location.href = mailtoUrl;
+
+        // Acción 2: Aviso visual por si el correo no se abre solo
+        alert("📧 Solicitud enviada: " + asunto + "\n\nSi no se abre tu gestor de correo, escríbenos a: " + mail);
     };
 
     const fetchClientes = async () => {
@@ -38,21 +43,13 @@ export default function App() {
 
     useEffect(() => { fetchClientes(); }, []);
 
-    // FUNCIÓN PARA GUARDAR EL CAMBIO DE EMPLEADOS EN SUPABASE
     const guardarEmpleados = async (id) => {
         try {
-            const { error } = await supabase
-                .from('solicitudes')
-                .update({ empleados: nuevoNumEmp })
-                .eq('id', id);
-
+            const { error } = await supabase.from('solicitudes').update({ empleados: nuevoNumEmp }).eq('id', id);
             if (error) throw error;
-            await fetchClientes(); // Recargamos datos
+            await fetchClientes();
             setEditandoEmp(false);
-            alert("Plantilla actualizada con éxito");
-        } catch (err) {
-            alert("Error al guardar: " + err.message);
-        }
+        } catch (err) { alert("Error al guardar: " + err.message); }
     };
 
     const verificarPin = () => {
@@ -66,13 +63,12 @@ export default function App() {
 
     const current = seleccionado ? solicitudes.find(s => s.id === seleccionado.id) : null;
 
-    // Lógica de normas por sector
     const TODAS_LAS_NORMAS = [
-        { id: 't1', sector: 'todos', nombre: "LOPD / RGPD", resumen: "Privacidad.", sancion: "Hasta 20M€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" },
-        { id: 't2', sector: 'todos', nombre: "Prevención Riesgos", resumen: "Salud laboral.", sancion: "Hasta 800k€", estado: "ok", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-        { id: 'h1', sector: 'HOSTELERÍA', nombre: "Control Sanitario (APPCC)", resumen: "Seguridad alimentaria.", sancion: "Hasta 600k€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" },
-        { id: 'w1', sector: 'TALLER', nombre: "Residuos Industriales", resumen: "Aceites/Baterías.", sancion: "Hasta 1.2M€", estado: "aviso", color: "text-amber-500", bg: "bg-amber-500/10" },
-        { id: 'c1', sector: 'COMERCIO', nombre: "Hojas de Reclamación", resumen: "Consumo.", sancion: "Hasta 50k€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" }
+        { id: 't1', sector: 'todos', nombre: "LOPD / RGPD", sancion: "Hasta 20M€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" },
+        { id: 't2', sector: 'todos', nombre: "Prevención Riesgos", sancion: "Hasta 800k€", estado: "ok", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+        { id: 'h1', sector: 'HOSTELERÍA', nombre: "Control Sanitario (APPCC)", sancion: "Hasta 600k€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" },
+        { id: 'w1', sector: 'TALLER', nombre: "Residuos Industriales", sancion: "Hasta 1.2M€", estado: "aviso", color: "text-amber-500", bg: "bg-amber-500/10" },
+        { id: 'c1', sector: 'COMERCIO', nombre: "Hojas de Reclamación", sancion: "Hasta 50k€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" }
     ];
 
     const normasFiltradas = current ? TODAS_LAS_NORMAS.filter(n => n.sector === 'todos' || n.sector === current.sector.toUpperCase()) : [];
@@ -82,7 +78,11 @@ export default function App() {
     return (
         <div className="min-h-screen bg-[#020617] text-slate-200 p-4 md:p-8 font-sans">
 
-            <button onClick={() => contactarAsesoria("Presupuesto")} className="fixed bottom-8 right-8 z-[100] bg-blue-600 text-white px-6 py-4 rounded-2xl text-[11px] font-black uppercase shadow-2xl flex items-center gap-3 border border-blue-400">
+            {/* BOTÓN FLOTANTE */}
+            <button
+                onClick={() => contactarAsesoria("Presupuesto General Radar")}
+                className="fixed bottom-8 right-8 z-[100] bg-blue-600 text-white px-6 py-4 rounded-2xl text-[11px] font-black uppercase shadow-[0_0_20px_rgba(37,99,235,0.4)] flex items-center gap-3 border border-blue-400"
+            >
                 <SendHorizontal size={20} /> Solicitar presupuesto
             </button>
 
@@ -91,7 +91,7 @@ export default function App() {
                     <div className="bg-[#0f172a] border border-slate-800 p-10 rounded-[2.5rem] max-w-sm w-full text-center">
                         <KeySquare size={48} className="text-blue-500 mx-auto" />
                         <h2 className="text-xl font-black text-white uppercase mt-4 italic">Validar Acceso</h2>
-                        <input type="password" value={pinIngresado} onChange={(e) => setPinIngresado(e.target.value)} className="bg-slate-900 border border-slate-800 text-white text-3xl text-center w-full py-5 rounded-2xl mt-6" placeholder="****" />
+                        <input type="password" value={pinIngresado} onChange={(e) => setPinIngresado(e.target.value)} className="bg-slate-900 border border-slate-800 text-white text-3xl text-center w-full py-5 rounded-2xl mt-6 outline-none" placeholder="****" autoFocus />
                         <div className="flex gap-4 mt-6">
                             <button onClick={() => setMostrarPin(false)} className="flex-1 py-4 bg-slate-800 text-slate-400 rounded-xl font-black text-[10px] uppercase">Cancelar</button>
                             <button onClick={verificarPin} className="flex-1 py-4 bg-white text-black rounded-xl font-black text-[10px] uppercase">Entrar</button>
@@ -116,7 +116,7 @@ export default function App() {
                             if (val === "asesoria") { setPinObjetivo("ADMIN1"); setAccionPendiente(() => () => { setUserRole("asesoria"); setSeleccionado(null); }); }
                             else { const emp = solicitudes.find(s => s.id === parseInt(val)); setPinObjetivo(emp?.clave || ""); setAccionPendiente(() => () => { setUserRole(val); setSeleccionado(emp); }); }
                             setMostrarPin(true);
-                        }} className="bg-transparent text-[10px] font-black text-white outline-none uppercase">
+                        }} className="bg-transparent text-[10px] font-black text-white outline-none uppercase cursor-pointer">
                             <option value="asesoria" className="bg-[#0f172a]">ADMINISTRADOR</option>
                             {solicitudes.map(s => <option key={s.id} value={s.id} className="bg-[#0f172a]">{s.empresa}</option>)}
                         </select>
@@ -124,7 +124,7 @@ export default function App() {
                 </header>
 
                 {userRole === "asesoria" && !seleccionado && (
-                    <div className="bg-[#0f172a] rounded-[2.5rem] border border-slate-800 overflow-hidden">
+                    <div className="bg-[#0f172a] rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
                         <table className="w-full text-left text-[11px] font-black uppercase">
                             <tbody className="divide-y divide-slate-800/50">
                                 {solicitudes.map((item) => (
@@ -153,30 +153,18 @@ export default function App() {
                                     <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">{current.empresa}</h2>
                                     <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest">{current.sector}</p>
                                 </div>
-
-                                {/* CONTROL DINÁMICO DE EMPLEADOS */}
                                 <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-2xl flex items-center gap-4">
                                     <Users size={18} className="text-blue-500" />
                                     {editandoEmp ? (
                                         <div className="flex items-center gap-2">
-                                            <input
-                                                type="number"
-                                                value={nuevoNumEmp}
-                                                onChange={(e) => setNuevoNumEmp(e.target.value)}
-                                                className="bg-slate-800 text-white w-16 px-2 py-1 rounded-lg outline-none border border-blue-500"
-                                            />
-                                            <button onClick={() => guardarEmpleados(current.id)} className="bg-emerald-600 p-2 rounded-lg text-white hover:bg-emerald-500"><Save size={14} /></button>
+                                            <input type="number" value={nuevoNumEmp} onChange={(e) => setNuevoNumEmp(e.target.value)} className="bg-slate-800 text-white w-16 px-2 py-1 rounded-lg outline-none border border-blue-500" />
+                                            <button onClick={() => guardarEmpleados(current.id)} className="bg-emerald-600 p-2 rounded-lg text-white"><Save size={14} /></button>
                                             <button onClick={() => setEditandoEmp(false)} className="text-slate-500 p-2"><X size={14} /></button>
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl font-black text-white">{current.empleados || 0}</span>
-                                            <button
-                                                onClick={() => { setNuevoNumEmp(current.empleados || 0); setEditandoEmp(true); }}
-                                                className="text-[9px] font-black uppercase text-slate-500 hover:text-blue-400 underline underline-offset-4"
-                                            >
-                                                Modificar
-                                            </button>
+                                            <button onClick={() => { setNuevoNumEmp(current.empleados || 0); setEditandoEmp(true); }} className="text-[9px] font-black uppercase text-slate-500 hover:text-blue-400 underline underline-offset-4">Modificar</button>
                                         </div>
                                     )}
                                 </div>
@@ -186,8 +174,8 @@ export default function App() {
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="space-y-3">
-                                <button onClick={() => setModoVista('ayudas')} className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase ${modoVista === 'ayudas' ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Subvenciones</button>
-                                <button onClick={() => setModoVista('normativas')} className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase ${modoVista === 'normativas' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Cumplimiento</button>
+                                <button onClick={() => setModoVista('ayudas')} className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${modoVista === 'ayudas' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Subvenciones</button>
+                                <button onClick={() => setModoVista('normativas')} className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${modoVista === 'normativas' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Cumplimiento</button>
                             </div>
                             <div className="lg:col-span-2">
                                 {modoVista === 'normativas' && (
@@ -198,19 +186,19 @@ export default function App() {
                                                 <div key={norm.id} className={`border border-slate-800 rounded-2xl ${norm.bg} overflow-hidden`}>
                                                     <button onClick={() => setRegAbierta(regAbierta === norm.id ? null : norm.id)} className="w-full px-8 py-6 flex items-center justify-between text-white font-bold uppercase text-sm">
                                                         <div className="flex items-center gap-4">
-                                                            <div className={`h-3 w-3 rounded-full animate-pulse ${norm.estado === 'peligro' ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
+                                                            <div className={`h-3 w-3 rounded-full animate-pulse ${norm.estado === 'peligro' ? 'bg-red-500 shadow-[0_0_10px_red]' : 'bg-emerald-500'}`}></div>
                                                             {norm.nombre}
                                                         </div>
                                                         {regAbierta === norm.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                                                     </button>
                                                     {regAbierta === norm.id && (
                                                         <div className="p-8 bg-black/20 border-t border-slate-800">
-                                                            <div className="flex justify-between items-end">
+                                                            <div className="flex justify-between items-end flex-wrap gap-4">
                                                                 <div>
                                                                     <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Multa Máxima</p>
                                                                     <p className={`text-2xl font-black italic ${norm.color}`}>{norm.sancion}</p>
                                                                 </div>
-                                                                <button onClick={() => contactarAsesoria(`Regularización ${norm.nombre}`)} className="px-8 py-4 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-3"><SendHorizontal size={14} /> Pedir Auditoría</button>
+                                                                <button onClick={() => contactarAsesoria(`Auditoría sobre ${norm.nombre} para ${current.empresa}`)} className="px-8 py-4 bg-slate-800 hover:bg-white hover:text-black transition-all text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-3"><SendHorizontal size={14} /> Pedir Auditoría</button>
                                                             </div>
                                                         </div>
                                                     )}
@@ -223,13 +211,13 @@ export default function App() {
                                     <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800">
                                         <h3 className="text-white font-black uppercase italic mb-6">Oportunidades Activas</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="bg-blue-600/5 border border-blue-500/20 p-6 rounded-2xl flex flex-col justify-between">
+                                            <div className="bg-blue-600/5 border border-blue-500/20 p-6 rounded-2xl flex flex-col justify-between border-l-4 border-l-blue-500">
                                                 <h4 className="text-white font-bold text-sm mb-4">KIT DIGITAL 2024</h4>
-                                                <button onClick={() => contactarAsesoria("Kit Digital")} className="w-full py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase">Tramitar</button>
+                                                <button onClick={() => contactarAsesoria("Trámite Kit Digital")} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase">Tramitar Ayuda</button>
                                             </div>
-                                            <div className="bg-emerald-600/5 border border-emerald-500/20 p-6 rounded-2xl flex flex-col justify-between">
+                                            <div className="bg-emerald-600/5 border border-emerald-500/20 p-6 rounded-2xl flex flex-col justify-between border-l-4 border-l-emerald-500">
                                                 <h4 className="text-white font-bold text-sm mb-4">AYUDA CONTRATACIÓN</h4>
-                                                <button onClick={() => contactarAsesoria("Ayuda Empleo")} className="w-full py-3 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase">Consultar</button>
+                                                <button onClick={() => contactarAsesoria("Consulta Ayudas Empleo")} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase">Consultar Bases</button>
                                             </div>
                                         </div>
                                     </div>

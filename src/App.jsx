@@ -143,7 +143,12 @@ export default function App() {
                             <h1 className="text-3xl font-black text-white tracking-tighter uppercase italic">
                                 Radar <span className="text-blue-500">Gestión</span>
                             </h1>
-                            <p className="text-slate-500 text-[10px] font-black tracking-[0.4em] uppercase">ASESORÍA VALENCIA</p>
+                            <p className="text-slate-500 text-[10px] font-black tracking-[0.4em] uppercase mb-4">ASESORÍA VALENCIA</p>
+
+                            {/* BOTÓN SOLICITAR PRESUPUESTO INSERTADO AQUÍ */}
+                            <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
+                                <SendHorizontal size={14} /> Solicitar presupuesto
+                            </button>
                         </div>
                     </div>
 
@@ -251,7 +256,6 @@ export default function App() {
                                                                 <p className="text-slate-300 text-xs leading-relaxed italic">{norm.justificacion}</p>
                                                             </div>
 
-                                                            {/* LA GUÍA DE PASOS A SEGUIR */}
                                                             <div className="bg-slate-900/60 p-6 rounded-2xl mb-8 border border-white/5">
                                                                 <div className="flex items-center gap-2 mb-4">
                                                                     <ListChecks size={16} className="text-emerald-500" />

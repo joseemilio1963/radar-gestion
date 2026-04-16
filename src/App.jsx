@@ -19,10 +19,19 @@ export default function App() {
     const [accionPendiente, setAccionPendiente] = useState(null);
     const [errorPin, setErrorPin] = useState(false);
 
-    // Función para enviar email automático
+    // FUNCIÓN DE CONTACTO MEJORADA (No se queda "pegada")
     const contactarAsesoria = (asunto) => {
-        const mail = "tu-email@aulagentia.eu"; // <--- CAMBIA ESTO POR TU EMAIL REAL
-        window.location.href = `mailto:${mail}?subject=${asunto}&body=Hola Jose, he visto mi estado en el Radar y me gustaría regularizar mi situación.`;
+        const mail = "jose@aulagentia.eu";
+        const body = encodeURIComponent("Hola Jose, solicito información sobre: " + asunto);
+        const mailtoUrl = `mailto:${mail}?subject=${encodeURIComponent(asunto)}&body=${body}`;
+
+        // Abrimos el correo
+        window.location.href = mailtoUrl;
+
+        // Por si el mailto falla (ej. no tiene gestor de correo configurado), avisamos:
+        setTimeout(() => {
+            alert("Si no se abre tu correo, puedes escribirnos a: " + mail);
+        }, 500);
     };
 
     const NORMAS_TRANSVERSALES = [
@@ -31,7 +40,7 @@ export default function App() {
             nombre: "LOPD / RGPD",
             resumen: "Protección de datos y videovigilancia.",
             justificacion: "Obligatoria para garantizar la privacidad de personas físicas y evitar el uso indebido de información sensible.",
-            pasos: ["Claves seguras", "Destrucción de papel", "Cláusulas email", "Contratos confidencialidad"],
+            pasos: ["Claves seguras", "Destrucción de papel", "Contratos confidencialidad"],
             sancion: "Hasta 20M€.",
             estado: "peligro",
             color: "text-red-500",
@@ -42,7 +51,7 @@ export default function App() {
             nombre: "Ley 7/2022 de Residuos",
             resumen: "Separación en origen y registro de huella.",
             justificacion: "Exigible para asegurar la trazabilidad de desechos.",
-            pasos: ["Contenedores rotulados", "Gestor autorizado", "Registro cronológico", "Declaración anual"],
+            pasos: ["Contenedores rotulados", "Gestor autorizado", "Declaración anual"],
             sancion: "Hasta 3.5M€.",
             estado: "aviso",
             color: "text-amber-500",
@@ -53,7 +62,7 @@ export default function App() {
             nombre: "Prevención de Riesgos",
             resumen: "Plan de prevención y salud laboral.",
             justificacion: "Imperativo legal para minimizar accidentes.",
-            pasos: ["Evaluación riesgos", "Formación plantilla", "Equipos EPIs", "Vigilancia salud"],
+            pasos: ["Evaluación riesgos", "Formación plantilla", "Equipos EPIs"],
             sancion: "Hasta 800k€.",
             estado: "ok",
             color: "text-emerald-500",
@@ -101,6 +110,16 @@ export default function App() {
     return (
         <div className="min-h-screen bg-[#020617] text-slate-200 p-4 md:p-8 font-sans">
 
+            {/* BOTÓN FLOTANTE DE PRESUPUESTO (Siempre visible) */}
+            <div className="fixed bottom-6 right-6 z-40 md:top-8 md:right-8 md:bottom-auto">
+                <button
+                    onClick={() => contactarAsesoria("Solicitud de Presupuesto General")}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] flex items-center gap-3 border border-blue-400/50 animate-pulse"
+                >
+                    <SendHorizontal size={18} /> Solicitar presupuesto
+                </button>
+            </div>
+
             {mostrarPin && (
                 <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4">
                     <div className="bg-[#0f172a] border border-slate-800 p-10 rounded-[2.5rem] max-w-sm w-full text-center shadow-2xl">
@@ -133,15 +152,7 @@ export default function App() {
                             <h1 className="text-3xl font-black text-white tracking-tighter uppercase italic">
                                 Radar <span className="text-blue-500">Gestión</span>
                             </h1>
-                            <p className="text-slate-500 text-[10px] font-black tracking-[0.4em] uppercase mb-4">ASESORÍA VALENCIA</p>
-
-                            {/* BOTÓN SOLICITAR PRESUPUESTO - AHORA FUNCIONAL */}
-                            <button
-                                onClick={() => contactarAsesoria("Solicitud de Presupuesto General")}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/40 flex items-center gap-2 border border-blue-400/30"
-                            >
-                                <SendHorizontal size={14} /> Solicitar presupuesto
-                            </button>
+                            <p className="text-slate-500 text-[10px] font-black tracking-[0.4em] uppercase">ASESORÍA VALENCIA</p>
                         </div>
                     </div>
 
@@ -214,8 +225,8 @@ export default function App() {
                     <div className="animate-in slide-in-from-bottom-6 duration-500">
                         <div className="flex items-center justify-between mb-8">
                             <div>
-                                <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">{current.empresa}</h2>
-                                <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest">Auditoría Técnica</p>
+                                <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter">{current.empresa}</h2>
+                                <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest">Auditoría Técnica Activa</p>
                             </div>
                             <button onClick={() => setSeleccionado(null)} className="px-4 py-2 bg-red-500/10 text-red-500 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all">
                                 <X size={14} /> Salir
@@ -231,7 +242,7 @@ export default function App() {
                             <div className="lg:col-span-2">
                                 {modoVista === 'normativas' && (
                                     <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800">
-                                        <h3 className="text-white font-black uppercase italic mb-6">Informe de Situación</h3>
+                                        <h3 className="text-white font-black uppercase italic mb-6">Informe de Situación Legal</h3>
                                         <div className="space-y-4">
                                             {NORMAS_TRANSVERSALES.map((norm) => (
                                                 <div key={norm.id} className={`border border-slate-800 rounded-2xl ${norm.bg} overflow-hidden`}>
@@ -251,15 +262,14 @@ export default function App() {
 
                                                             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                                                                 <div>
-                                                                    <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Multa Máxima</p>
-                                                                    <p className={`text-xl font-black italic ${norm.color}`}>{norm.sancion}</p>
+                                                                    <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Multa Máxima Estimada</p>
+                                                                    <p className={`text-2xl font-black italic ${norm.color}`}>{norm.sancion}</p>
                                                                 </div>
-                                                                {/* ESTE BOTÓN AHORA FUNCIONA */}
                                                                 <button
-                                                                    onClick={() => contactarAsesoria(`Regularización de ${norm.nombre} para ${current.empresa}`)}
-                                                                    className={`px-8 font-black uppercase text-[10px] py-4 rounded-xl flex items-center justify-center gap-3 transition-all ${norm.estado === 'peligro' ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30' : 'bg-slate-800 text-white'}`}
+                                                                    onClick={() => contactarAsesoria(`Regularización de ${norm.nombre} para la empresa ${current.empresa}`)}
+                                                                    className={`px-8 font-black uppercase text-[10px] py-5 rounded-xl flex items-center justify-center gap-3 transition-all ${norm.estado === 'peligro' ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/40' : 'bg-slate-800 text-white'}`}
                                                                 >
-                                                                    <SendHorizontal size={14} /> {norm.estado === 'peligro' ? 'Regularizar con Asesoría' : 'Solicitar Auditoría'}
+                                                                    <SendHorizontal size={16} /> {norm.estado === 'peligro' ? 'Regularizar con Asesoría' : 'Pedir Auditoría'}
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -271,9 +281,9 @@ export default function App() {
                                 )}
                                 {modoVista === 'ayudas' && (
                                     <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800 flex flex-col items-center justify-center text-center min-h-[300px]">
-                                        <SendHorizontal className="text-blue-500 mb-4" size={32} />
+                                        <SendHorizontal className="text-blue-500 mb-4 animate-bounce" size={32} />
                                         <h3 className="text-white font-black uppercase italic mb-2">Buscando Beneficios</h3>
-                                        <p className="text-slate-500 text-sm italic">Analizando compatibilidad para {current.empresa}...</p>
+                                        <p className="text-slate-500 text-sm italic">Analizando bases de datos para {current.empresa}...</p>
                                     </div>
                                 )}
                             </div>

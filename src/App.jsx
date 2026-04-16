@@ -11,7 +11,7 @@ export default function App() {
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState("asesoria");
     const [seleccionado, setSeleccionado] = useState(null);
-    const [modoVista, setModoVista] = useState('ayudas');
+    const [modoVista, setModoVista] = useState('ayudas'); // 'ayudas' o 'normativas'
     const [regAbierta, setRegAbierta] = useState(null);
     const [mostrarPin, setMostrarPin] = useState(false);
     const [pinIngresado, setPinIngresado] = useState("");
@@ -21,16 +21,10 @@ export default function App() {
     const [editandoEmp, setEditandoEmp] = useState(false);
     const [nuevoNumEmp, setNuevoNumEmp] = useState(0);
 
-    // FUNCIÓN DE CONTACTO REFORZADA
     const contactarAsesoria = (asunto) => {
         const mail = "jose@aulagentia.eu";
-        const mailtoUrl = `mailto:${mail}?subject=${encodeURIComponent(asunto)}`;
-
-        // Acción 1: Intentar abrir el correo
-        window.location.href = mailtoUrl;
-
-        // Acción 2: Aviso visual por si el correo no se abre solo
-        alert("📧 Solicitud enviada: " + asunto + "\n\nSi no se abre tu gestor de correo, escríbenos a: " + mail);
+        window.location.href = `mailto:${mail}?subject=${encodeURIComponent(asunto)}`;
+        alert("📧 Solicitud enviada al gestor: " + asunto);
     };
 
     const fetchClientes = async () => {
@@ -63,26 +57,30 @@ export default function App() {
 
     const current = seleccionado ? solicitudes.find(s => s.id === seleccionado.id) : null;
 
+    // BASE DE DATOS DE NORMAS (Normalizada)
     const TODAS_LAS_NORMAS = [
-        { id: 't1', sector: 'todos', nombre: "LOPD / RGPD", sancion: "Hasta 20M€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" },
-        { id: 't2', sector: 'todos', nombre: "Prevención Riesgos", sancion: "Hasta 800k€", estado: "ok", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+        { id: 't1', sector: 'TODOS', nombre: "LOPD / RGPD", sancion: "Hasta 20M€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" },
+        { id: 't2', sector: 'TODOS', nombre: "Prevención Riesgos", sancion: "Hasta 800k€", estado: "ok", color: "text-emerald-500", bg: "bg-emerald-500/10" },
         { id: 'h1', sector: 'HOSTELERÍA', nombre: "Control Sanitario (APPCC)", sancion: "Hasta 600k€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" },
         { id: 'w1', sector: 'TALLER', nombre: "Residuos Industriales", sancion: "Hasta 1.2M€", estado: "aviso", color: "text-amber-500", bg: "bg-amber-500/10" },
         { id: 'c1', sector: 'COMERCIO', nombre: "Hojas de Reclamación", sancion: "Hasta 50k€", estado: "peligro", color: "text-red-500", bg: "bg-red-500/10" }
     ];
 
-    const normasFiltradas = current ? TODAS_LAS_NORMAS.filter(n => n.sector === 'todos' || n.sector === current.sector.toUpperCase()) : [];
+    // LÓGICA DE FILTRADO MEJORADA (Ignora tildes y mayúsculas)
+    const normalizar = (texto) => texto ? texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+
+    const normasFiltradas = current ? TODAS_LAS_NORMAS.filter(n => {
+        const sectorNormalizado = normalizar(n.sector);
+        const sectorClienteNormalizado = normalizar(current.sector);
+        return sectorNormalizado === 'TODOS' || sectorNormalizado === sectorClienteNormalizado;
+    }) : [];
 
     if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><div className="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full"></div></div>;
 
     return (
         <div className="min-h-screen bg-[#020617] text-slate-200 p-4 md:p-8 font-sans">
 
-            {/* BOTÓN FLOTANTE */}
-            <button
-                onClick={() => contactarAsesoria("Presupuesto General Radar")}
-                className="fixed bottom-8 right-8 z-[100] bg-blue-600 text-white px-6 py-4 rounded-2xl text-[11px] font-black uppercase shadow-[0_0_20px_rgba(37,99,235,0.4)] flex items-center gap-3 border border-blue-400"
-            >
+            <button onClick={() => contactarAsesoria("Presupuesto General")} className="fixed bottom-8 right-8 z-[100] bg-blue-600 text-white px-6 py-4 rounded-2xl text-[11px] font-black uppercase shadow-2xl flex items-center gap-3 border border-blue-400">
                 <SendHorizontal size={20} /> Solicitar presupuesto
             </button>
 
@@ -128,7 +126,7 @@ export default function App() {
                         <table className="w-full text-left text-[11px] font-black uppercase">
                             <tbody className="divide-y divide-slate-800/50">
                                 {solicitudes.map((item) => (
-                                    <tr key={item.id} className="hover:bg-slate-800/20">
+                                    <tr key={item.id} className="hover:bg-slate-800/20 transition-colors">
                                         <td className="px-8 py-6">
                                             <p className="font-bold text-white text-sm">{item.empresa}</p>
                                             <span className="text-slate-500 flex items-center gap-2">
@@ -169,55 +167,71 @@ export default function App() {
                                     )}
                                 </div>
                             </div>
-                            <button onClick={() => { setSeleccionado(null); setEditandoEmp(false); }} className="px-5 py-3 bg-red-500/10 text-red-500 rounded-xl text-[9px] font-black uppercase flex items-center gap-2"><X size={14} /> Salir</button>
+                            <button onClick={() => { setSeleccionado(null); setModoVista('ayudas'); setEditandoEmp(false); }} className="px-5 py-3 bg-red-500/10 text-red-500 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all"><X size={14} /> Salir</button>
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* LATERAL DE NAVEGACIÓN */}
                             <div className="space-y-3">
-                                <button onClick={() => setModoVista('ayudas')} className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${modoVista === 'ayudas' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Subvenciones</button>
-                                <button onClick={() => setModoVista('normativas')} className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${modoVista === 'normativas' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Cumplimiento</button>
+                                <button
+                                    onClick={() => setModoVista('ayudas')}
+                                    className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${modoVista === 'ayudas' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500 hover:bg-slate-800'}`}
+                                >
+                                    Subvenciones
+                                </button>
+                                <button
+                                    onClick={() => setModoVista('normativas')}
+                                    className={`w-full text-left px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${modoVista === 'normativas' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500 hover:bg-slate-800'}`}
+                                >
+                                    Cumplimiento
+                                </button>
                             </div>
+
+                            {/* CONTENIDO PRINCIPAL */}
                             <div className="lg:col-span-2">
-                                {modoVista === 'normativas' && (
-                                    <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800">
-                                        <h3 className="text-white font-black uppercase italic mb-6">Auditoría Técnica</h3>
-                                        <div className="space-y-4">
-                                            {normasFiltradas.map((norm) => (
-                                                <div key={norm.id} className={`border border-slate-800 rounded-2xl ${norm.bg} overflow-hidden`}>
-                                                    <button onClick={() => setRegAbierta(regAbierta === norm.id ? null : norm.id)} className="w-full px-8 py-6 flex items-center justify-between text-white font-bold uppercase text-sm">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className={`h-3 w-3 rounded-full animate-pulse ${norm.estado === 'peligro' ? 'bg-red-500 shadow-[0_0_10px_red]' : 'bg-emerald-500'}`}></div>
-                                                            {norm.nombre}
-                                                        </div>
-                                                        {regAbierta === norm.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                                                    </button>
-                                                    {regAbierta === norm.id && (
-                                                        <div className="p-8 bg-black/20 border-t border-slate-800">
-                                                            <div className="flex justify-between items-end flex-wrap gap-4">
-                                                                <div>
-                                                                    <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Multa Máxima</p>
-                                                                    <p className={`text-2xl font-black italic ${norm.color}`}>{norm.sancion}</p>
-                                                                </div>
-                                                                <button onClick={() => contactarAsesoria(`Auditoría sobre ${norm.nombre} para ${current.empresa}`)} className="px-8 py-4 bg-slate-800 hover:bg-white hover:text-black transition-all text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-3"><SendHorizontal size={14} /> Pedir Auditoría</button>
+                                {modoVista === 'normativas' ? (
+                                    <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800 shadow-xl">
+                                        <h3 className="text-white font-black uppercase italic mb-6">Auditoría de Normativas</h3>
+                                        {normasFiltradas.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {normasFiltradas.map((norm) => (
+                                                    <div key={norm.id} className={`border border-slate-800 rounded-2xl ${norm.bg} overflow-hidden`}>
+                                                        <button onClick={() => setRegAbierta(regAbierta === norm.id ? null : norm.id)} className="w-full px-8 py-6 flex items-center justify-between text-white font-bold uppercase text-sm">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`h-3 w-3 rounded-full animate-pulse ${norm.estado === 'peligro' ? 'bg-red-500 shadow-[0_0_10px_red]' : 'bg-emerald-500'}`}></div>
+                                                                {norm.nombre}
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
+                                                            {regAbierta === norm.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                                        </button>
+                                                        {regAbierta === norm.id && (
+                                                            <div className="p-8 bg-black/20 border-t border-slate-800 animate-in fade-in">
+                                                                <div className="flex justify-between items-end flex-wrap gap-4">
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Multa Máxima</p>
+                                                                        <p className={`text-2xl font-black italic ${norm.color}`}>{norm.sancion}</p>
+                                                                    </div>
+                                                                    <button onClick={() => contactarAsesoria(`Auditoría ${norm.nombre}`)} className="px-8 py-4 bg-slate-800 hover:bg-white hover:text-black transition-all text-white rounded-xl text-[10px] font-black uppercase">Pedir Auditoría</button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-slate-500 italic text-sm">No se encontraron normas específicas para este sector.</p>
+                                        )}
                                     </div>
-                                )}
-                                {modoVista === 'ayudas' && (
-                                    <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800">
+                                ) : (
+                                    <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800 shadow-xl">
                                         <h3 className="text-white font-black uppercase italic mb-6">Oportunidades Activas</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="bg-blue-600/5 border border-blue-500/20 p-6 rounded-2xl flex flex-col justify-between border-l-4 border-l-blue-500">
                                                 <h4 className="text-white font-bold text-sm mb-4">KIT DIGITAL 2024</h4>
-                                                <button onClick={() => contactarAsesoria("Trámite Kit Digital")} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase">Tramitar Ayuda</button>
+                                                <button onClick={() => contactarAsesoria("Trámite Kit Digital")} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase transition-all">Tramitar Ayuda</button>
                                             </div>
                                             <div className="bg-emerald-600/5 border border-emerald-500/20 p-6 rounded-2xl flex flex-col justify-between border-l-4 border-l-emerald-500">
                                                 <h4 className="text-white font-bold text-sm mb-4">AYUDA CONTRATACIÓN</h4>
-                                                <button onClick={() => contactarAsesoria("Consulta Ayudas Empleo")} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase">Consultar Bases</button>
+                                                <button onClick={() => contactarAsesoria("Ayudas Empleo")} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase transition-all">Consultar Bases</button>
                                             </div>
                                         </div>
                                     </div>

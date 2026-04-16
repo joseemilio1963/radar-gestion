@@ -19,19 +19,19 @@ export default function App() {
     const [accionPendiente, setAccionPendiente] = useState(null);
     const [errorPin, setErrorPin] = useState(false);
 
-    // BASE DE DATOS CON JUSTIFICACIÓN Y GUÍA DE ACCIÓN
+    // Función para enviar email automático
+    const contactarAsesoria = (asunto) => {
+        const mail = "tu-email@aulagentia.eu"; // <--- CAMBIA ESTO POR TU EMAIL REAL
+        window.location.href = `mailto:${mail}?subject=${asunto}&body=Hola Jose, he visto mi estado en el Radar y me gustaría regularizar mi situación.`;
+    };
+
     const NORMAS_TRANSVERSALES = [
         {
             id: 't1',
             nombre: "LOPD / RGPD",
             resumen: "Protección de datos y videovigilancia.",
-            justificacion: "Obligatoria para garantizar la privacidad de personas físicas y evitar el uso indebido de información sensible que expone a la empresa a reclamaciones.",
-            pasos: [
-                "Configurar claves de acceso individuales y seguras en todos los equipos.",
-                "Instalar un destructor de papel certificado para documentos físicos.",
-                "Incluir cláusulas legales obligatorias en firmas de email y facturación.",
-                "Firmar contratos de confidencialidad con gestores y terceros externos."
-            ],
+            justificacion: "Obligatoria para garantizar la privacidad de personas físicas y evitar el uso indebido de información sensible.",
+            pasos: ["Claves seguras", "Destrucción de papel", "Cláusulas email", "Contratos confidencialidad"],
             sancion: "Hasta 20M€.",
             estado: "peligro",
             color: "text-red-500",
@@ -41,13 +41,8 @@ export default function App() {
             id: 't5',
             nombre: "Ley 7/2022 de Residuos",
             resumen: "Separación en origen y registro de huella.",
-            justificacion: "Exigible para asegurar la trazabilidad de desechos. La responsabilidad legal recae en la empresa desde la generación hasta el tratamiento final.",
-            pasos: [
-                "Habilitar contenedores específicos rotulados por tipo de residuo.",
-                "Contratar un gestor autorizado para la recogida de residuos peligrosos.",
-                "Llevar un registro cronológico de entradas y salidas de desechos.",
-                "Presentar la declaración responsable anual ante la administración."
-            ],
+            justificacion: "Exigible para asegurar la trazabilidad de desechos.",
+            pasos: ["Contenedores rotulados", "Gestor autorizado", "Registro cronológico", "Declaración anual"],
             sancion: "Hasta 3.5M€.",
             estado: "aviso",
             color: "text-amber-500",
@@ -57,13 +52,8 @@ export default function App() {
             id: 't3',
             nombre: "Prevención de Riesgos",
             resumen: "Plan de prevención y salud laboral.",
-            justificacion: "Imperativo legal para minimizar accidentes. Evita recargos en prestaciones de la Seguridad Social y responsabilidades penales al administrador.",
-            pasos: [
-                "Realizar una evaluación inicial de riesgos de cada puesto de trabajo.",
-                "Impartir formación obligatoria en seguridad a toda la plantilla.",
-                "Entregar y registrar la recepción de Equipos de Protección (EPIs).",
-                "Garantizar la vigilancia periódica de la salud (reconocimientos médicos)."
-            ],
+            justificacion: "Imperativo legal para minimizar accidentes.",
+            pasos: ["Evaluación riesgos", "Formación plantilla", "Equipos EPIs", "Vigilancia salud"],
             sancion: "Hasta 800k€.",
             estado: "ok",
             color: "text-emerald-500",
@@ -145,8 +135,11 @@ export default function App() {
                             </h1>
                             <p className="text-slate-500 text-[10px] font-black tracking-[0.4em] uppercase mb-4">ASESORÍA VALENCIA</p>
 
-                            {/* BOTÓN SOLICITAR PRESUPUESTO INSERTADO AQUÍ */}
-                            <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
+                            {/* BOTÓN SOLICITAR PRESUPUESTO - AHORA FUNCIONAL */}
+                            <button
+                                onClick={() => contactarAsesoria("Solicitud de Presupuesto General")}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/40 flex items-center gap-2 border border-blue-400/30"
+                            >
                                 <SendHorizontal size={14} /> Solicitar presupuesto
                             </button>
                         </div>
@@ -256,27 +249,16 @@ export default function App() {
                                                                 <p className="text-slate-300 text-xs leading-relaxed italic">{norm.justificacion}</p>
                                                             </div>
 
-                                                            <div className="bg-slate-900/60 p-6 rounded-2xl mb-8 border border-white/5">
-                                                                <div className="flex items-center gap-2 mb-4">
-                                                                    <ListChecks size={16} className="text-emerald-500" />
-                                                                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Protocolo de Implantación</p>
-                                                                </div>
-                                                                <ul className="space-y-3">
-                                                                    {norm.pasos.map((paso, idx) => (
-                                                                        <li key={idx} className="flex gap-3 text-xs text-slate-400">
-                                                                            <span className="text-emerald-500 font-bold">•</span>
-                                                                            {paso}
-                                                                        </li>
-                                                                    ))}
-                                                                </ul>
-                                                            </div>
-
                                                             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                                                                 <div>
                                                                     <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Multa Máxima</p>
                                                                     <p className={`text-xl font-black italic ${norm.color}`}>{norm.sancion}</p>
                                                                 </div>
-                                                                <button className={`px-8 font-black uppercase text-[10px] py-4 rounded-xl flex items-center justify-center gap-3 transition-all ${norm.estado === 'peligro' ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-slate-800 text-white'}`}>
+                                                                {/* ESTE BOTÓN AHORA FUNCIONA */}
+                                                                <button
+                                                                    onClick={() => contactarAsesoria(`Regularización de ${norm.nombre} para ${current.empresa}`)}
+                                                                    className={`px-8 font-black uppercase text-[10px] py-4 rounded-xl flex items-center justify-center gap-3 transition-all ${norm.estado === 'peligro' ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30' : 'bg-slate-800 text-white'}`}
+                                                                >
                                                                     <SendHorizontal size={14} /> {norm.estado === 'peligro' ? 'Regularizar con Asesoría' : 'Solicitar Auditoría'}
                                                                 </button>
                                                             </div>

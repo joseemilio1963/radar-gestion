@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Building2, KeySquare, ChevronDown, X, SendHorizontal, Users, Save, BadgePercent, Zap, AlertCircle, Info } from 'lucide-react';
+import { Building2, KeySquare, ChevronDown, X, SendHorizontal, Users, Save, BadgePercent, Zap, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
 
 const supabase = createClient('https://kygynasotwfhuqfiqgzj.supabase.co', 'sb_publishable_3HBDFOO2eCMowpwYnw2Pmw_L3Enp3N-');
 
@@ -107,66 +107,76 @@ export default function App() {
 
                             <div className="lg:col-span-2">
                                 {vista === 'ayudas' ? (
-                                    <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
-                                        <div className="bg-emerald-600/10 border border-emerald-500/30 p-8 rounded-3xl border-l-[10px] border-l-emerald-500">
-                                            <div className="flex justify-between items-start mb-6">
-                                                <h4 className="text-white font-black text-xl uppercase italic leading-tight">Ahorro en contratación:<br /><span className="text-emerald-500 text-sm">CONTRATOS EN ALTERNANCIA</span></h4>
-                                                <Zap className="text-emerald-500" size={32} />
+                                    <div className="space-y-6">
+                                        <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
+                                            <h3 className="text-white font-black uppercase italic mb-6 tracking-widest text-sm text-emerald-500">Oportunidades Destacadas</h3>
+
+                                            <div className="bg-emerald-600/10 border border-emerald-500/30 p-8 rounded-3xl border-l-[10px] border-l-emerald-500 mb-6">
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <h4 className="text-white font-black text-xl uppercase italic leading-tight">Ayudas a la contratación:<br /><span className="text-emerald-500 text-sm">CONTRATOS EN ALTERNANCIA</span></h4>
+                                                    <Zap className="text-emerald-500" size={32} />
+                                                </div>
+                                                <p className="text-slate-300 text-sm mb-8 italic leading-relaxed text-balance">Ahorra entre <span className="text-white font-black underline">7.000€ y 14.000€</span> al año por trabajador contratado.</p>
+
+                                                {!verRequisitos ? (
+                                                    <button onClick={() => setVerRequisitos(true)} className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase italic text-xs shadow-xl transition-all">Saber más y Ver Requisitos</button>
+                                                ) : (
+                                                    <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                                                        <div className="grid grid-cols-1 gap-4">
+                                                            <div className="bg-black/40 p-6 rounded-2xl border border-white/5 italic">
+                                                                <p className="text-emerald-500 font-black text-[10px] uppercase mb-4 tracking-widest">💰 Nómina y Cotización:</p>
+                                                                <p className="text-slate-300 text-xs mb-2 leading-relaxed">• El 1er año pagas el 65% del convenio. El 2º año el 85%.</p>
+                                                                <p className="text-slate-300 text-xs leading-relaxed">• El empleado cotiza al 100% de su jubilación aunque tú pagues menos nómina.</p>
+                                                            </div>
+                                                            <div className="bg-blue-600/10 p-6 rounded-2xl border border-blue-500/20 italic">
+                                                                <p className="text-blue-400 font-black text-[10px] uppercase mb-4 tracking-widest">⚡ Beneficio Seguridad Social:</p>
+                                                                <p className="text-slate-300 text-xs mt-2 leading-relaxed">Pagas 50€/mes, pero la SS te abona 90€/mes. <br /> <span className="text-white font-black text-sm">¡Ganas +40€/mes por tener al trabajador!</span></p>
+                                                            </div>
+                                                            <div className="bg-amber-600/10 p-6 rounded-2xl border border-amber-500/20 italic">
+                                                                <p className="text-amber-500 font-black text-[10px] uppercase mb-4 tracking-widest">🏆 Bono de Permanencia:</p>
+                                                                <p className="text-slate-300 text-xs leading-relaxed">• Bono de <span className="text-white font-bold">1.500€/año durante 3 años</span> si lo haces fijo.</p>
+                                                                <p className="text-slate-400 text-[10px] mt-2 leading-tight">Si se va o lo echas en los primeros 2 años de formación, <span className="text-white underline">no tienes que devolver nada</span>.</p>
+                                                            </div>
+                                                            <div className="bg-red-600/10 p-6 rounded-2xl border border-red-500/20 italic border-l-4 border-l-red-500">
+                                                                <p className="text-red-400 font-black text-[10px] uppercase mb-4 tracking-widest flex items-center gap-2"><AlertCircle size={14} /> Caso Hijos:</p>
+                                                                <p className="text-slate-300 text-xs leading-relaxed">• Puedes contratarlos, pero <span className="text-white font-bold underline">no tendrán derecho a cobrar paro</span>.</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-4">
+                                                            <button onClick={() => setVerRequisitos(false)} className="flex-1 py-4 bg-slate-800 text-slate-400 rounded-xl font-black uppercase italic text-[10px]">Cerrar</button>
+                                                            <button onClick={() => contactar("Solicitud Contrato Alternancia")} className="flex-1 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase italic text-[10px] shadow-lg">Saber más</button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            <p className="text-slate-300 text-sm mb-8 italic leading-relaxed">Te explicamos cómo ahorrar entre <span className="text-white font-black underline">7.000€ y 14.000€</span> al año por trabajador contratado.</p>
-
-                                            {!verRequisitos ? (
-                                                <button onClick={() => setVerRequisitos(true)} className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase italic text-xs shadow-xl transition-all">Saber más y Ver Requisitos</button>
-                                            ) : (
-                                                <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-                                                    {/* DESGLOSE TÉCNICO SOLICITADO */}
-                                                    <div className="grid grid-cols-1 gap-4">
-                                                        <div className="bg-black/40 p-6 rounded-2xl border border-white/5 italic">
-                                                            <p className="text-emerald-500 font-black text-[10px] uppercase mb-4 tracking-widest">💰 Nómina y Cotización:</p>
-                                                            <p className="text-slate-300 text-xs mb-2 leading-relaxed">• El 1er año pagas el 65% del convenio. El 2º año el 85%.</p>
-                                                            <p className="text-slate-300 text-xs leading-relaxed">• <span className="text-white font-bold underline">Ventaja:</span> El empleado cotiza al 100% de su jubilación aunque tú pagues menos nomina.</p>
-                                                        </div>
-
-                                                        <div className="bg-blue-600/10 p-6 rounded-2xl border border-blue-500/20 italic">
-                                                            <p className="text-blue-400 font-black text-[10px] uppercase mb-4 tracking-widest">⚡ Beneficio Seguridad Social:</p>
-                                                            <p className="text-slate-300 text-xs leading-relaxed">• Los seguros sociales te salen con "saldo positivo".</p>
-                                                            <p className="text-slate-300 text-xs mt-2">• Tú pagas 50€/mes, pero la SS te abona 90€/mes. <br /> <span className="text-white font-black text-sm">¡Ganas +40€/mes por tener al trabajador!</span></p>
-                                                        </div>
-
-                                                        <div className="bg-amber-600/10 p-6 rounded-2xl border border-amber-500/20 italic">
-                                                            <p className="text-amber-500 font-black text-[10px] uppercase mb-4 tracking-widest">🏆 Bono de Permanencia:</p>
-                                                            <p className="text-slate-300 text-xs leading-relaxed">• Si al terminar el 2º año lo haces fijo, la SS te da <span className="text-white font-bold">1.500€/año durante 3 años</span>.</p>
-                                                            <p className="text-slate-400 text-[10px] mt-2 leading-tight">Nota: Si lo despides antes de esos 3 años, devuelves el bono. Pero si se va o lo echas en los primeros 2 años de formación, <span className="text-white underline">no tienes que devolver nada</span>.</p>
-                                                        </div>
-
-                                                        <div className="bg-red-600/10 p-6 rounded-2xl border border-red-500/20 italic border-l-4 border-l-red-500">
-                                                            <p className="text-red-400 font-black text-[10px] uppercase mb-4 tracking-widest flex items-center gap-2"><AlertCircle size={14} /> Caso Hijos:</p>
-                                                            <p className="text-slate-300 text-xs leading-relaxed">• Puedes contratar a tus hijos con esta modalidad, pero con un aviso: <span className="text-white font-bold underline">no acumularán derecho a cobrar paro</span>.</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex gap-4">
-                                                        <button onClick={() => setVerRequisitos(false)} className="flex-1 py-4 bg-slate-800 text-slate-400 rounded-xl font-black uppercase italic text-[10px]">Cerrar</button>
-                                                        <button onClick={() => contactar("Solicitud Contrato Alternancia")} className="flex-1 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase italic text-[10px] shadow-lg">Contactar con Asesor</button>
-                                                    </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl border-l-4 border-l-blue-500">
+                                                    <h4 className="text-white font-black text-xs mb-4 uppercase italic">Kit Digital 2024</h4>
+                                                    <p className="text-slate-500 text-[11px] mb-6 italic">Bonos de digitalización para autónomos y PYMES.</p>
+                                                    <button onClick={() => contactar("Saber más Kit Digital")} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase italic">Saber más</button>
                                                 </div>
-                                            )}
+                                                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl border-l-4 border-l-slate-700">
+                                                    <h4 className="text-white font-black text-xs mb-4 uppercase italic">Otros Trámites</h4>
+                                                    <p className="text-slate-500 text-[11px] mb-6 italic">Consulta otras líneas de subvención activas en tu comunidad.</p>
+                                                    <button onClick={() => contactar("Consultar otras ayudas")} className="w-full py-4 bg-slate-800 hover:bg-white hover:text-black text-white rounded-xl text-[10px] font-black uppercase italic transition-all">Saber más</button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        <h3 className="text-white font-black uppercase italic mb-6 tracking-widest text-xs">Cumplimiento Normativo</h3>
+                                        <h3 className="text-white font-black uppercase italic mb-6 tracking-widest text-sm text-emerald-500">Auditoría Normativa</h3>
                                         {NORMAS.filter(n => n.sec === 'TODOS' || (current.sector && n.sec === current.sector.toUpperCase())).map(n => (
-                                            <div key={n.id} className="bg-[#0f172a] border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all">
+                                            <div key={n.id} className="bg-[#0f172a] border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all shadow-xl">
                                                 <button onClick={() => setRegAbierta(regAbierta === n.id ? null : n.id)} className="w-full p-6 flex justify-between items-center">
                                                     <span className="text-white font-black uppercase text-[11px] italic tracking-tighter">{n.n}</span>
                                                     <ChevronDown size={18} className={regAbierta === n.id ? "rotate-180 transition-all text-blue-500" : "text-slate-600"} />
                                                 </button>
                                                 {regAbierta === n.id && (
                                                     <div className="p-8 bg-black/30 border-t border-slate-800 italic animate-in slide-in-from-top-2">
-                                                        <p className="text-[10px] text-blue-500 uppercase font-black mb-4 italic tracking-widest">Hoja de Ruta:</p>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
+                                                        <p className="text-[10px] text-blue-500 uppercase font-black mb-4 italic tracking-widest">Hoja de Ruta de Implantación:</p>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6 text-balance">
                                                             {n.p.map((p, i) => <p key={i} className="text-slate-400 text-[11px] flex items-center gap-2"> <Info size={12} className="text-blue-500/50" /> {p}</p>)}
                                                         </div>
                                                         <div className="pt-6 border-t border-slate-800 flex justify-between items-center">

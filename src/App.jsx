@@ -1,198 +1,236 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Building2, KeySquare, ChevronDown, X, SendHorizontal, Users, Save, BadgePercent, Zap, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
+import { Building2, LogOut, ExternalLink, AlertTriangle, CheckCircle2, Shield, Calendar, Sparkles, FileText, RefreshCcw, Info } from 'lucide-react';
 
-const supabase = createClient('https://kygynasotwfhuqfiqgzj.supabase.co', 'sb_publishable_3HBDFOO2eCMowpwYnw2Pmw_L3Enp3N-');
+// Conexión segura por variables de entorno [cite: 435]
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+const STATUS_META = {
+    open: { label: 'Abierta', className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' },
+    upcoming: { label: 'Próxima', className: 'bg-amber-500/15 text-amber-300 border border-amber-500/25' },
+    closed: { label: 'Cerrada', className: 'bg-rose-500/15 text-rose-300 border border-rose-500/25' }
+};
+
+const MATCH_META = {
+    apta_clara: { label: 'Apta clara', className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' },
+    apta_probable: { label: 'Apta probable', className: 'bg-blue-500/15 text-blue-300 border border-blue-500/25' },
+    requiere_revision: { label: 'Requiere revisión', className: 'bg-amber-500/15 text-amber-300 border border-amber-500/25' },
+    descartada: { label: 'Descartada', className: 'bg-rose-500/15 text-rose-300 border border-rose-500/25' }
+};
+
+// --- MOTOR DE MATCHING REAL [cite: 358-365] ---
+function calculateMatch(ayuda, profile) {
+    let score = 0;
+    const reasons = [];
+    const blockers = [];
+    if (!profile) return { score: 0, reasons: [], blockers: [], classification: 'requiere_revision' };
+
+    const territory = ayuda.territory || [];
+    if (territory.includes('nacional') || territory.includes(profile.province?.toLowerCase())) {
+        score += 40; reasons.push('Ubicación geográfica compatible');
+    } else { blockers.push('Fuera de ámbito territorial'); }
+
+    if (profile.employees_count >= (ayuda.min_employees || 0) && profile.employees_count <= (ayuda.max_employees || 999)) {
+        score += 30; reasons.push('Tramo de empleados correcto');
+    } else { blockers.push('Rango de empleados fuera de límites'); }
+
+    if (ayuda.estado === 'closed') { score = 0; blockers.push('Convocatoria cerrada'); }
+
+    score = Math.min(100, score);
+    let classification = score > 70 ? 'apta_clara' : score > 40 ? 'apta_probable' : 'requiere_revision';
+    if (score === 0) classification = 'descartada';
+
+    return { score, reasons, blockers, classification };
+}
 
 export default function App() {
-    const [solicitudes, setSolicitudes] = useState([]);
+    const [session, setSession] = useState(null);
+    const [profile, setProfile] = useState(null);
+    const [ayudas, setAyudas] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [seleccionado, setSeleccionado] = useState(null);
-    const [vista, setVista] = useState('ayudas');
-    const [regAbierta, setRegAbierta] = useState(null);
-    const [mostrarPin, setMostrarPin] = useState(false);
-    const [pinIngresado, setPinIngresado] = useState("");
-    const [pinObjetivo, setPinObjetivo] = useState("");
-    const [accionPendiente, setAccionPendiente] = useState(null);
-    const [verRequisitos, setVerRequisitos] = useState(false);
-
-    const contactar = (asunto) => {
-        window.location.href = `mailto:jose@aulagentia.eu?subject=${encodeURIComponent(asunto)}`;
-        alert("📧 Solicitud enviada al asesor: " + asunto);
-    };
+    const [authMode, setAuthMode] = useState('login');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [selectedId, setSelectedId] = useState(null);
 
     useEffect(() => {
-        const fetch = async () => {
-            const { data } = await supabase.from('solicitudes').select('*');
-            setSolicitudes(data || []);
-            setLoading(false);
-        };
-        fetch();
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            if (session) loadData(session.user.id);
+            else setLoading(false);
+        });
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            if (session) loadData(session.user.id);
+        });
+        return () => subscription.unsubscribe();
     }, []);
 
-    const verificarPin = () => {
-        if (pinIngresado === pinObjetivo) {
-            if (accionPendiente) accionPendiente();
-            setMostrarPin(false);
-            setPinIngresado("");
-        }
-    };
+    async function loadData(userId) {
+        setLoading(true);
+        const { data: prof } = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+        const { data: ayu } = await supabase.from('ayudas').select('*').order('updated_at', { ascending: false });
+        setProfile(prof || { company_name: 'Perfil Nuevo', employees_count: 1, province: 'valencia' });
+        setAyudas(ayu || []);
+        setLoading(false);
+    }
 
-    const current = seleccionado ? solicitudes.find(s => s.id === seleccionado.id) : null;
+    async function handleAuth(e) {
+        e.preventDefault();
+        const { error } = authMode === 'login'
+            ? await supabase.auth.signInWithPassword({ email, password })
+            : await supabase.auth.signUp({ email, password });
+        if (error) alert(error.message);
+    }
 
-    const NORMAS = [
-        { id: '1', sec: 'TODOS', n: "LOPD / RGPD", m: "20M€", p: ["Cifrado de datos", "Contratos confidencialidad", "Destrucción papel", "Registro actividades"] },
-        { id: '2', sec: 'TODOS', n: "Prevención Riesgos", m: "800k€", p: ["Evaluación puestos", "Formación plantilla", "Entrega EPIs", "Vigilancia salud"] },
-        { id: '3', sec: 'HOSTELERÍA', n: "Sanidad (APPCC)", m: "600k€", p: ["Registro temperaturas", "Plan desinfección", "Control proveedores", "Puntos críticos"] },
-        { id: '4', sec: 'TALLER', n: "Residuos Aceite", m: "1.2M€", p: ["Gestor autorizado", "Libro registro", "Contenedores estancos", "Declaración anual"] },
-        { id: '5', sec: 'COMERCIO', n: "Hojas Reclamación", m: "50k€", p: ["Cartel visible", "Talonario oficial", "Precios expuestos", "Protocolo respuesta"] }
-    ];
+    const ayudasConMatch = useMemo(() => {
+        return ayudas.map(a => ({ ...a, match: calculateMatch(a, profile) }))
+            .sort((a, b) => b.match.score - a.match.score);
+    }, [ayudas, profile]);
 
-    if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center text-blue-500 font-black uppercase italic">Cargando Radar...</div>;
+    const selectedHelp = ayudasConMatch.find(a => a.id === selectedId) || ayudasConMatch[0];
+
+    if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-blue-400 font-bold uppercase italic tracking-widest">Iniciando Radar Gestión V2...</div>;
+
+    if (!session) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+                <div className="w-full max-w-md bg-slate-900 border border-slate-800 p-10 rounded-[2rem] shadow-2xl">
+                    <div className="flex items-center gap-4 mb-8">
+                        <Building2 className="text-blue-500" size={40} />
+                        <div>
+                            <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter">Radar Gestión</h1>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Security Layer Active</p>
+                        </div>
+                    </div>
+                    <form onSubmit={handleAuth} className="space-y-4">
+                        <input type="email" placeholder="EMAIL" className="w-full p-4 bg-black border border-slate-800 rounded-xl text-white outline-none focus:border-blue-500" value={email} onChange={e => setEmail(e.target.value)} required />
+                        <input type="password" placeholder="CONTRASEÑA" className="w-full p-4 bg-black border border-slate-800 rounded-xl text-white outline-none focus:border-blue-500" value={password} onChange={e => setPassword(e.target.value)} required />
+                        <button className="w-full py-4 bg-blue-600 text-white font-black rounded-xl uppercase italic shadow-lg hover:bg-blue-500 transition-all">
+                            {authMode === 'login' ? 'Acceder al Panel' : 'Crear Cuenta Profesional'}
+                        </button>
+                    </form>
+                    <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="w-full mt-6 text-slate-500 text-[10px] font-bold uppercase tracking-widest hover:text-white transition-all">
+                        {authMode === 'login' ? '¿No tienes acceso? Solicítalo aquí' : '¿Ya eres usuario? Identifícate'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen bg-[#020617] text-slate-200 p-4 md:p-8 font-sans">
-
-            {mostrarPin && (
-                <div className="fixed inset-0 bg-black/95 z-[110] flex items-center justify-center p-4">
-                    <div className="bg-[#0f172a] border border-slate-800 p-10 rounded-[2rem] max-w-sm w-full text-center">
-                        <KeySquare size={40} className="text-blue-500 mx-auto mb-4" />
-                        <input type="password" value={pinIngresado} onChange={(e) => setPinIngresado(e.target.value)} className="bg-slate-900 border border-slate-800 text-white text-3xl text-center w-full py-4 rounded-xl mb-4 outline-none" placeholder="****" autoFocus />
-                        <button onClick={verificarPin} className="w-full py-4 bg-white text-black rounded-xl font-black uppercase italic">Entrar</button>
-                    </div>
-                </div>
-            )}
-
-            <div className="max-w-6xl mx-auto">
-                <header className="mb-10 flex items-center justify-between border-b border-slate-800 pb-8">
+        <div className="min-h-screen bg-slate-950 text-slate-200">
+            <div className="mx-auto max-w-7xl p-4 md:p-8">
+                {/* Dashboard Ejecutivo [cite: 312] */}
+                <header className="mb-8 bg-slate-900/80 p-6 rounded-3xl border border-slate-800 flex flex-wrap justify-between items-center gap-6">
                     <div className="flex items-center gap-4">
-                        <Building2 size={32} className="text-blue-500" />
-                        <h1 className="text-2xl font-black uppercase italic tracking-tighter text-white">Radar <span className="text-blue-500">Gestión</span></h1>
+                        <div className="p-3 bg-blue-500/15 rounded-2xl"><Building2 className="text-blue-500" size={32} /></div>
+                        <div>
+                            <h1 className="text-2xl font-black uppercase italic tracking-tighter text-white">Radar Gestión</h1>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Sistema de priorización y seguimiento</p>
+                        </div>
                     </div>
-                    <select value={seleccionado ? seleccionado.id : "admin"} onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "admin") { setPinObjetivo("ADMIN1"); setAccionPendiente(() => () => setSeleccionado(null)); }
-                        else { const s = solicitudes.find(x => x.id === parseInt(val)); setPinObjetivo(s.clave); setAccionPendiente(() => () => setSeleccionado(s)); }
-                        setMostrarPin(true);
-                    }} className="bg-slate-900 text-white text-[10px] font-black p-3 rounded-xl border border-slate-800 uppercase outline-none">
-                        <option value="admin">ADMINISTRADOR</option>
-                        {solicitudes.map(s => <option key={s.id} value={s.id}>{s.empresa}</option>)}
-                    </select>
+                    <div className="flex items-center gap-4">
+                        <div className="text-right hidden sm:block">
+                            <p className="text-[9px] text-slate-500 uppercase font-black">Usuario</p>
+                            <p className="text-xs font-bold text-white">{session.user.email}</p>
+                        </div>
+                        <button onClick={() => supabase.auth.signOut()} className="p-3 bg-rose-600/10 text-rose-500 rounded-xl border border-rose-500/20 hover:bg-rose-600 hover:text-white transition-all"><LogOut size={20} /></button>
+                    </div>
                 </header>
 
-                {!seleccionado ? (
-                    <div className="bg-[#0f172a] rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
-                        {solicitudes.map(s => (
-                            <div key={s.id} className="p-6 border-b border-slate-800/50 flex justify-between items-center hover:bg-slate-800/20 transition-all">
-                                <div><p className="text-white font-bold">{s.empresa}</p><p className="text-slate-500 text-[10px] uppercase font-black">{s.sector} • {s.empleados} empleados</p></div>
-                                <button onClick={() => { setPinObjetivo(s.clave); setAccionPendiente(() => () => setSeleccionado(s)); setMostrarPin(true); }} className="bg-slate-800 px-5 py-2 rounded-xl text-[10px] font-black uppercase italic hover:bg-white hover:text-black transition-all">Auditar</button>
-                            </div>
+                <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-8">
+                    {/* Radar de Oportunidades [cite: 319] */}
+                    <aside className="space-y-4">
+                        <h3 className="text-white font-black uppercase italic tracking-widest text-xs mb-6 px-2 flex items-center gap-2"> <Sparkles size={14} className="text-blue-400" /> Oportunidades Detectadas</h3>
+                        {ayudasConMatch.map(ayu => (
+                            <button key={ayu.id} onClick={() => setSelectedId(ayu.id)} className={`w-full p-6 rounded-[2rem] border text-left transition-all ${selectedId === ayu.id ? 'bg-blue-600 border-blue-400 shadow-xl scale-[1.02]' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`}>
+                                <div className="flex gap-2 mb-4">
+                                    <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${STATUS_META[ayu.estado]?.className}`}>{STATUS_META[ayu.estado]?.label}</span>
+                                    <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${MATCH_META[ayu.match.classification]?.className}`}>{MATCH_META[ayu.match.classification]?.label}</span>
+                                </div>
+                                <h3 className="font-black text-white uppercase italic text-sm leading-tight mb-1">{ayu.titulo}</h3>
+                                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest">{ayu.organismo}</p>
+                                <div className="mt-6 flex justify-between items-end">
+                                    <div><p className="text-[8px] text-slate-400 uppercase font-black mb-1">Score de Encaje</p><p className="text-2xl font-black italic tracking-tighter">{ayu.match.score}%</p></div>
+                                    <p className="text-[9px] font-black uppercase italic opacity-60">Ver Ficha Técnica</p>
+                                </div>
+                            </button>
                         ))}
-                    </div>
-                ) : (
-                    <div className="animate-in fade-in duration-500">
-                        <div className="flex justify-between items-center mb-8 bg-slate-900/40 p-6 rounded-3xl border border-slate-800">
-                            <div>
-                                <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">{current.empresa}</h2>
-                                <p className="text-blue-500 font-black text-[10px] uppercase tracking-widest">{current.sector}</p>
-                            </div>
-                            <button onClick={() => { setSeleccionado(null); setVerRequisitos(false); }} className="px-5 py-3 bg-red-500/10 text-red-500 rounded-xl uppercase text-[10px] font-black italic border border-red-500/20">Salir</button>
-                        </div>
+                    </aside>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="space-y-4">
-                                <button onClick={() => setVista('ayudas')} className={`w-full p-6 rounded-[2rem] text-[10px] font-black uppercase border transition-all text-left ${vista === 'ayudas' ? 'bg-blue-600 text-white border-blue-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>💰 Ayudas y Subvenciones</button>
-                                <button onClick={() => setVista('normas')} className={`w-full p-6 rounded-[2rem] text-[10px] font-black uppercase border transition-all text-left ${vista === 'normas' ? 'bg-emerald-600 text-white border-emerald-400 shadow-lg' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>🛡️ Cumplimiento Legal</button>
-                            </div>
+                    {/* Ficha Profesional [cite: 337] */}
+                    <main className="bg-slate-900 border border-slate-800 rounded-[3rem] p-8 md:p-12 shadow-2xl overflow-hidden relative">
+                        {selectedHelp ? (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
+                                    <div>
+                                        <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter leading-none mb-2">{selectedHelp.titulo}</h2>
+                                        <p className="text-blue-500 font-black text-[10px] uppercase tracking-[0.2em]">{selectedHelp.organismo}</p>
+                                    </div>
+                                    <div className="bg-slate-950 p-6 rounded-3xl border border-slate-800 text-center min-w-[120px]">
+                                        <p className="text-[9px] text-slate-500 uppercase font-black mb-1 tracking-widest">Encaje Real</p>
+                                        <p className="text-4xl font-black italic text-white tracking-tighter">{selectedHelp.match.score}%</p>
+                                    </div>
+                                </div>
 
-                            <div className="lg:col-span-2">
-                                {vista === 'ayudas' ? (
-                                    <div className="space-y-6">
-                                        <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
-                                            <h3 className="text-white font-black uppercase italic mb-6 tracking-widest text-sm text-emerald-500">Oportunidades Destacadas</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+                                    <div className="bg-black/40 p-5 rounded-2xl border border-white/5 italic">
+                                        <p className="text-[9px] text-slate-500 uppercase font-black mb-2 flex items-center gap-2"><Calendar size={12} /> Plazo de Solicitud</p>
+                                        <p className="text-white font-black text-sm">{selectedHelp.deadline_at || 'PERMANENTE'}</p>
+                                    </div>
+                                    <div className="bg-black/40 p-5 rounded-2xl border border-white/5 italic">
+                                        <p className="text-[9px] text-slate-500 uppercase font-black mb-2 flex items-center gap-2"><Sparkles size={12} /> Importe Estimado</p>
+                                        <p className="text-emerald-500 font-black text-sm uppercase">{selectedHelp.amount_summary}</p>
+                                    </div>
+                                    <div className="bg-black/40 p-5 rounded-2xl border border-white/5 italic">
+                                        <p className="text-[9px] text-slate-500 uppercase font-black mb-2 flex items-center gap-2"><RefreshCcw size={12} /> Actualización</p>
+                                        <p className="text-white font-black text-sm uppercase">Día {new Date(selectedHelp.updated_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
 
-                                            <div className="bg-emerald-600/10 border border-emerald-500/30 p-8 rounded-3xl border-l-[10px] border-l-emerald-500 mb-6">
-                                                <div className="flex justify-between items-start mb-6">
-                                                    <h4 className="text-white font-black text-xl uppercase italic leading-tight">Ayudas a la contratación:<br /><span className="text-emerald-500 text-sm">CONTRATOS EN ALTERNANCIA</span></h4>
-                                                    <Zap className="text-emerald-500" size={32} />
-                                                </div>
-                                                <p className="text-slate-300 text-sm mb-8 italic leading-relaxed text-balance">Ahorra entre <span className="text-white font-black underline">7.000€ y 14.000€</span> al año por trabajador contratado.</p>
+                                <div className="space-y-6 mb-12">
+                                    <div className="bg-blue-600/5 p-8 rounded-3xl border border-blue-500/10 italic">
+                                        <h4 className="text-blue-400 font-black text-xs uppercase mb-4 tracking-widest flex items-center gap-2"><Sparkles size={16} /> Análisis de Oportunidad para {profile.company_name}</h4>
+                                        <ul className="space-y-3">
+                                            {selectedHelp.match.reasons.map((r, i) => <li key={i} className="text-slate-300 text-xs flex items-center gap-3"><CheckCircle2 size={16} className="text-emerald-500 shrink-0" /> {r}</li>)}
+                                            {selectedHelp.match.blockers.map((b, i) => <li key={i} className="text-rose-400 text-xs flex items-center gap-3"><AlertTriangle size={16} className="shrink-0" /> {b}</li>)}
+                                        </ul>
+                                    </div>
 
-                                                {!verRequisitos ? (
-                                                    <button onClick={() => setVerRequisitos(true)} className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase italic text-xs shadow-xl transition-all">Saber más y Ver Requisitos</button>
-                                                ) : (
-                                                    <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-                                                        <div className="grid grid-cols-1 gap-4">
-                                                            <div className="bg-black/40 p-6 rounded-2xl border border-white/5 italic">
-                                                                <p className="text-emerald-500 font-black text-[10px] uppercase mb-4 tracking-widest">💰 Nómina y Cotización:</p>
-                                                                <p className="text-slate-300 text-xs mb-2 leading-relaxed">• El 1er año pagas el 65% del convenio. El 2º año el 85%.</p>
-                                                                <p className="text-slate-300 text-xs leading-relaxed">• El empleado cotiza al 100% de su jubilación aunque tú pagues menos nómina.</p>
-                                                            </div>
-                                                            <div className="bg-blue-600/10 p-6 rounded-2xl border border-blue-500/20 italic">
-                                                                <p className="text-blue-400 font-black text-[10px] uppercase mb-4 tracking-widest">⚡ Beneficio Seguridad Social:</p>
-                                                                <p className="text-slate-300 text-xs mt-2 leading-relaxed">Pagas 50€/mes, pero la SS te abona 90€/mes. <br /> <span className="text-white font-black text-sm">¡Ganas +40€/mes por tener al trabajador!</span></p>
-                                                            </div>
-                                                            <div className="bg-amber-600/10 p-6 rounded-2xl border border-amber-500/20 italic">
-                                                                <p className="text-amber-500 font-black text-[10px] uppercase mb-4 tracking-widest">🏆 Bono de Permanencia:</p>
-                                                                <p className="text-slate-300 text-xs leading-relaxed">• Bono de <span className="text-white font-bold">1.500€/año durante 3 años</span> si lo haces fijo.</p>
-                                                                <p className="text-slate-400 text-[10px] mt-2 leading-tight">Si se va o lo echas en los primeros 2 años de formación, <span className="text-white underline">no tienes que devolver nada</span>.</p>
-                                                            </div>
-                                                            <div className="bg-red-600/10 p-6 rounded-2xl border border-red-500/20 italic border-l-4 border-l-red-500">
-                                                                <p className="text-red-400 font-black text-[10px] uppercase mb-4 tracking-widest flex items-center gap-2"><AlertCircle size={14} /> Caso Hijos:</p>
-                                                                <p className="text-slate-300 text-xs leading-relaxed">• Puedes contratarlos, pero <span className="text-white font-bold underline">no tendrán derecho a cobrar paro</span>.</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex gap-4">
-                                                            <button onClick={() => setVerRequisitos(false)} className="flex-1 py-4 bg-slate-800 text-slate-400 rounded-xl font-black uppercase italic text-[10px]">Cerrar</button>
-                                                            <button onClick={() => contactar("Solicitud Contrato Alternancia")} className="flex-1 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase italic text-[10px] shadow-lg">Saber más</button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl border-l-4 border-l-blue-500">
-                                                    <h4 className="text-white font-black text-xs mb-4 uppercase italic">Kit Digital 2024</h4>
-                                                    <p className="text-slate-500 text-[11px] mb-6 italic">Bonos de digitalización para autónomos y PYMES.</p>
-                                                    <button onClick={() => contactar("Saber más Kit Digital")} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase italic">Saber más</button>
-                                                </div>
-                                                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl border-l-4 border-l-slate-700">
-                                                    <h4 className="text-white font-black text-xs mb-4 uppercase italic">Otros Trámites</h4>
-                                                    <p className="text-slate-500 text-[11px] mb-6 italic">Consulta otras líneas de subvención activas en tu comunidad.</p>
-                                                    <button onClick={() => contactar("Consultar otras ayudas")} className="w-full py-4 bg-slate-800 hover:bg-white hover:text-black text-white rounded-xl text-[10px] font-black uppercase italic transition-all">Saber más</button>
-                                                </div>
-                                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="bg-slate-950/50 p-8 rounded-3xl border border-slate-800 italic">
+                                            <p className="text-white font-black text-xs uppercase mb-6 flex items-center gap-2"><FileText size={16} className="text-blue-500" /> Requisitos Clave</p>
+                                            <ul className="space-y-3 text-slate-400 text-xs">
+                                                {selectedHelp.requirements.map((r, i) => <li key={i} className="flex gap-2"><span>•</span> {r}</li>)}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-slate-950/50 p-8 rounded-3xl border border-slate-800 italic">
+                                            <p className="text-white font-black text-xs uppercase mb-6 flex items-center gap-2"><FileText size={16} className="text-emerald-500" /> Documentación Necesaria</p>
+                                            <ul className="space-y-3 text-slate-400 text-xs">
+                                                {selectedHelp.documents.map((d, i) => <li key={i} className="flex gap-2"><span>•</span> {d}</li>)}
+                                            </ul>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        <h3 className="text-white font-black uppercase italic mb-6 tracking-widest text-sm text-emerald-500">Auditoría Normativa</h3>
-                                        {NORMAS.filter(n => n.sec === 'TODOS' || (current.sector && n.sec === current.sector.toUpperCase())).map(n => (
-                                            <div key={n.id} className="bg-[#0f172a] border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all shadow-xl">
-                                                <button onClick={() => setRegAbierta(regAbierta === n.id ? null : n.id)} className="w-full p-6 flex justify-between items-center">
-                                                    <span className="text-white font-black uppercase text-[11px] italic tracking-tighter">{n.n}</span>
-                                                    <ChevronDown size={18} className={regAbierta === n.id ? "rotate-180 transition-all text-blue-500" : "text-slate-600"} />
-                                                </button>
-                                                {regAbierta === n.id && (
-                                                    <div className="p-8 bg-black/30 border-t border-slate-800 italic animate-in slide-in-from-top-2">
-                                                        <p className="text-[10px] text-blue-500 uppercase font-black mb-4 italic tracking-widest">Hoja de Ruta de Implantación:</p>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6 text-balance">
-                                                            {n.p.map((p, i) => <p key={i} className="text-slate-400 text-[11px] flex items-center gap-2"> <Info size={12} className="text-blue-500/50" /> {p}</p>)}
-                                                        </div>
-                                                        <div className="pt-6 border-t border-slate-800 flex justify-between items-center">
-                                                            <div><p className="text-[9px] text-slate-500 uppercase font-black italic mb-1">Multa Máxima</p><p className="text-red-500 font-black text-2xl tracking-tighter italic">{n.m}</p></div>
-                                                            <button onClick={() => contactar(`Regularizar ${n.n}`)} className="bg-white text-black px-6 py-3 rounded-xl text-[10px] font-black uppercase italic shadow-lg hover:bg-blue-600 hover:text-white transition-all">Saber más</button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row gap-4">
+                                    <a href={selectedHelp.fuente_oficial_url} target="_blank" className="flex-1 py-5 bg-white text-black rounded-2xl font-black uppercase italic flex justify-center items-center gap-3 shadow-xl hover:bg-blue-500 hover:text-white transition-all">
+                                        <ExternalLink size={20} /> Consultar Fuente Oficial
+                                    </a>
+                                    <button onClick={() => window.location.href = `mailto:jose@aulagentia.eu?subject=Tramitar: ${selectedHelp.titulo}`} className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-black uppercase italic flex justify-center items-center gap-3 shadow-xl hover:bg-blue-500 transition-all">
+                                        Solicitar Tramitación
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                )}
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-30">
+                                <Sparkles size={64} className="text-slate-600" />
+                                <p className="text-xs uppercase font-black italic tracking-widest text-slate-500">Selecciona una oportunidad del radar para iniciar el análisis</p>
+                            </div>
+                        )}
+                    </main>
+                </div>
             </div>
         </div>
     );

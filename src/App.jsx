@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Building2, LogOut, ExternalLink, AlertTriangle, CheckCircle2, Shield, Calendar, Sparkles, FileText, RefreshCcw, Info } from 'lucide-react';
 
-// Configuración de conexión sincronizada con tu Connect Prompt
+// Configuración de conexión técnica verificada
 const supabaseUrl = "https://kygynasotwfhuqfiqgzj.supabase.co";
 const supabaseAnonKey = "sb_publishable_3HBDFOO2eCMowpwYnw2Pmw_L3Enp3N-";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -92,6 +92,13 @@ export default function App() {
 
     const selectedHelp = ayudasConMatch.find(a => a.id === selectedId) || ayudasConMatch[0];
 
+    const handleConsultation = () => {
+        if (!selectedHelp) return;
+        const subject = encodeURIComponent(`Consulta Radar Gestión: ${selectedHelp.titulo}`);
+        const body = encodeURIComponent(`Hola, solicito estudio de viabilidad para la convocatoria "${selectedHelp.titulo}" publicada por ${selectedHelp.organismo}.\n\nEmpresa: ${profile?.company_name || 'No especificada'}`);
+        window.location.href = `mailto:jose@aulagentia.eu?subject=${subject}&body=${body}`;
+    };
+
     if (loading) return (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-blue-400 font-black uppercase italic tracking-widest gap-4">
             <RefreshCcw className="animate-spin" size={32} /> Sincronizando Radar Gestión...
@@ -150,7 +157,7 @@ export default function App() {
                             <h3 className="text-white font-black uppercase italic tracking-widest text-[10px] flex items-center gap-2"> <Sparkles size={14} className="text-blue-400" /> Monitor de Boletines</h3>
                             <span className="text-[9px] font-bold text-slate-500 uppercase">{ayudasConMatch.length} Publicaciones</span>
                         </div>
-                        <div className="space-y-3 overflow-y-auto max-h-[70vh] pr-2 custom-scrollbar">
+                        <div className="space-y-3 overflow-y-auto max-h-[70vh] pr-2">
                             {ayudasConMatch.map(ayu => (
                                 <button key={ayu.id} onClick={() => setSelectedId(ayu.id)} className={`w-full p-5 rounded-[1.8rem] border text-left transition-all duration-300 ${selectedId === ayu.id ? 'bg-blue-600 border-blue-400 shadow-2xl scale-[1.02]' : 'bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/50'}`}>
                                     <div className="flex gap-2 mb-3">
@@ -229,32 +236,12 @@ export default function App() {
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col gap-4 pt-4">
-                                    <a
-                                        href={`mailto:jose@aulagentia.eu?subject=Consulta Técnica: ${selectedHelp.titulo}`}
-                                        className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase italic flex justify-center items-center gap-3 shadow-2xl hover:bg-blue-500 transition-all transform hover:scale-[1.01] text-lg text-center"
-                                    >
-                                        <RefreshCcw size={24} className="animate-pulse" /> Consultar Viabilidad con mi Asesoría
-                                    </a>
-
-                                    <div className="flex flex-col sm:flex-row gap-4 items-center">
-                                        <a
-                                            href={selectedHelp.fuente_oficial_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex-1 py-3 bg-slate-800/50 text-slate-500 rounded-xl font-bold uppercase text-[9px] flex justify-center items-center gap-2 border border-slate-800 hover:bg-slate-700 hover:text-slate-300 transition-all italic text-center"
-                                        >
-                                            <ExternalLink size={14} /> Referencia Técnica del Boletín
-                                        </a>
-
-                                        <div className="flex-1 flex items-center gap-2 px-2 bg-amber-500/5 py-3 rounded-xl border border-amber-500/10">
-                                            <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-                                            <p className="text-[9px] text-slate-500 font-medium leading-tight italic">
-                                                Advertencia: El análisis es informativo. La gestión final requiere la validación técnica de su despacho profesional.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
+                                <button
+                                    onClick={handleConsultation}
+                                    className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase italic flex justify-center items-center gap-3 shadow-2xl hover:bg-blue-500 transition-all transform hover:scale-[1.01] text-lg text-center cursor-pointer"
+                                >
+                                    <RefreshCcw size={24} className="animate-pulse" /> Consultar Viabilidad con mi Asesoría
+                                </button>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-center space-y-6 opacity-40">

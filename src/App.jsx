@@ -4,7 +4,7 @@ import { Building2, LogOut, ExternalLink, AlertTriangle, CheckCircle2, Shield, C
 
 // Conexión profesional con tus llaves de Supabase
 const supabaseUrl = "https://kygynasotwfhuqfiqgzj.supabase.co";
-const supabaseAnonKey = "sb_publishable_3HBDFO02eCMowpwYnw2Pmw_L3Enp3N-";
+const supabaseAnonKey = "sb_publishable_3HBDFOO2eCMowpwYnw2Pmw_L3Enp3N-";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const STATUS_META = {

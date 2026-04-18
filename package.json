@@ -10,7 +10,7 @@
     "start": "node server/server.cjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.103.0",
+    "@supabase/supabase-js": "^2.103.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "lucide-react": "^0.344.0",

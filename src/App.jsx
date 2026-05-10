@@ -2164,8 +2164,179 @@ function CommercialDashboardPanel() {
     );
 }
 
+
+function ManagerLoginGate({ onLogin, loading, error, onOpenPortal }) {
+    const [pin, setPin] = useState('');
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        onLogin(pin);
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+            <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8">
+                <div className="text-center mb-8">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h1 className="text-2xl font-bold">Radar Gestión Valencia</h1>
+                    <p className="text-slate-400 mt-2">Acceso al Entorno Gestor</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">PIN de acceso</label>
+                        <input
+                            type="password"
+                            value={pin}
+                            onChange={(event) => setPin(event.target.value)}
+                            className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Introduce el PIN"
+                            autoComplete="current-password"
+                            disabled={loading}
+                        />
+                    </div>
+
+                    {error && (
+                        <div className="rounded-xl border border-red-800 bg-red-950/50 text-red-200 px-4 py-3 text-sm">
+                            {error}
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={loading || !pin}
+                        className="w-full px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:cursor-not-allowed font-semibold transition-colors"
+                    >
+                        {loading ? 'Validando...' : 'Entrar'}
+                    </button>
+                </form>
+
+                <button
+                    type="button"
+                    onClick={onOpenPortal}
+                    className="w-full mt-4 px-4 py-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors"
+                >
+                    Abrir Portal Entidad sin PIN
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function App() {
     const [view, setView] = useState('radar');
+    const [managerAuthenticated, setManagerAuthenticated] = useState(false);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [authSubmitting, setAuthSubmitting] = useState(false);
+    const [authError, setAuthError] = useState('');
+
+    const managerInternalView = view !== 'portal';
+
+    useEffect(() => {
+        let active = true;
+
+        fetch('/api/auth/manager/session', { credentials: 'same-origin' })
+            .then(response => response.json())
+            .then(data => {
+                if (!active) return;
+                setManagerAuthenticated(Boolean(data.authenticated));
+            })
+            .catch(() => {
+                if (!active) return;
+                setManagerAuthenticated(false);
+            })
+            .finally(() => {
+                if (!active) return;
+                setAuthLoading(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        const originalFetch = window.fetch.bind(window);
+
+        const isProtectedApiUrl = (input) => {
+            const rawUrl = typeof input === 'string' ? input : input?.url;
+            if (!rawUrl) return false;
+
+            try {
+                const parsed = new URL(rawUrl, window.location.origin);
+                return (
+                    parsed.pathname.startsWith('/api/manager/') ||
+                    parsed.pathname.startsWith('/api/radar/') ||
+                    parsed.pathname.startsWith('/api/aids/') ||
+                    parsed.pathname.startsWith('/api/compliance/')
+                );
+            } catch {
+                return false;
+            }
+        };
+
+        window.fetch = async (...args) => {
+            const response = await originalFetch(...args);
+
+            if (response.status === 401 && isProtectedApiUrl(args[0])) {
+                setManagerAuthenticated(false);
+                setAuthError('Sesión caducada. Vuelve a introducir el PIN.');
+            }
+
+            return response;
+        };
+
+        return () => {
+            window.fetch = originalFetch;
+        };
+    }, []);
+
+    const handleManagerLogin = async (pin) => {
+        setAuthSubmitting(true);
+        setAuthError('');
+
+        try {
+            const response = await fetch('/api/auth/manager/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ pin })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.authenticated !== true) {
+                setManagerAuthenticated(false);
+                setAuthError(data.message || 'No se ha podido validar el PIN.');
+                return;
+            }
+
+            setManagerAuthenticated(true);
+            setAuthError('');
+        } catch {
+            setManagerAuthenticated(false);
+            setAuthError('No se ha podido conectar con el servidor de autenticación.');
+        } finally {
+            setAuthSubmitting(false);
+        }
+    };
+
+    const handleManagerLogout = async () => {
+        try {
+            await fetch('/api/auth/manager/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+        } catch {}
+
+        setManagerAuthenticated(false);
+        setAuthError('');
+        setView('radar');
+    };
 
     useEffect(() => {
         // Forzamos explícitamente la vista a 'radar' al montar el componente.
@@ -2173,6 +2344,29 @@ export default function App() {
         // (Hot Module Replacement) o que quede guardado en la memoria del navegador.
         setView('radar');
     }, []);
+
+
+    if (managerInternalView && authLoading) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-slate-300">Comprobando sesión de gestor...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (managerInternalView && !managerAuthenticated) {
+        return (
+            <ManagerLoginGate
+                onLogin={handleManagerLogin}
+                loading={authSubmitting}
+                error={authError}
+                onOpenPortal={() => setView('portal')}
+            />
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#050B14] text-slate-200 font-sans selection:bg-indigo-500/30">
@@ -2193,6 +2387,15 @@ export default function App() {
                     <div className="flex flex-col sm:items-end gap-2">
                         <span className="inline-flex bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-3.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-widest shadow-sm">
                             {view === 'portal' ? 'PORTAL ENTIDAD' : 'ENTORNO GESTOR'}
+                            {managerAuthenticated && view !== 'portal' && (
+                                <button
+                                    type="button"
+                                    onClick={handleManagerLogout}
+                                    className="ml-3 px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-xs font-semibold"
+                                >
+                                    Salir
+                                </button>
+                            )}
                         </span>
                         <span className="text-slate-400 text-xs font-medium flex items-center gap-1.5">
                             <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>

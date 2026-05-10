@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -564,7 +565,334 @@ function getClientCatalog() {
     }
 }
 
+
+// === AUTH GESTOR V1 START ===
+function loadLocalEnvIfPresent() {
+    try {
+        const envPath = path.join(__dirname, '.env');
+        if (!fs.existsSync(envPath)) return;
+
+        const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+
+            const separatorIndex = trimmed.indexOf('=');
+            if (separatorIndex <= 0) continue;
+
+            const key = trimmed.slice(0, separatorIndex).trim();
+            let value = trimmed.slice(separatorIndex + 1).trim();
+
+            if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+                value = value.slice(1, -1);
+            }
+
+            if (key && process.env[key] === undefined) {
+                process.env[key] = value;
+            }
+        }
+    } catch (error) {
+        console.error('Local env loader error:', error.message);
+    }
+}
+
+loadLocalEnvIfPresent();
+
+const MANAGER_SESSION_COOKIE_NAME = 'rgv_manager_session';
+
+function getManagerSessionTtlHours() {
+    const parsed = Number(process.env.MANAGER_SESSION_TTL_HOURS || 8);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 8;
+}
+
+function isManagerAuthConfigured() {
+    return Boolean(process.env.MANAGER_ACCESS_PIN_HASH_SHA256 && process.env.MANAGER_SESSION_SECRET);
+}
+
+function sha256Hex(value) {
+    return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
+}
+
+function safeEqualHex(a, b) {
+    const left = String(a || '').trim();
+    const right = String(b || '').trim();
+
+    if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) return false;
+
+    const leftBuffer = Buffer.from(left, 'hex');
+    const rightBuffer = Buffer.from(right, 'hex');
+
+    if (leftBuffer.length !== rightBuffer.length) return false;
+
+    return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function safeEqualText(a, b) {
+    const leftBuffer = Buffer.from(String(a || ''), 'utf8');
+    const rightBuffer = Buffer.from(String(b || ''), 'utf8');
+
+    if (leftBuffer.length !== rightBuffer.length) return false;
+
+    return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function parseCookies(req) {
+    const header = req.headers.cookie || '';
+    const cookies = {};
+
+    for (const part of header.split(';')) {
+        const index = part.indexOf('=');
+        if (index === -1) continue;
+
+        const key = part.slice(0, index).trim();
+        const value = part.slice(index + 1).trim();
+
+        if (!key) continue;
+
+        try {
+            cookies[key] = decodeURIComponent(value);
+        } catch {
+            cookies[key] = value;
+        }
+    }
+
+    return cookies;
+}
+
+function serializeCookie(name, value, options = {}) {
+    const parts = [name + '=' + encodeURIComponent(value)];
+
+    if (options.maxAge !== undefined) parts.push('Max-Age=' + Math.floor(options.maxAge));
+    if (options.httpOnly) parts.push('HttpOnly');
+    if (options.secure) parts.push('Secure');
+    if (options.sameSite) parts.push('SameSite=' + options.sameSite);
+    if (options.path) parts.push('Path=' + options.path);
+
+    return parts.join('; ');
+}
+
+function createManagerSessionToken() {
+    const now = Math.floor(Date.now() / 1000);
+    const ttlSeconds = Math.floor(getManagerSessionTtlHours() * 60 * 60);
+
+    const payload = {
+        scope: 'manager',
+        iat: now,
+        exp: now + ttlSeconds
+    };
+
+    const payloadEncoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+
+    const signature = crypto
+        .createHmac('sha256', process.env.MANAGER_SESSION_SECRET || '')
+        .update(payloadEncoded)
+        .digest('base64url');
+
+    return payloadEncoded + '.' + signature;
+}
+
+function verifyManagerSessionToken(token) {
+    try {
+        if (!isManagerAuthConfigured()) return false;
+
+        const parts = String(token || '').split('.');
+        if (parts.length !== 2) return false;
+
+        const payloadEncoded = parts[0];
+        const signature = parts[1];
+
+        if (!payloadEncoded || !signature) return false;
+
+        const expectedSignature = crypto
+            .createHmac('sha256', process.env.MANAGER_SESSION_SECRET || '')
+            .update(payloadEncoded)
+            .digest('base64url');
+
+        if (!safeEqualText(signature, expectedSignature)) return false;
+
+        const payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf8'));
+
+        if (!payload || payload.scope !== 'manager') return false;
+
+        const now = Math.floor(Date.now() / 1000);
+        if (!payload.exp || Number(payload.exp) <= now) return false;
+
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function setManagerSessionCookie(res) {
+    const ttlSeconds = Math.floor(getManagerSessionTtlHours() * 60 * 60);
+    const token = createManagerSessionToken();
+
+    res.setHeader('Set-Cookie', serializeCookie(MANAGER_SESSION_COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: Boolean(process.env.VERCEL || process.env.NODE_ENV === 'production'),
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: ttlSeconds
+    }));
+}
+
+function clearManagerSessionCookie(res) {
+    res.setHeader('Set-Cookie', serializeCookie(MANAGER_SESSION_COOKIE_NAME, '', {
+        httpOnly: true,
+        secure: Boolean(process.env.VERCEL || process.env.NODE_ENV === 'production'),
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: 0
+    }));
+}
+
+function isManagerAuthenticated(req) {
+    const cookies = parseCookies(req);
+    return verifyManagerSessionToken(cookies[MANAGER_SESSION_COOKIE_NAME]);
+}
+
+function requireManagerAuth(req, res) {
+    return sendJson(res, 401, {
+        status: 'error',
+        error_code: 'MANAGER_AUTH_REQUIRED',
+        message: 'Acceso gestor requerido.'
+    });
+}
+
+function isProtectedManagerApiPath(pathname) {
+    return (
+        pathname === '/api/manager' ||
+        pathname.startsWith('/api/manager/') ||
+        pathname === '/api/radar' ||
+        pathname.startsWith('/api/radar/') ||
+        pathname === '/api/aids' ||
+        pathname.startsWith('/api/aids/') ||
+        pathname === '/api/compliance' ||
+        pathname.startsWith('/api/compliance/')
+    );
+}
+
+function readRequestJson(req, callback) {
+    let body = '';
+
+    req.on('data', chunk => {
+        body += chunk.toString('utf8');
+        if (body.length > 10000) req.destroy();
+    });
+
+    req.on('end', () => {
+        callback(parseJsonSafe(body) || {});
+    });
+
+    req.on('error', () => {
+        callback({});
+    });
+}
+
+function handleManagerAuthRoute(req, res, pathname) {
+    if (pathname === '/api/auth/manager/login') {
+        if (req.method !== 'POST') {
+            return sendJson(res, 405, {
+                status: 'error',
+                error_code: 'METHOD_NOT_ALLOWED',
+                message: 'Método no permitido.'
+            });
+        }
+
+        if (!isManagerAuthConfigured()) {
+            return sendJson(res, 503, {
+                status: 'error',
+                error_code: 'MANAGER_AUTH_NOT_CONFIGURED',
+                message: 'Autenticación de gestor no configurada.'
+            });
+        }
+
+        return readRequestJson(req, payload => {
+            const pin = payload.pin;
+
+            if (typeof pin !== 'string' || pin.length === 0) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'MANAGER_PIN_REQUIRED',
+                    message: 'PIN requerido.'
+                });
+            }
+
+            const receivedHash = sha256Hex(pin);
+            const expectedHash = process.env.MANAGER_ACCESS_PIN_HASH_SHA256;
+
+            if (!safeEqualHex(receivedHash, expectedHash)) {
+                return sendJson(res, 401, {
+                    status: 'error',
+                    error_code: 'INVALID_MANAGER_PIN',
+                    message: 'PIN incorrecto.'
+                });
+            }
+
+            setManagerSessionCookie(res);
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                authenticated: true
+            });
+        });
+    }
+
+    if (pathname === '/api/auth/manager/session') {
+        if (req.method !== 'GET') {
+            return sendJson(res, 405, {
+                status: 'error',
+                error_code: 'METHOD_NOT_ALLOWED',
+                message: 'Método no permitido.'
+            });
+        }
+
+        return sendJson(res, 200, {
+            status: 'ok',
+            authenticated: isManagerAuthenticated(req)
+        });
+    }
+
+    if (pathname === '/api/auth/manager/logout') {
+        if (req.method !== 'POST') {
+            return sendJson(res, 405, {
+                status: 'error',
+                error_code: 'METHOD_NOT_ALLOWED',
+                message: 'Método no permitido.'
+            });
+        }
+
+        clearManagerSessionCookie(res);
+
+        return sendJson(res, 200, {
+            status: 'ok',
+            authenticated: false
+        });
+    }
+
+    return sendJson(res, 404, {
+        status: 'error',
+        error_code: 'AUTH_ROUTE_NOT_FOUND',
+        message: 'Ruta de autenticación no encontrada.'
+    });
+}
+// === AUTH GESTOR V1 END ===
+
 const server = http.createServer((req, res) => {
+    const pathname = req.url.split('?')[0];
+
+    if (pathname.startsWith('/api/auth/manager/')) {
+        handleManagerAuthRoute(req, res, pathname);
+        return;
+    }
+
+    // AUTH V2 pendiente: /api/clients/entities queda público temporalmente para no romper Portal Entidad.
+    // En producción debe sustituirse por client_id controlado, token de cliente, magic link o endpoint público limitado.
+    if (isProtectedManagerApiPath(pathname) && !isManagerAuthenticated(req)) {
+        requireManagerAuth(req, res);
+        return;
+    }
+
 
     // API Route: GET /api/radar/items
     if (req.url.split('?')[0] === '/api/radar/items' && req.method === 'GET') {

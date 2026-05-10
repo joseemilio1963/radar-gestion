@@ -31,3 +31,7 @@ vite_runtime.log
 # Diagnostics and local validation outputs
 *.txt
 BACKUP_*.zip
+
+.env
+
+.env

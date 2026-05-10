@@ -9,7 +9,14 @@ const __dirname = path.dirname(__filename);
 
 const PORT = 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DB_PATH = path.join(__dirname, 'database.sqlite');
+const BUNDLED_DB_PATH = path.join(__dirname, 'database.sqlite');
+const RUNTIME_DB_PATH = process.env.VERCEL ? path.join('/tmp', 'database.sqlite') : BUNDLED_DB_PATH;
+
+if (process.env.VERCEL && fs.existsSync(BUNDLED_DB_PATH) && !fs.existsSync(RUNTIME_DB_PATH)) {
+    fs.copyFileSync(BUNDLED_DB_PATH, RUNTIME_DB_PATH);
+}
+
+const DB_PATH = RUNTIME_DB_PATH;
 
 // --- Helper Functions ---
 function generateId() {

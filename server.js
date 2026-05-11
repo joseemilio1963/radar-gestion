@@ -1481,9 +1481,17 @@ const server = http.createServer((req, res) => {
                     r.internal_notes,
                     p.sector_key AS sector_key,
                     p.package_status AS package_status,
-                    p.client_publish_status AS client_publish_status
+                    p.client_publish_status AS client_publish_status,
+                    i.summary AS source_summary,
+                    i.legal_reference AS legal_reference,
+                    i.source_name AS source_name,
+                    i.source_url AS source_url,
+                    i.amount_summary AS amount_summary,
+                    i.deadline_label AS deadline_label,
+                    i.eligibility_summary AS eligibility_summary
                 FROM client_interest_requests r
                 LEFT JOIN client_publication_packages p ON p.id = r.package_id
+                LEFT JOIN client_publication_package_items i ON i.id = r.package_item_id
                 ORDER BY COALESCE(r.updated_at, r.created_at) DESC, r.created_at DESC
             `).all();
 
@@ -1597,6 +1605,13 @@ const server = http.createServer((req, res) => {
                     sector_key: row.sector_key || catalogClient?.sector_key || null,
                     package_status: row.package_status || null,
                     client_publish_status: row.client_publish_status || null,
+                    summary: row.source_summary || null,
+                    legal_reference: row.legal_reference || null,
+                    source_name: row.source_name || null,
+                    source_url: row.source_url || null,
+                    amount_summary: row.amount_summary || null,
+                    deadline_label: row.deadline_label || null,
+                    eligibility_summary: row.eligibility_summary || null,
                     next_action_recommended: nextActionForRequest(row.request_status)
                 };
             });

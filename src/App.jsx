@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 
 function RadarPanel() {
     const [items, setItems] = useState([]);
@@ -877,6 +877,82 @@ function DetailField({ label, value }) {
     );
 }
 
+function formatHumanLabel(value) {
+    if (!value) return 'Sin dato';
+
+    const map = {
+        clinicas_privadas: 'Clínicas privadas',
+        peluqueria_estetica: 'Peluquería y estética',
+        alimentacion: 'Alimentación',
+        construccion: 'Construcción',
+        hosteleria: 'Hostelería',
+        comercio: 'Comercio',
+        metal: 'Metal',
+        oficinas: 'Oficinas',
+        talleres: 'Talleres',
+        transporte: 'Transporte',
+        pending_review: 'Pendiente de revisión',
+        approved: 'Aprobado',
+        published: 'Publicado',
+        aid_item: 'Ayuda / oportunidad',
+        compliance_obligation: 'Normativa',
+        BONIFICACION_INCENTIVO_CONTRATACION: 'Bonificación / incentivo de contratación',
+        TRAMITACION_AYUDA_SUBVENCION: 'Tramitación de ayuda o subvención'
+    };
+
+    const key = String(value);
+    if (map[key]) return map[key];
+
+    return key
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function OfficialReferenceBlock({ item, compact = false }) {
+    const legalReference = item?.legal_reference || item?.official_reference || '';
+    const sourceName = item?.source_name || '';
+    const sourceUrl = item?.source_url || '';
+    const hasLegal = Boolean(String(legalReference || '').trim());
+    const hasSource = Boolean(String(sourceName || '').trim());
+    const hasUrl = Boolean(String(sourceUrl || '').trim());
+
+    return (
+        <div className={`${compact ? 'mt-3' : 'mt-4'} rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-xs space-y-2`}>
+            {hasLegal && (
+                <div className="text-slate-300">
+                    <span className="font-bold text-slate-400">Referencia legal: </span>
+                    <span>{legalReference}</span>
+                </div>
+            )}
+
+            {hasSource && (
+                <div className="text-slate-300">
+                    <span className="font-bold text-slate-400">Fuente: </span>
+                    <span>{sourceName}</span>
+                </div>
+            )}
+
+            {hasUrl && (
+                <a
+                    href={sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-indigo-300 hover:bg-indigo-500/20"
+                >
+                    Ver fuente oficial
+                </a>
+            )}
+
+            {!hasLegal && !hasUrl && (
+                <div className="font-semibold text-amber-300">
+                    Referencia oficial pendiente de revisión
+                </div>
+            )}
+        </div>
+    );
+}
+
 function ClientPackagesPanel() {
     const [validClients, setValidClients] = useState([]);
     const [clientId, setClientId] = useState('');
@@ -1236,7 +1312,7 @@ function ClientPackagesPanel() {
                         <select value={clientId} onChange={handleClientChange} className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
                             <option value="" disabled>Selecciona un cliente</option>
                             {validClients.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} ({c.sector_key})</option>
+                                <option key={c.id} value={c.id}>{c.name} ({formatHumanLabel(c.sector_key)})</option>
                             ))}
                         </select>
                     </div>
@@ -1373,7 +1449,7 @@ function ClientPackagesPanel() {
                                                 onClick={() => updateInterestRequestStatus(req.id, 'contacted')}
                                                 className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg px-3 py-2 text-xs font-bold"
                                             >
-                                                {interestStatusLoadingId === req.id ? 'Actualizando...' : 'Marcar contactada'}
+                                                {interestStatusLoadingId === req.id ? 'Actualizando...' : 'Contactada'}
                                             </button>
                                         )}
 
@@ -1384,7 +1460,7 @@ function ClientPackagesPanel() {
                                                 onClick={() => updateInterestRequestStatus(req.id, 'handled')}
                                                 className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg px-3 py-2 text-xs font-bold"
                                             >
-                                                {interestStatusLoadingId === req.id ? 'Actualizando...' : 'Marcar gestionada'}
+                                                {interestStatusLoadingId === req.id ? 'Actualizando...' : 'Gestionada'}
                                             </button>
                                         )}
                                     </div>
@@ -1400,7 +1476,7 @@ function ClientPackagesPanel() {
                     <div className="flex justify-between items-start mb-6">
                         <div>
                             <h3 className="text-lg font-bold text-white mb-1">Resumen del Paquete</h3>
-                            <p className="text-slate-400 text-sm">Cliente: <span className="font-semibold text-slate-200">{packageData.package.client_name}</span> • Sector: <span className="font-semibold text-slate-200">{packageData.package.sector_key}</span></p>
+                            <p className="text-slate-400 text-sm">Cliente: <span className="font-semibold text-slate-200">{packageData.package.client_name}</span> • Sector: <span className="font-semibold text-slate-200">{formatHumanLabel(packageData.package.sector_key)}</span></p>
                         </div>
                         <div className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg text-xs uppercase font-bold tracking-widest flex items-center gap-2">
                             {packageData.package.package_status === 'published' ? 'Publicado' : 'Pendiente de revisión'}
@@ -1450,7 +1526,7 @@ function ClientPackagesPanel() {
                                                 {item.source_type === 'aid_item' ? 'Ayuda / oportunidad' : 'Normativa'}
                                             </div>
                                             <div className="font-bold text-slate-100">{item.title}</div>
-                                            <div className="text-[11px] text-slate-500 mt-1">{item.source_id}</div>
+                                            <OfficialReferenceBlock item={item} compact />
                                         </div>
 
                                         <div>
@@ -1674,6 +1750,7 @@ function PortalEntidadPanel() {
                                     <div key={obl.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
                                         <h4 className="font-bold text-slate-200 mb-2">{obl.title}</h4>
                                         <p className="text-xs text-slate-400 leading-relaxed mb-3">{obl.summary}</p>
+                                        <OfficialReferenceBlock item={obl} compact />
                                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-emerald-400">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Información revisada por tu asesoría
                                         </div>
@@ -1694,7 +1771,9 @@ function PortalEntidadPanel() {
                                         <p className="text-xs text-slate-400 leading-relaxed mb-4">
                                             {aid.title && aid.title.includes('Kit Digital') ? 'Programa de ayudas para impulsar la digitalización de pymes, microempresas y autónomos mediante soluciones digitales. Tu asesoría revisará si tu empresa cumple los requisitos vigentes y qué convocatoria puede aplicar.' : aid.title && aid.title.includes('formación en alternancia') ? 'Oportunidad vinculada a la contratación y formación de personas trabajadoras mediante contrato de formación en alternancia. Puede permitir bonificaciones o incentivos asociados, siempre sujetos a requisitos vigentes y validación por la asesoría.' : aid.summary}
                                         </p>
-                                        <div className="bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-lg text-xs text-indigo-300 font-semibold flex items-center justify-between gap-4">
+                                        
+                                        <OfficialReferenceBlock item={aid} compact />
+                                        <div className="bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-lg text-xs text-indigo-300 font-semibold flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4">
                                             <span>{aid.deadline_label?.toLowerCase().includes('pendiente') || aid.deadline_label?.toLowerCase().includes('revisión') ? 'Consulta con tu asesoría las condiciones vigentes de tramitación.' : aid.deadline_label}</span>
                                             
                                             <div className="flex flex-col items-end gap-1 min-w-[170px]">
@@ -1826,6 +1905,35 @@ function CommercialDashboardPanel() {
             .replace(/\b\w/g, letter => letter.toUpperCase());
     };
 
+    const isTechnicalCommercialNote = (value) => {
+        const text = String(value || '').trim().toLowerCase();
+
+        if (!text) return false;
+
+        const technicalPatterns = [
+            'validación automática',
+            'validacion automatica',
+            'cambio a handled',
+            'cambio a contacted',
+            'cambio a dismissed',
+            'cliente marcado como contactado desde vista comercial',
+            'solicitud marcada como gestionada desde vista comercial',
+            'solicitud descartada desde vista comercial',
+            'cliente marcado como contactado desde panel gestor',
+            'solicitud marcada como gestionada desde panel gestor'
+        ];
+
+        return technicalPatterns.some(pattern => text.includes(pattern));
+    };
+
+    const displayCommercialNote = (value) => {
+        if (!value || isTechnicalCommercialNote(value)) {
+            return 'Sin nota comercial registrada.';
+        }
+
+        return value;
+    };
+
     const updateCommercialRequestStatus = async (requestId, requestStatus) => {
         const allowedTargetStatuses = ['contacted', 'handled', 'dismissed'];
         const currentRequest = (dashboard?.requests || []).find(req => req.id === requestId);
@@ -1909,7 +2017,7 @@ function CommercialDashboardPanel() {
                         onClick={() => updateCommercialRequestStatus(req.id, 'contacted')}
                         className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 text-xs font-bold"
                     >
-                        Marcar contactada
+                        Contactada
                     </button>
                 )}
 
@@ -1919,7 +2027,7 @@ function CommercialDashboardPanel() {
                     onClick={() => updateCommercialRequestStatus(req.id, 'handled')}
                     className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 text-xs font-bold"
                 >
-                    Marcar gestionada
+                    Gestionada
                 </button>
 
                 <button
@@ -1986,8 +2094,8 @@ function CommercialDashboardPanel() {
         <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-extrabold text-white">Vista Comercial Avanzada</h2>
-                    <p className="text-slate-400 text-sm mt-1">Resumen global y seguimiento comercial read-only.</p>
+                    <h2 className="text-2xl font-extrabold text-white">Vista Comercial V2 accionable</h2>
+                    <p className="text-slate-400 text-sm mt-1">Seguimiento comercial accionable, Nota interna y referencias oficiales.</p>
                 </div>
                 <button
                     type="button"
@@ -2091,7 +2199,7 @@ function CommercialDashboardPanel() {
                             {filteredClients.map(client => (
                                 <tr key={client.client_id} className="text-slate-300">
                                     <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{client.client_name || client.client_id}</td>
-                                    <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{client.sector_key || 'Sin sector'}</td>
+                                    <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{formatHumanLabel(client.sector_key || 'Sin sector')}</td>
                                     <td className="py-4 pr-4 font-semibold">{client.packages_published}</td>
                                     <td className="py-4 pr-4">{client.total_package_items}</td>
                                     <td className="py-4 pr-4">{client.interest_requests_total}</td>
@@ -2128,7 +2236,8 @@ function CommercialDashboardPanel() {
                                     <th className="py-3 pr-4 font-bold">Prioridad</th>
                                     <th className="py-3 pr-4 font-bold">Fecha</th>
                                     <th className="py-3 pr-4 font-bold">Proxima accion</th>
-                                    <th className="py-3 font-bold">Notas internas</th>
+                                    <th className="py-3 pr-4 font-bold">Nota interna</th>
+                                    <th className="py-3 font-bold">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800/80">
@@ -2152,7 +2261,8 @@ function CommercialDashboardPanel() {
                                         </td>
                                         <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{formatDateTime(req.updated_at || req.created_at)}</td>
                                         <td className="py-4 pr-4 font-semibold text-slate-200 whitespace-nowrap">{req.next_action_recommended}</td>
-                                        <td className="py-4 text-slate-400 min-w-[220px]">{req.internal_notes || 'Sin notas'}</td>
+                                        <td className="py-4 pr-4 text-slate-400 min-w-[220px]">{displayCommercialNote(req.internal_notes)}</td>
+                                        <td className="py-4">{renderCommercialRequestActions(req)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -2188,8 +2298,10 @@ function ManagerLoginGate({ onLogin, loading, error, onOpenPortal }) {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">PIN de acceso</label>
+                        <label htmlFor="manager-pin" className="block text-sm font-medium text-slate-300 mb-2">PIN de acceso</label>
                         <input
+                            id="manager-pin"
+                            name="manager_pin"
                             type="password"
                             value={pin}
                             onChange={(event) => setPin(event.target.value)}
@@ -2407,7 +2519,64 @@ export default function App() {
 
             <main className="max-w-[1400px] mx-auto px-6 py-8">
                 {/* Navegación Superior */}
-                <div className="flex overflow-x-auto gap-1 mb-10 border-b border-slate-800/80 pb-px scrollbar-hide">
+                                                <div className="lg:hidden mb-6 rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
+                        Secciones del gestor
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                        <button type="button" onClick={() => setView('radar')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'radar' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Hallazgos Radar
+                        </button>
+                        <button type="button" onClick={() => setView('clientes')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'clientes' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Clientes / Entidades
+                        </button>
+                        <button type="button" onClick={() => setView('normativas')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'normativas' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Normativas base
+                        </button>
+                        <button type="button" onClick={() => setView('ayudas')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'ayudas' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Ayudas y subvenciones
+                        </button>
+                        <button type="button" onClick={() => setView('paquetes')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'paquetes' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Paquetes para cliente
+                        </button>
+                        <button type="button" onClick={() => setView('comercial')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'comercial' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Vista Comercial
+                        </button>
+                        <button type="button" onClick={() => setView('portal')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'portal' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Portal Entidad
+                        </button>
+                    </div>
+
+                    <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                        Todas las secciones importantes están visibles en móvil. No necesitas hacer scroll lateral para encontrar una opción.
+                    </p>
+                </div>
+
+<div className="md:hidden mb-6 rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4">
+                    <label htmlFor="mobile-manager-section" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                        Sección del gestor
+                    </label>
+                    <select
+                        id="mobile-manager-section"
+                        value={view}
+                        onChange={(event) => setView(event.target.value)}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-bold text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="radar">Hallazgos Radar</option>
+                        <option value="clientes">Clientes / Entidades</option>
+                        <option value="normativas">Normativas base</option>
+                        <option value="ayudas">Ayudas y subvenciones</option>
+                        <option value="paquetes">Paquetes para cliente</option>
+                        <option value="comercial">Vista Comercial</option>
+                        <option value="portal">Portal Entidad</option>
+                    </select>
+                    <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                        En móvil puedes cambiar de sección desde este selector sin depender de desplazamiento lateral.
+                    </p>
+                </div>
+
+                <div className="hidden lg:flex overflow-x-auto gap-1 mb-10 border-b border-slate-800/80 pb-px scrollbar-hide">
                     <NavTab 
                         active={view === 'radar'} 
                         onClick={() => setView('radar')} 
@@ -2482,3 +2651,4 @@ function NavTab({ active, onClick, label, icon, disabled }) {
         </button>
     );
 }
+

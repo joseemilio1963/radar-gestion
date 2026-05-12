@@ -904,7 +904,16 @@ function isProtectedManagerApiPath(pathname) {
         return false;
     }
 
-    return pathname.startsWith('/api/manager/');
+    return (
+        pathname === '/api/manager' ||
+        pathname.startsWith('/api/manager/') ||
+        pathname === '/api/radar' ||
+        pathname.startsWith('/api/radar/') ||
+        pathname === '/api/aids' ||
+        pathname.startsWith('/api/aids/') ||
+        pathname === '/api/compliance' ||
+        pathname.startsWith('/api/compliance/')
+    );
 }
 
 function readRequestJson(req, callback) {

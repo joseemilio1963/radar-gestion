@@ -699,6 +699,132 @@ function getClientCatalog() {
     }
 }
 
+// --- Supabase Read Services V2: clients compare ---
+function mapUserClientRowToClientCatalogShape(row, sourceTableName) {
+    const stableId = row.client_key || getStableClientIdFromUserClient(row);
+    const demoById = new Map(DEMO_CLIENTS.map(client => [client.id, client]));
+    const demoClient = demoById.get(stableId);
+    const sectorKey = row.sector_key || mapCnaeToSectorKey(row.cnae);
+    const sectorLabel = getSectorLabelFromKey(sectorKey);
+    const employees = Number(row.numero_empleados || 0);
+
+    return {
+        id: stableId,
+        source_table: sourceTableName,
+        source_numeric_id: row.id,
+        org_id: row.org_id,
+        name: row.nombre,
+        nif: row.nif,
+        email: row.email,
+        cnae: row.cnae,
+        sector: row.cnae ? String(sectorLabel) + ' (CNAE ' + row.cnae + ')' : sectorLabel,
+        sector_key: sectorKey,
+        employees,
+        globalStatus: demoClient?.globalStatus || 'green',
+        alertsCount: demoClient?.alertsCount || 0,
+        aidsCount: demoClient?.aidsCount || 0,
+        complianceItems: demoClient?.complianceItems || [],
+        aidsItems: demoClient?.aidsItems || [],
+        observations: demoClient?.observations || ('Cliente importado desde ' + sourceTableName + '. CNAE: ' + (row.cnae || 'sin CNAE informado') + '.')
+    };
+}
+
+function normalizeClientForReadServicesCompare(client) {
+    return {
+        id: client.id,
+        name: client.name,
+        org_id: Number(client.org_id || 0),
+        cnae: client.cnae || null,
+        sector_key: client.sector_key || null,
+        employees: Number(client.employees || 0)
+    };
+}
+
+function sortClientsForReadServicesCompare(clients) {
+    return [...clients].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+async function getSupabaseReadServicesClientsCatalog() {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return clientResult;
+    }
+
+    const { data, error } = await clientResult.client
+        .from('user_clients')
+        .select('id, org_id, client_key, nombre, nif, email, cnae, sector_key, tiene_empleados, numero_empleados, fecha_creacion')
+        .order('id', { ascending: true });
+
+    if (error) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_READ_SERVICES_CLIENTS_ERROR',
+            message: error.message,
+            env_status: clientResult.env_status
+        };
+    }
+
+    return {
+        ok: true,
+        env_status: clientResult.env_status,
+        clients: (data || []).map(row => mapUserClientRowToClientCatalogShape(row, 'user_clients'))
+    };
+}
+
+function compareReadServicesClients(sqliteClients, supabaseClients) {
+    const sqliteNormalized = sortClientsForReadServicesCompare(sqliteClients.map(normalizeClientForReadServicesCompare));
+    const supabaseNormalized = sortClientsForReadServicesCompare(supabaseClients.map(normalizeClientForReadServicesCompare));
+
+    const sqliteIds = sqliteNormalized.map(client => client.id);
+    const supabaseIds = supabaseNormalized.map(client => client.id);
+
+    const sqliteById = new Map(sqliteNormalized.map(client => [client.id, client]));
+    const supabaseById = new Map(supabaseNormalized.map(client => [client.id, client]));
+
+    const missing_in_supabase = sqliteIds.filter(id => !supabaseById.has(id));
+    const extra_in_supabase = supabaseIds.filter(id => !sqliteById.has(id));
+
+    const field_mismatches = [];
+
+    for (const id of sqliteIds) {
+        if (!supabaseById.has(id)) continue;
+
+        const sqliteClient = sqliteById.get(id);
+        const supabaseClient = supabaseById.get(id);
+
+        for (const field of ['name', 'org_id', 'cnae', 'sector_key', 'employees']) {
+            if (String(sqliteClient[field] ?? '') !== String(supabaseClient[field] ?? '')) {
+                field_mismatches.push({
+                    id,
+                    field,
+                    sqlite_value: sqliteClient[field] ?? null,
+                    supabase_value: supabaseClient[field] ?? null
+                });
+            }
+        }
+    }
+
+    return {
+        sqlite_count: sqliteNormalized.length,
+        supabase_count: supabaseNormalized.length,
+        sqlite_ids: sqliteIds,
+        supabase_ids: supabaseIds,
+        missing_in_supabase,
+        extra_in_supabase,
+        field_mismatches,
+        counts_match: sqliteNormalized.length === supabaseNormalized.length,
+        ids_match: missing_in_supabase.length === 0 && extra_in_supabase.length === 0,
+        fields_match: field_mismatches.length === 0,
+        all_match: sqliteNormalized.length === supabaseNormalized.length &&
+            missing_in_supabase.length === 0 &&
+            extra_in_supabase.length === 0 &&
+            field_mismatches.length === 0
+    };
+}
+// --- /Supabase Read Services V2: clients compare ---
+
+
 
 // === AUTH GESTOR V1 START ===
 function loadLocalEnvIfPresent() {
@@ -1560,6 +1686,50 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+
+
+    // API Route: GET /api/manager/supabase-read-services/clients/compare
+    // supabase_read_services_v2_clients_compare
+    if (req.url.split('?')[0] === '/api/manager/supabase-read-services/clients/compare' && req.method === 'GET') {
+        const sqliteClients = getClientCatalog();
+        const supabaseResult = await getSupabaseReadServicesClientsCatalog();
+
+        if (!supabaseResult.ok) {
+            return sendJson(res, 503, {
+                status: 'error',
+                mode: 'supabase_read_services_v2',
+                resource: 'clients',
+                sqlite: {
+                    source: 'sqlite',
+                    count: sqliteClients.length,
+                    ids: sqliteClients.map(client => client.id)
+                },
+                supabase: supabaseResult
+            });
+        }
+
+        const comparison = compareReadServicesClients(sqliteClients, supabaseResult.clients);
+
+        return sendJson(res, 200, {
+            status: comparison.all_match ? 'ok' : 'mismatch',
+            mode: 'supabase_read_services_v2',
+            resource: 'clients',
+            source_of_truth_current: 'sqlite',
+            supabase_usage: 'read_compare_only',
+            sqlite: {
+                source: 'sqlite',
+                count: sqliteClients.length,
+                clients: sortClientsForReadServicesCompare(sqliteClients.map(normalizeClientForReadServicesCompare))
+            },
+            supabase: {
+                source: 'supabase',
+                env_status: supabaseResult.env_status,
+                count: supabaseResult.clients.length,
+                clients: sortClientsForReadServicesCompare(supabaseResult.clients.map(normalizeClientForReadServicesCompare))
+            },
+            comparison
+        });
+    }
 
     // API Route: GET /api/manager/supabase-readonly/status
     if (req.url.split('?')[0] === '/api/manager/supabase-readonly/status' && req.method === 'GET') {

@@ -1,9 +1,10 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +19,139 @@ if (process.env.VERCEL && fs.existsSync(BUNDLED_DB_PATH) && !fs.existsSync(RUNTI
 }
 
 const DB_PATH = RUNTIME_DB_PATH;
+
+// --- Supabase Read-Only Backend Helpers V1 ---
+const SUPABASE_READONLY_TABLES = [
+    { logical_name: 'user_clients', supabase_table: 'user_clients', sqlite_table: 'User_Clients' },
+    { logical_name: 'compliance_obligations', supabase_table: 'compliance_obligations', sqlite_table: 'compliance_obligations' },
+    { logical_name: 'aid_items', supabase_table: 'aid_items', sqlite_table: 'aid_items' },
+    { logical_name: 'radar_items', supabase_table: 'radar_items', sqlite_table: 'radar_items' },
+    { logical_name: 'client_publication_packages', supabase_table: 'client_publication_packages', sqlite_table: 'client_publication_packages' },
+    { logical_name: 'client_publication_package_items', supabase_table: 'client_publication_package_items', sqlite_table: 'client_publication_package_items' },
+    { logical_name: 'client_interest_requests', supabase_table: 'client_interest_requests', sqlite_table: 'client_interest_requests' },
+    { logical_name: 'radar_documents', supabase_table: 'radar_documents', sqlite_table: 'radar_documents' },
+    { logical_name: 'radar_review_logs', supabase_table: 'radar_review_logs', sqlite_table: 'radar_review_logs' }
+];
+
+let supabaseReadonlyClient = null;
+
+function isSupabaseReadonlyEnabled() {
+    return String(process.env.SUPABASE_READONLY_ENABLED || '').toLowerCase() === 'true';
+}
+
+function getSupabaseReadonlyEnvStatus() {
+    const urlPresent = Boolean(process.env.SUPABASE_URL);
+    const keyPresent = Boolean(process.env.SUPABASE_SERVER_KEY);
+    const enabled = isSupabaseReadonlyEnabled();
+
+    return {
+        enabled,
+        configured: enabled && urlPresent && keyPresent,
+        url_present: urlPresent,
+        key_present: keyPresent,
+        key_is_server_side_only: true
+    };
+}
+
+function getSupabaseReadonlyClient() {
+    const envStatus = getSupabaseReadonlyEnvStatus();
+
+    if (!envStatus.enabled) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_READONLY_DISABLED',
+            env_status: envStatus
+        };
+    }
+
+    if (!envStatus.configured) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_READONLY_ENV_MISSING',
+            env_status: envStatus
+        };
+    }
+
+    if (!supabaseReadonlyClient) {
+        supabaseReadonlyClient = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVER_KEY,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                }
+            }
+        );
+    }
+
+    return {
+        ok: true,
+        client: supabaseReadonlyClient,
+        env_status: envStatus
+    };
+}
+
+async function getSupabaseReadonlyCounts() {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return clientResult;
+    }
+
+    const counts = [];
+
+    for (const table of SUPABASE_READONLY_TABLES) {
+        const { count, error } = await clientResult.client
+            .from(table.supabase_table)
+            .select('*', { count: 'exact', head: true });
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_COUNT_ERROR',
+                table: table.supabase_table,
+                message: error.message,
+                env_status: clientResult.env_status
+            };
+        }
+
+        counts.push({
+            logical_name: table.logical_name,
+            supabase_table: table.supabase_table,
+            count: count ?? 0
+        });
+    }
+
+    return {
+        ok: true,
+        env_status: clientResult.env_status,
+        counts
+    };
+}
+
+function getSqliteReferenceCounts() {
+    const db = new DatabaseSync(DB_PATH);
+
+    try {
+        return {
+            ok: true,
+            db_path: DB_PATH,
+            counts: SUPABASE_READONLY_TABLES.map(table => {
+                const row = db.prepare(`SELECT COUNT(*) AS total FROM ${table.sqlite_table}`).get();
+                return {
+                    logical_name: table.logical_name,
+                    sqlite_table: table.sqlite_table,
+                    count: Number(row?.total || 0)
+                };
+            })
+        };
+    } finally {
+        try { db.close(); } catch (e) {}
+    }
+}
+
 
 // --- Helper Functions ---
 function generateId() {
@@ -878,7 +1012,7 @@ function handleManagerAuthRoute(req, res, pathname) {
 }
 // === AUTH GESTOR V1 END ===
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     const pathname = req.url.split('?')[0];
 
     if (pathname.startsWith('/api/auth/manager/')) {
@@ -1416,6 +1550,72 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+
+    // API Route: GET /api/manager/supabase-readonly/status
+    if (req.url.split('?')[0] === '/api/manager/supabase-readonly/status' && req.method === 'GET') {
+        return sendJson(res, 200, {
+            status: 'ok',
+            mode: 'supabase_backend_readonly_v1',
+            supabase_readonly: getSupabaseReadonlyEnvStatus(),
+            note: 'Read-only parallel integration. Current production endpoints still use SQLite.'
+        });
+    }
+
+    // API Route: GET /api/manager/supabase-readonly/counts
+    if (req.url.split('?')[0] === '/api/manager/supabase-readonly/counts' && req.method === 'GET') {
+        const supabaseCounts = await getSupabaseReadonlyCounts();
+
+        if (!supabaseCounts.ok) {
+            return sendJson(res, 503, {
+                status: 'error',
+                ...supabaseCounts
+            });
+        }
+
+        return sendJson(res, 200, {
+            status: 'ok',
+            mode: 'supabase_backend_readonly_v1',
+            ...supabaseCounts
+        });
+    }
+
+    // API Route: GET /api/manager/supabase-readonly/compare-counts
+    if (req.url.split('?')[0] === '/api/manager/supabase-readonly/compare-counts' && req.method === 'GET') {
+        const sqliteCounts = getSqliteReferenceCounts();
+        const supabaseCounts = await getSupabaseReadonlyCounts();
+
+        if (!supabaseCounts.ok) {
+            return sendJson(res, 503, {
+                status: 'error',
+                sqlite: sqliteCounts,
+                supabase: supabaseCounts
+            });
+        }
+
+        const comparisons = SUPABASE_READONLY_TABLES.map(table => {
+            const sqliteRow = sqliteCounts.counts.find(item => item.logical_name === table.logical_name);
+            const supabaseRow = supabaseCounts.counts.find(item => item.logical_name === table.logical_name);
+            const sqliteCount = Number(sqliteRow?.count || 0);
+            const supabaseCount = Number(supabaseRow?.count || 0);
+
+            return {
+                logical_name: table.logical_name,
+                sqlite_table: table.sqlite_table,
+                supabase_table: table.supabase_table,
+                sqlite_count: sqliteCount,
+                supabase_count: supabaseCount,
+                match: sqliteCount === supabaseCount
+            };
+        });
+
+        return sendJson(res, 200, {
+            status: comparisons.every(item => item.match) ? 'ok' : 'mismatch',
+            mode: 'supabase_backend_readonly_v1',
+            sqlite_db_path: sqliteCounts.db_path,
+            supabase_env_status: supabaseCounts.env_status,
+            comparisons
+        });
+    }
 
     // API Route: GET /api/manager/commercial-dashboard
     if (req.url.split('?')[0] === '/api/manager/commercial-dashboard' && req.method === 'GET') {
@@ -2511,3 +2711,4 @@ if (!process.env.VERCEL) {
 export default function handler(req, res) {
     return server.emit('request', req, res);
 }
+

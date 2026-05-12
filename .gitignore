@@ -35,3 +35,6 @@ BACKUP_*.zip
 .env
 
 .env
+.env.local
+.env.*
+!.env.example

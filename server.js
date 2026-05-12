@@ -825,6 +825,324 @@ function compareReadServicesClients(sqliteClients, supabaseClients) {
 // --- /Supabase Read Services V2: clients compare ---
 
 
+// --- Supabase Read Services V2: portal packages compare ---
+function toReadServicesBool(value) {
+    return value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true';
+}
+
+function toReadServicesNumber(value) {
+    return Number(value || 0);
+}
+
+function isVisiblePortalPackageRow(pkg) {
+    return pkg
+        && pkg.package_status === 'published'
+        && pkg.review_status === 'approved'
+        && !toReadServicesBool(pkg.needs_human_review)
+        && toReadServicesBool(pkg.publish_to_client)
+        && pkg.client_publish_status === 'published';
+}
+
+function isVisiblePortalPackageItemRow(item) {
+    return item
+        && item.review_status === 'approved'
+        && !toReadServicesBool(item.needs_human_review)
+        && toReadServicesBool(item.publish_to_client)
+        && item.client_publish_status === 'published'
+        && toReadServicesBool(item.include_in_package);
+}
+
+function sortPortalItemsForReadServicesCompare(items) {
+    return [...items].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+function sortPortalPackagesForReadServicesCompare(packages) {
+    return [...packages].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+function normalizePortalItemForReadServicesCompare(item) {
+    return {
+        id: String(item.id || ''),
+        package_id: item.package_id || null,
+        client_id: item.client_id || null,
+        source_type: item.source_type || null,
+        source_id: item.source_id || null,
+        title: item.title || null,
+        review_status: item.review_status || null,
+        needs_human_review: toReadServicesBool(item.needs_human_review),
+        publish_to_client: toReadServicesBool(item.publish_to_client),
+        client_publish_status: item.client_publish_status || null,
+        include_in_package: toReadServicesBool(item.include_in_package),
+        legal_reference: item.legal_reference || null,
+        source_name: item.source_name || null,
+        source_url: item.source_url || null,
+        amount_summary: item.amount_summary || null,
+        deadline_label: item.deadline_label || null
+    };
+}
+
+function normalizePortalPackageForReadServicesCompare(pkg) {
+    return {
+        id: String(pkg.id || ''),
+        client_id: pkg.client_id || null,
+        client_name: pkg.client_name || null,
+        sector_key: pkg.sector_key || null,
+        package_type: pkg.package_type || null,
+        title: pkg.title || null,
+        package_status: pkg.package_status || null,
+        review_status: pkg.review_status || null,
+        needs_human_review: toReadServicesBool(pkg.needs_human_review),
+        publish_to_client: toReadServicesBool(pkg.publish_to_client),
+        client_publish_status: pkg.client_publish_status || null,
+        total_items: toReadServicesNumber(pkg.total_items),
+        total_compliance_items: toReadServicesNumber(pkg.total_compliance_items),
+        total_aid_items: toReadServicesNumber(pkg.total_aid_items),
+        total_radar_items: toReadServicesNumber(pkg.total_radar_items),
+        items: sortPortalItemsForReadServicesCompare((pkg.items || []).map(normalizePortalItemForReadServicesCompare))
+    };
+}
+
+function getSqliteReadServicesPortalPackages(clientId) {
+    let db;
+
+    try {
+        db = new DatabaseSync(DB_PATH);
+
+        const packages = db.prepare(
+            "SELECT * FROM client_publication_packages WHERE client_id = ? AND publish_to_client = 1 AND needs_human_review = 0 AND review_status = 'approved' AND package_status = 'published' AND client_publish_status = 'published' ORDER BY published_at DESC"
+        ).all(clientId);
+
+        for (const pkg of packages) {
+            pkg.items = db.prepare(
+                "SELECT * FROM client_publication_package_items WHERE package_id = ? AND publish_to_client = 1 AND needs_human_review = 0 AND review_status = 'approved' AND client_publish_status = 'published' AND include_in_package = 1 ORDER BY created_at ASC"
+            ).all(pkg.id);
+        }
+
+        return {
+            ok: true,
+            source: 'sqlite',
+            packages
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error_code: 'SQLITE_READ_SERVICES_PORTAL_PACKAGES_ERROR',
+            message: error.message
+        };
+    } finally {
+        if (db) {
+            try { db.close(); } catch {}
+        }
+    }
+}
+
+async function getSupabaseReadServicesPortalPackages(clientId) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return clientResult;
+    }
+
+    const { data: packageRows, error: packageError } = await clientResult.client
+        .from('client_publication_packages')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('published_at', { ascending: false });
+
+    if (packageError) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_READ_SERVICES_PORTAL_PACKAGES_ERROR',
+            message: packageError.message,
+            env_status: clientResult.env_status
+        };
+    }
+
+    const visiblePackages = (packageRows || []).filter(isVisiblePortalPackageRow);
+
+    for (const pkg of visiblePackages) {
+        const { data: itemRows, error: itemError } = await clientResult.client
+            .from('client_publication_package_items')
+            .select('*')
+            .eq('package_id', pkg.id)
+            .order('created_at', { ascending: true });
+
+        if (itemError) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_READ_SERVICES_PORTAL_PACKAGE_ITEMS_ERROR',
+                package_id: pkg.id,
+                message: itemError.message,
+                env_status: clientResult.env_status
+            };
+        }
+
+        pkg.items = (itemRows || []).filter(isVisiblePortalPackageItemRow);
+    }
+
+    return {
+        ok: true,
+        source: 'supabase',
+        env_status: clientResult.env_status,
+        packages: visiblePackages
+    };
+}
+
+function compareReadServicesPortalPackages(sqlitePackages, supabasePackages) {
+    const sqliteNormalized = sortPortalPackagesForReadServicesCompare(sqlitePackages.map(normalizePortalPackageForReadServicesCompare));
+    const supabaseNormalized = sortPortalPackagesForReadServicesCompare(supabasePackages.map(normalizePortalPackageForReadServicesCompare));
+
+    const sqlitePackageIds = sqliteNormalized.map(pkg => pkg.id);
+    const supabasePackageIds = supabaseNormalized.map(pkg => pkg.id);
+
+    const sqliteById = new Map(sqliteNormalized.map(pkg => [pkg.id, pkg]));
+    const supabaseById = new Map(supabaseNormalized.map(pkg => [pkg.id, pkg]));
+
+    const missing_packages_in_supabase = sqlitePackageIds.filter(id => !supabaseById.has(id));
+    const extra_packages_in_supabase = supabasePackageIds.filter(id => !sqliteById.has(id));
+
+    const package_field_mismatches = [];
+    const item_count_mismatches = [];
+    const item_id_mismatches = [];
+    const item_field_mismatches = [];
+
+    const packageFields = [
+        'client_id',
+        'client_name',
+        'sector_key',
+        'package_type',
+        'title',
+        'package_status',
+        'review_status',
+        'needs_human_review',
+        'publish_to_client',
+        'client_publish_status',
+        'total_items',
+        'total_compliance_items',
+        'total_aid_items',
+        'total_radar_items'
+    ];
+
+    const itemFields = [
+        'package_id',
+        'client_id',
+        'source_type',
+        'source_id',
+        'title',
+        'review_status',
+        'needs_human_review',
+        'publish_to_client',
+        'client_publish_status',
+        'include_in_package',
+        'legal_reference',
+        'source_name',
+        'source_url',
+        'amount_summary',
+        'deadline_label'
+    ];
+
+    for (const packageId of sqlitePackageIds) {
+        if (!supabaseById.has(packageId)) continue;
+
+        const sqlitePkg = sqliteById.get(packageId);
+        const supabasePkg = supabaseById.get(packageId);
+
+        for (const field of packageFields) {
+            if (String(sqlitePkg[field] ?? '') !== String(supabasePkg[field] ?? '')) {
+                package_field_mismatches.push({
+                    package_id: packageId,
+                    field,
+                    sqlite_value: sqlitePkg[field] ?? null,
+                    supabase_value: supabasePkg[field] ?? null
+                });
+            }
+        }
+
+        if (sqlitePkg.items.length !== supabasePkg.items.length) {
+            item_count_mismatches.push({
+                package_id: packageId,
+                sqlite_count: sqlitePkg.items.length,
+                supabase_count: supabasePkg.items.length
+            });
+        }
+
+        const sqliteItemIds = sqlitePkg.items.map(item => item.id);
+        const supabaseItemIds = supabasePkg.items.map(item => item.id);
+        const sqliteItemsById = new Map(sqlitePkg.items.map(item => [item.id, item]));
+        const supabaseItemsById = new Map(supabasePkg.items.map(item => [item.id, item]));
+
+        const missingItems = sqliteItemIds.filter(id => !supabaseItemsById.has(id));
+        const extraItems = supabaseItemIds.filter(id => !sqliteItemsById.has(id));
+
+        if (missingItems.length > 0 || extraItems.length > 0) {
+            item_id_mismatches.push({
+                package_id: packageId,
+                missing_in_supabase: missingItems,
+                extra_in_supabase: extraItems
+            });
+        }
+
+        for (const itemId of sqliteItemIds) {
+            if (!supabaseItemsById.has(itemId)) continue;
+
+            const sqliteItem = sqliteItemsById.get(itemId);
+            const supabaseItem = supabaseItemsById.get(itemId);
+
+            for (const field of itemFields) {
+                if (String(sqliteItem[field] ?? '') !== String(supabaseItem[field] ?? '')) {
+                    item_field_mismatches.push({
+                        package_id: packageId,
+                        item_id: itemId,
+                        field,
+                        sqlite_value: sqliteItem[field] ?? null,
+                        supabase_value: supabaseItem[field] ?? null
+                    });
+                }
+            }
+        }
+    }
+
+    const sqlite_total_items = sqliteNormalized.reduce((total, pkg) => total + pkg.items.length, 0);
+    const supabase_total_items = supabaseNormalized.reduce((total, pkg) => total + pkg.items.length, 0);
+
+    const package_ids_match = missing_packages_in_supabase.length === 0 && extra_packages_in_supabase.length === 0;
+    const package_fields_match = package_field_mismatches.length === 0;
+    const item_counts_match = item_count_mismatches.length === 0;
+    const item_ids_match = item_id_mismatches.length === 0;
+    const item_fields_match = item_field_mismatches.length === 0;
+    const counts_match = sqliteNormalized.length === supabaseNormalized.length && sqlite_total_items === supabase_total_items;
+
+    return {
+        sqlite_count: sqliteNormalized.length,
+        supabase_count: supabaseNormalized.length,
+        sqlite_total_items,
+        supabase_total_items,
+        sqlite_package_ids: sqlitePackageIds,
+        supabase_package_ids: supabasePackageIds,
+        missing_packages_in_supabase,
+        extra_packages_in_supabase,
+        package_field_mismatches,
+        item_count_mismatches,
+        item_id_mismatches,
+        item_field_mismatches,
+        counts_match,
+        package_ids_match,
+        package_fields_match,
+        item_counts_match,
+        item_ids_match,
+        item_fields_match,
+        all_match: counts_match
+            && package_ids_match
+            && package_fields_match
+            && item_counts_match
+            && item_ids_match
+            && item_fields_match
+    };
+}
+// --- /Supabase Read Services V2: portal packages compare ---
+
+
+
 
 // === AUTH GESTOR V1 START ===
 function loadLocalEnvIfPresent() {
@@ -1728,6 +2046,92 @@ const server = http.createServer(async (req, res) => {
                 clients: sortClientsForReadServicesCompare(supabaseResult.clients.map(normalizeClientForReadServicesCompare))
             },
             comparison
+        });
+    }
+
+
+
+    // API Route: GET /api/manager/supabase-read-services/portal-packages/compare
+    // supabase_read_services_v2_portal_packages_compare
+    if (req.url.split('?')[0] === '/api/manager/supabase-read-services/portal-packages/compare' && req.method === 'GET') {
+        const queryString = req.url.split('?')[1] || '';
+        const searchParams = new URLSearchParams(queryString);
+        const clientId = searchParams.get('client_id');
+
+        if (!clientId) {
+            return sendJson(res, 400, {
+                status: 'error',
+                error_code: 'MISSING_CLIENT_ID',
+                message: 'client_id is required'
+            });
+        }
+
+        const sqliteResult = getSqliteReadServicesPortalPackages(clientId);
+
+        if (!sqliteResult.ok) {
+            return sendJson(res, 500, {
+                status: 'error',
+                mode: 'supabase_read_services_v2',
+                resource: 'portal_packages',
+                client_id: clientId,
+                sqlite: sqliteResult
+            });
+        }
+
+        const supabaseResult = await getSupabaseReadServicesPortalPackages(clientId);
+
+        if (!supabaseResult.ok) {
+            return sendJson(res, 503, {
+                status: 'error',
+                mode: 'supabase_read_services_v2',
+                resource: 'portal_packages',
+                client_id: clientId,
+                sqlite: {
+                    source: 'sqlite',
+                    count: sqliteResult.packages.length,
+                    package_ids: sqliteResult.packages.map(pkg => pkg.id)
+                },
+                supabase: supabaseResult
+            });
+        }
+
+        const comparison = compareReadServicesPortalPackages(sqliteResult.packages, supabaseResult.packages);
+
+        return sendJson(res, 200, {
+            status: comparison.all_match ? 'ok' : 'mismatch',
+            mode: 'supabase_read_services_v2',
+            resource: 'portal_packages',
+            client_id: clientId,
+            source_of_truth_current: 'sqlite',
+            supabase_usage: 'read_compare_only',
+            sqlite_count: comparison.sqlite_count,
+            supabase_count: comparison.supabase_count,
+            sqlite_total_items: comparison.sqlite_total_items,
+            supabase_total_items: comparison.supabase_total_items,
+            counts_match: comparison.counts_match,
+            package_ids_match: comparison.package_ids_match,
+            package_fields_match: comparison.package_fields_match,
+            item_counts_match: comparison.item_counts_match,
+            item_ids_match: comparison.item_ids_match,
+            item_fields_match: comparison.item_fields_match,
+            all_match: comparison.all_match,
+            sqlite_package_ids: comparison.sqlite_package_ids,
+            supabase_package_ids: comparison.supabase_package_ids,
+            missing_packages_in_supabase: comparison.missing_packages_in_supabase,
+            extra_packages_in_supabase: comparison.extra_packages_in_supabase,
+            package_field_mismatches: comparison.package_field_mismatches,
+            item_count_mismatches: comparison.item_count_mismatches,
+            item_id_mismatches: comparison.item_id_mismatches,
+            item_field_mismatches: comparison.item_field_mismatches,
+            sqlite: {
+                source: 'sqlite',
+                packages: sortPortalPackagesForReadServicesCompare(sqliteResult.packages.map(normalizePortalPackageForReadServicesCompare))
+            },
+            supabase: {
+                source: 'supabase',
+                env_status: supabaseResult.env_status,
+                packages: sortPortalPackagesForReadServicesCompare(supabaseResult.packages.map(normalizePortalPackageForReadServicesCompare))
+            }
         });
     }
 

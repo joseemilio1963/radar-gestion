@@ -893,17 +893,18 @@ function requireManagerAuth(req, res) {
     });
 }
 
+function isManagerAuthApiPath(pathname) {
+    return pathname === '/api/manager/auth/login' ||
+        pathname === '/api/manager/auth/session' ||
+        pathname === '/api/manager/auth/logout';
+}
+
 function isProtectedManagerApiPath(pathname) {
-    return (
-        pathname === '/api/manager' ||
-        pathname.startsWith('/api/manager/') ||
-        pathname === '/api/radar' ||
-        pathname.startsWith('/api/radar/') ||
-        pathname === '/api/aids' ||
-        pathname.startsWith('/api/aids/') ||
-        pathname === '/api/compliance' ||
-        pathname.startsWith('/api/compliance/')
-    );
+    if (isManagerAuthApiPath(pathname)) {
+        return false;
+    }
+
+    return pathname.startsWith('/api/manager/');
 }
 
 function readRequestJson(req, callback) {

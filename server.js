@@ -1684,6 +1684,32 @@ function getRadarWriteSource() {
   return RADAR_WRITE_SOURCE_SQLITE;
 }
 
+function getRadarWriteSourceStatus() {
+  const writeSource = getRadarWriteSource();
+  const supabaseEnvStatus = getSupabaseReadonlyEnvStatus();
+
+  return {
+    write_source: writeSource,
+    allowed_sources: [
+      RADAR_WRITE_SOURCE_SQLITE,
+      RADAR_WRITE_SOURCE_DUAL_WRITE,
+      RADAR_WRITE_SOURCE_SUPABASE
+    ],
+    default_source: RADAR_WRITE_SOURCE_SQLITE,
+    env_var: 'RADAR_WRITE_SOURCE',
+    switch_scope: 'POST /api/portal/interest-requests',
+    production_safe_default: writeSource === RADAR_WRITE_SOURCE_SQLITE,
+    dual_write_active: writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE,
+    supabase_write_active: writeSource === RADAR_WRITE_SOURCE_SUPABASE,
+    supabase_readonly: supabaseEnvStatus,
+    note: writeSource === RADAR_WRITE_SOURCE_SQLITE
+      ? 'SQLite es la fuente efectiva de escritura.'
+      : writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE
+        ? 'Dual write activo: SQLite y Supabase.'
+        : 'Supabase es la fuente efectiva de escritura.'
+  };
+}
+
 function isPortalPublishedPackageItem(item) {
   return Boolean(
     item &&
@@ -3215,6 +3241,17 @@ const server = http.createServer(async (req, res) => {
                 env_status: supabaseResult.env_status,
                 dashboard: supabaseResult.dashboard
             }
+        });
+    }
+
+
+    // API Route: GET /api/manager/write-source/status
+    // write_source_status_v1
+    if (req.url.split('?')[0] === '/api/manager/write-source/status' && req.method === 'GET') {
+        return sendJson(res, 200, {
+            status: 'ok',
+            mode: 'write_source_status_v1',
+            ...getRadarWriteSourceStatus()
         });
     }
 

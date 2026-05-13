@@ -1141,6 +1141,516 @@ function compareReadServicesPortalPackages(sqlitePackages, supabasePackages) {
 }
 // --- /Supabase Read Services V2: portal packages compare ---
 
+// --- Supabase Read Services V2: commercial dashboard compare ---
+// supabase_read_services_v2_commercial_dashboard_compare
+
+function extractReadServicesClientId(client) {
+    if (!client) return '';
+
+    const raw = client.client_id ?? client.client_key ?? client.clientId ?? null;
+
+    if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+        return String(raw);
+    }
+
+    if (client.id !== null && client.id !== undefined && String(client.id).trim() !== '' && Number.isNaN(Number(client.id))) {
+        return String(client.id);
+    }
+
+    return '';
+}
+
+function extractReadServicesClientName(client, fallbackId = '') {
+    if (!client) return fallbackId || null;
+
+    return client.client_name
+        || client.nombre
+        || client.name
+        || client.company_name
+        || fallbackId
+        || null;
+}
+
+function nextReadServicesActionForCommercialClient(client) {
+    if (toReadServicesNumber(client.pending_contact) > 0) return 'Contactar cliente';
+    if (toReadServicesNumber(client.contacted) > 0) return 'Hacer seguimiento';
+
+    const totalRequests = toReadServicesNumber(client.interest_requests_total);
+    const handled = toReadServicesNumber(client.handled);
+    const dismissed = toReadServicesNumber(client.dismissed);
+
+    if (handled === totalRequests && totalRequests > 0) return 'Sin acción pendiente';
+    if (totalRequests === 0) return 'Sin solicitudes todavía';
+    if (dismissed > 0 && toReadServicesNumber(client.pending_contact) === 0 && toReadServicesNumber(client.contacted) === 0) return 'Revisar descartadas';
+
+    return 'Revisar manualmente';
+}
+
+function nextReadServicesActionForCommercialRequest(status) {
+    if (status === 'pending_contact') return 'Contactar cliente';
+    if (status === 'contacted') return 'Hacer seguimiento';
+    if (status === 'handled') return 'Sin acción pendiente';
+    if (status === 'dismissed') return 'Descartada';
+    return 'Revisar manualmente';
+}
+
+function emptyReadServicesCommercialClient(clientId, clientName = null) {
+    return {
+        client_id: String(clientId || ''),
+        client_name: clientName || String(clientId || ''),
+        packages_total: 0,
+        packages_published: 0,
+        total_package_items: 0,
+        total_compliance_items: 0,
+        total_aid_items: 0,
+        total_radar_items: 0,
+        interest_requests_total: 0,
+        pending_contact: 0,
+        contacted: 0,
+        handled: 0,
+        dismissed: 0,
+        next_action_recommended: 'Revisar manualmente'
+    };
+}
+
+function ensureReadServicesCommercialClient(clientMap, clientId, clientName = null) {
+    const normalizedClientId = String(clientId || '');
+
+    if (!normalizedClientId) return null;
+
+    if (!clientMap.has(normalizedClientId)) {
+        clientMap.set(normalizedClientId, emptyReadServicesCommercialClient(normalizedClientId, clientName));
+    }
+
+    const client = clientMap.get(normalizedClientId);
+
+    if (clientName && (!client.client_name || client.client_name === normalizedClientId)) {
+        client.client_name = clientName;
+    }
+
+    return client;
+}
+
+function normalizeReadServicesCommercialClient(client) {
+    const normalized = {
+        client_id: String(client.client_id || ''),
+        client_name: client.client_name || null,
+        packages_total: toReadServicesNumber(client.packages_total),
+        packages_published: toReadServicesNumber(client.packages_published),
+        total_package_items: toReadServicesNumber(client.total_package_items),
+        total_compliance_items: toReadServicesNumber(client.total_compliance_items),
+        total_aid_items: toReadServicesNumber(client.total_aid_items),
+        total_radar_items: toReadServicesNumber(client.total_radar_items),
+        interest_requests_total: toReadServicesNumber(client.interest_requests_total),
+        pending_contact: toReadServicesNumber(client.pending_contact),
+        contacted: toReadServicesNumber(client.contacted),
+        handled: toReadServicesNumber(client.handled),
+        dismissed: toReadServicesNumber(client.dismissed),
+        next_action_recommended: client.next_action_recommended || nextReadServicesActionForCommercialClient(client)
+    };
+
+    return normalized;
+}
+
+function normalizeReadServicesCommercialRequest(request) {
+    return {
+        id: String(request.id || ''),
+        client_id: request.client_id || null,
+        client_name: request.client_name || null,
+        package_id: request.package_id || null,
+        package_item_id: request.package_item_id || null,
+        source_type: request.source_type || null,
+        source_id: request.source_id || null,
+        title: request.title || null,
+        request_type: request.request_type || null,
+        request_status: request.request_status || null,
+        priority: request.priority || null,
+        handled_by: request.handled_by || null,
+        next_action_recommended: nextReadServicesActionForCommercialRequest(request.request_status)
+    };
+}
+
+function sortReadServicesCommercialClients(clients) {
+    return [...clients].sort((a, b) => String(a.client_id).localeCompare(String(b.client_id)));
+}
+
+function sortReadServicesCommercialRequests(requests) {
+    return [...requests].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+function buildReadServicesCommercialDashboardFromRows({ clientsCatalog = [], packages = [], requests = [] }) {
+    const clientMap = new Map();
+
+    for (const catalogClient of clientsCatalog || []) {
+        const clientId = extractReadServicesClientId(catalogClient);
+        if (!clientId) continue;
+
+        ensureReadServicesCommercialClient(
+            clientMap,
+            clientId,
+            extractReadServicesClientName(catalogClient, clientId)
+        );
+    }
+
+    for (const pkg of packages || []) {
+        const clientId = String(pkg.client_id || '');
+        if (!clientId) continue;
+
+        const client = ensureReadServicesCommercialClient(clientMap, clientId, pkg.client_name || clientId);
+        if (!client) continue;
+
+        client.packages_total += 1;
+
+        if (isVisiblePortalPackageRow(pkg)) {
+            client.packages_published += 1;
+            client.total_package_items += toReadServicesNumber(pkg.total_items);
+            client.total_compliance_items += toReadServicesNumber(pkg.total_compliance_items);
+            client.total_aid_items += toReadServicesNumber(pkg.total_aid_items);
+            client.total_radar_items += toReadServicesNumber(pkg.total_radar_items);
+        }
+    }
+
+    const normalizedRequests = [];
+
+    for (const request of requests || []) {
+        const clientId = String(request.client_id || '');
+        const client = ensureReadServicesCommercialClient(clientMap, clientId, request.client_name || clientId);
+
+        if (client) {
+            client.interest_requests_total += 1;
+
+            if (request.request_status === 'pending_contact') client.pending_contact += 1;
+            if (request.request_status === 'contacted') client.contacted += 1;
+            if (request.request_status === 'handled') client.handled += 1;
+            if (request.request_status === 'dismissed') client.dismissed += 1;
+        }
+
+        normalizedRequests.push(normalizeReadServicesCommercialRequest(request));
+    }
+
+    const clients = sortReadServicesCommercialClients(
+        [...clientMap.values()].map((client) => normalizeReadServicesCommercialClient({
+            ...client,
+            next_action_recommended: nextReadServicesActionForCommercialClient(client)
+        }))
+    );
+
+    const requestsSorted = sortReadServicesCommercialRequests(normalizedRequests);
+
+    const requestStatuses = new Map();
+    const requestTypes = new Map();
+    const priorities = new Map();
+
+    for (const request of requestsSorted) {
+        const statusKey = request.request_status || 'unknown';
+        const typeKey = request.request_type || 'unknown';
+        const priorityKey = request.priority || 'unknown';
+
+        requestStatuses.set(statusKey, (requestStatuses.get(statusKey) || 0) + 1);
+        requestTypes.set(typeKey, (requestTypes.get(typeKey) || 0) + 1);
+        priorities.set(priorityKey, (priorities.get(priorityKey) || 0) + 1);
+    }
+
+    const counts = {
+        clients_total: clients.length,
+        packages_published: clients.reduce((total, client) => total + toReadServicesNumber(client.packages_published), 0),
+        package_items_total: clients.reduce((total, client) => total + toReadServicesNumber(client.total_package_items), 0),
+        interest_requests_total: clients.reduce((total, client) => total + toReadServicesNumber(client.interest_requests_total), 0),
+        pending_contact: clients.reduce((total, client) => total + toReadServicesNumber(client.pending_contact), 0),
+        contacted: clients.reduce((total, client) => total + toReadServicesNumber(client.contacted), 0),
+        handled: clients.reduce((total, client) => total + toReadServicesNumber(client.handled), 0),
+        dismissed: clients.reduce((total, client) => total + toReadServicesNumber(client.dismissed), 0)
+    };
+
+    return {
+        counts,
+        clients,
+        requests: requestsSorted,
+        filters: {
+            request_statuses: [...requestStatuses.entries()].map(([request_status, total]) => ({ request_status, total })).sort((a, b) => String(a.request_status).localeCompare(String(b.request_status))),
+            request_types: [...requestTypes.entries()].map(([request_type, total]) => ({ request_type, total })).sort((a, b) => String(a.request_type).localeCompare(String(b.request_type))),
+            priorities: [...priorities.entries()].map(([priority, total]) => ({ priority, total })).sort((a, b) => String(a.priority).localeCompare(String(b.priority)))
+        }
+    };
+}
+
+function getSqliteReadServicesCommercialDashboard() {
+    let db;
+
+    try {
+        db = new DatabaseSync(DB_PATH);
+
+        const packages = db.prepare(
+            "SELECT * FROM client_publication_packages ORDER BY client_id ASC, published_at DESC"
+        ).all();
+
+        const requests = db.prepare(
+            "SELECT * FROM client_interest_requests ORDER BY created_at DESC"
+        ).all();
+
+        const dashboard = buildReadServicesCommercialDashboardFromRows({
+            clientsCatalog: getClientCatalog(),
+            packages,
+            requests
+        });
+
+        return {
+            ok: true,
+            source: 'sqlite',
+            dashboard
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error_code: 'SQLITE_READ_SERVICES_COMMERCIAL_DASHBOARD_ERROR',
+            message: error.message
+        };
+    } finally {
+        if (db) {
+            try { db.close(); } catch {}
+        }
+    }
+}
+
+async function getSupabaseReadServicesCommercialDashboard() {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return clientResult;
+    }
+
+    const supabaseClients = await getSupabaseReadServicesClientsCatalog();
+
+    if (!supabaseClients.ok) {
+        return {
+            ...supabaseClients,
+            error_code: supabaseClients.error_code || 'SUPABASE_READ_SERVICES_COMMERCIAL_CLIENTS_ERROR'
+        };
+    }
+
+    const { data: packageRows, error: packageError } = await clientResult.client
+        .from('client_publication_packages')
+        .select('*')
+        .order('client_id', { ascending: true });
+
+    if (packageError) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_READ_SERVICES_COMMERCIAL_PACKAGES_ERROR',
+            message: packageError.message,
+            env_status: clientResult.env_status
+        };
+    }
+
+    const { data: requestRows, error: requestError } = await clientResult.client
+        .from('client_interest_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (requestError) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_READ_SERVICES_COMMERCIAL_REQUESTS_ERROR',
+            message: requestError.message,
+            env_status: clientResult.env_status
+        };
+    }
+
+    const dashboard = buildReadServicesCommercialDashboardFromRows({
+        clientsCatalog: supabaseClients.clients || [],
+        packages: packageRows || [],
+        requests: requestRows || []
+    });
+
+    return {
+        ok: true,
+        source: 'supabase',
+        env_status: clientResult.env_status,
+        dashboard
+    };
+}
+
+function compareReadServicesCommercialDashboard(sqliteDashboard, supabaseDashboard) {
+    const countFields = [
+        'clients_total',
+        'packages_published',
+        'package_items_total',
+        'interest_requests_total',
+        'pending_contact',
+        'contacted',
+        'handled',
+        'dismissed'
+    ];
+
+    const clientFields = [
+        'client_name',
+        'packages_total',
+        'packages_published',
+        'total_package_items',
+        'total_compliance_items',
+        'total_aid_items',
+        'total_radar_items',
+        'interest_requests_total',
+        'pending_contact',
+        'contacted',
+        'handled',
+        'dismissed',
+        'next_action_recommended'
+    ];
+
+    const requestFields = [
+        'client_id',
+        'client_name',
+        'package_id',
+        'package_item_id',
+        'source_type',
+        'source_id',
+        'title',
+        'request_type',
+        'request_status',
+        'priority',
+        'handled_by',
+        'next_action_recommended'
+    ];
+
+    const sqliteCounts = sqliteDashboard.counts || {};
+    const supabaseCounts = supabaseDashboard.counts || {};
+
+    const count_mismatches = [];
+
+    for (const field of countFields) {
+        if (toReadServicesNumber(sqliteCounts[field]) !== toReadServicesNumber(supabaseCounts[field])) {
+            count_mismatches.push({
+                field,
+                sqlite_value: sqliteCounts[field] ?? null,
+                supabase_value: supabaseCounts[field] ?? null
+            });
+        }
+    }
+
+    const sqliteClients = sortReadServicesCommercialClients((sqliteDashboard.clients || []).map(normalizeReadServicesCommercialClient));
+    const supabaseClients = sortReadServicesCommercialClients((supabaseDashboard.clients || []).map(normalizeReadServicesCommercialClient));
+
+    const sqliteClientIds = sqliteClients.map((client) => client.client_id);
+    const supabaseClientIds = supabaseClients.map((client) => client.client_id);
+
+    const sqliteClientsById = new Map(sqliteClients.map((client) => [client.client_id, client]));
+    const supabaseClientsById = new Map(supabaseClients.map((client) => [client.client_id, client]));
+
+    const missing_clients_in_supabase = sqliteClientIds.filter((id) => !supabaseClientsById.has(id));
+    const extra_clients_in_supabase = supabaseClientIds.filter((id) => !sqliteClientsById.has(id));
+
+    const client_field_mismatches = [];
+
+    for (const clientId of sqliteClientIds) {
+        if (!supabaseClientsById.has(clientId)) continue;
+
+        const sqliteClient = sqliteClientsById.get(clientId);
+        const supabaseClient = supabaseClientsById.get(clientId);
+
+        for (const field of clientFields) {
+            if (String(sqliteClient[field] ?? '') !== String(supabaseClient[field] ?? '')) {
+                client_field_mismatches.push({
+                    client_id: clientId,
+                    field,
+                    sqlite_value: sqliteClient[field] ?? null,
+                    supabase_value: supabaseClient[field] ?? null
+                });
+            }
+        }
+    }
+
+    const sqliteRequests = sortReadServicesCommercialRequests((sqliteDashboard.requests || []).map(normalizeReadServicesCommercialRequest));
+    const supabaseRequests = sortReadServicesCommercialRequests((supabaseDashboard.requests || []).map(normalizeReadServicesCommercialRequest));
+
+    const sqliteRequestIds = sqliteRequests.map((request) => request.id);
+    const supabaseRequestIds = supabaseRequests.map((request) => request.id);
+
+    const sqliteRequestsById = new Map(sqliteRequests.map((request) => [request.id, request]));
+    const supabaseRequestsById = new Map(supabaseRequests.map((request) => [request.id, request]));
+
+    const missing_requests_in_supabase = sqliteRequestIds.filter((id) => !supabaseRequestsById.has(id));
+    const extra_requests_in_supabase = supabaseRequestIds.filter((id) => !sqliteRequestsById.has(id));
+
+    const request_field_mismatches = [];
+
+    for (const requestId of sqliteRequestIds) {
+        if (!supabaseRequestsById.has(requestId)) continue;
+
+        const sqliteRequest = sqliteRequestsById.get(requestId);
+        const supabaseRequest = supabaseRequestsById.get(requestId);
+
+        for (const field of requestFields) {
+            if (String(sqliteRequest[field] ?? '') !== String(supabaseRequest[field] ?? '')) {
+                request_field_mismatches.push({
+                    request_id: requestId,
+                    field,
+                    sqlite_value: sqliteRequest[field] ?? null,
+                    supabase_value: supabaseRequest[field] ?? null
+                });
+            }
+        }
+    }
+
+    const counts_match = count_mismatches.length === 0;
+    const client_ids_match = missing_clients_in_supabase.length === 0 && extra_clients_in_supabase.length === 0;
+    const client_fields_match = client_field_mismatches.length === 0;
+    const request_ids_match = missing_requests_in_supabase.length === 0 && extra_requests_in_supabase.length === 0;
+    const request_fields_match = request_field_mismatches.length === 0;
+
+    const sqliteTransportes = sqliteClientsById.get('transportes_levante');
+    const supabaseTransportes = supabaseClientsById.get('transportes_levante');
+
+    const transportes_not_multiplied_ok = Boolean(
+        sqliteTransportes
+        && supabaseTransportes
+        && toReadServicesNumber(sqliteTransportes.packages_total) === 1
+        && toReadServicesNumber(sqliteTransportes.packages_published) === 1
+        && toReadServicesNumber(sqliteTransportes.total_package_items) === 8
+        && toReadServicesNumber(sqliteTransportes.total_compliance_items) === 6
+        && toReadServicesNumber(sqliteTransportes.total_aid_items) === 2
+        && toReadServicesNumber(sqliteTransportes.total_radar_items) === 0
+        && toReadServicesNumber(supabaseTransportes.packages_total) === 1
+        && toReadServicesNumber(supabaseTransportes.packages_published) === 1
+        && toReadServicesNumber(supabaseTransportes.total_package_items) === 8
+        && toReadServicesNumber(supabaseTransportes.total_compliance_items) === 6
+        && toReadServicesNumber(supabaseTransportes.total_aid_items) === 2
+        && toReadServicesNumber(supabaseTransportes.total_radar_items) === 0
+    );
+
+    return {
+        sqlite_counts: sqliteCounts,
+        supabase_counts: supabaseCounts,
+        sqlite_client_ids: sqliteClientIds,
+        supabase_client_ids: supabaseClientIds,
+        sqlite_request_ids: sqliteRequestIds,
+        supabase_request_ids: supabaseRequestIds,
+        count_mismatches,
+        missing_clients_in_supabase,
+        extra_clients_in_supabase,
+        client_field_mismatches,
+        missing_requests_in_supabase,
+        extra_requests_in_supabase,
+        request_field_mismatches,
+        counts_match,
+        client_ids_match,
+        client_fields_match,
+        request_ids_match,
+        request_fields_match,
+        transportes_not_multiplied_ok,
+        all_match: counts_match
+            && client_ids_match
+            && client_fields_match
+            && request_ids_match
+            && request_fields_match
+            && transportes_not_multiplied_ok
+    };
+}
+// --- /Supabase Read Services V2: commercial dashboard compare ---
+
+
+
+
 
 
 
@@ -2131,6 +2641,79 @@ const server = http.createServer(async (req, res) => {
                 source: 'supabase',
                 env_status: supabaseResult.env_status,
                 packages: sortPortalPackagesForReadServicesCompare(supabaseResult.packages.map(normalizePortalPackageForReadServicesCompare))
+            }
+        });
+    }
+
+
+
+    // API Route: GET /api/manager/supabase-read-services/commercial-dashboard/compare
+    // supabase_read_services_v2_commercial_dashboard_compare
+    if (req.url.split('?')[0] === '/api/manager/supabase-read-services/commercial-dashboard/compare' && req.method === 'GET') {
+        const sqliteResult = getSqliteReadServicesCommercialDashboard();
+
+        if (!sqliteResult.ok) {
+            return sendJson(res, 500, {
+                status: 'error',
+                mode: 'supabase_read_services_v2',
+                resource: 'commercial_dashboard',
+                sqlite: sqliteResult
+            });
+        }
+
+        const supabaseResult = await getSupabaseReadServicesCommercialDashboard();
+
+        if (!supabaseResult.ok) {
+            return sendJson(res, 503, {
+                status: 'error',
+                mode: 'supabase_read_services_v2',
+                resource: 'commercial_dashboard',
+                source_of_truth_current: 'sqlite',
+                supabase_usage: 'read_compare_only',
+                sqlite: {
+                    source: 'sqlite',
+                    counts: sqliteResult.dashboard.counts
+                },
+                supabase: supabaseResult
+            });
+        }
+
+        const comparison = compareReadServicesCommercialDashboard(sqliteResult.dashboard, supabaseResult.dashboard);
+
+        return sendJson(res, 200, {
+            status: comparison.all_match ? 'ok' : 'mismatch',
+            mode: 'supabase_read_services_v2',
+            resource: 'commercial_dashboard',
+            source_of_truth_current: 'sqlite',
+            supabase_usage: 'read_compare_only',
+            counts_match: comparison.counts_match,
+            client_ids_match: comparison.client_ids_match,
+            client_fields_match: comparison.client_fields_match,
+            request_ids_match: comparison.request_ids_match,
+            request_fields_match: comparison.request_fields_match,
+            transportes_not_multiplied_ok: comparison.transportes_not_multiplied_ok,
+            all_match: comparison.all_match,
+            sqlite_counts: comparison.sqlite_counts,
+            supabase_counts: comparison.supabase_counts,
+            sqlite_client_ids: comparison.sqlite_client_ids,
+            supabase_client_ids: comparison.supabase_client_ids,
+            sqlite_request_ids: comparison.sqlite_request_ids,
+            supabase_request_ids: comparison.supabase_request_ids,
+            count_mismatches: comparison.count_mismatches,
+            missing_clients_in_supabase: comparison.missing_clients_in_supabase,
+            extra_clients_in_supabase: comparison.extra_clients_in_supabase,
+            client_field_mismatches: comparison.client_field_mismatches,
+            missing_requests_in_supabase: comparison.missing_requests_in_supabase,
+            extra_requests_in_supabase: comparison.extra_requests_in_supabase,
+            request_field_mismatches: comparison.request_field_mismatches,
+            sqlite: {
+                source: 'sqlite',
+                dashboard: sqliteResult.dashboard
+            },
+            supabase: {
+                source: 'supabase',
+                env_status: supabaseResult.env_status,
+                dashboard: supabaseResult.dashboard
             }
         });
     }

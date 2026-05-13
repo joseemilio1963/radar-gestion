@@ -1664,6 +1664,203 @@ function getRadarReadSource() {
     return RADAR_READ_SOURCE_SQLITE;
 }
 
+
+// write_switch_v1_portal_interest
+const RADAR_WRITE_SOURCE_SQLITE = 'sqlite';
+const RADAR_WRITE_SOURCE_DUAL_WRITE = 'dual_write';
+const RADAR_WRITE_SOURCE_SUPABASE = 'supabase';
+
+function getRadarWriteSource() {
+  const rawValue = String(process.env.RADAR_WRITE_SOURCE || '').trim().toLowerCase();
+
+  if (rawValue === RADAR_WRITE_SOURCE_DUAL_WRITE) {
+    return RADAR_WRITE_SOURCE_DUAL_WRITE;
+  }
+
+  if (rawValue === RADAR_WRITE_SOURCE_SUPABASE) {
+    return RADAR_WRITE_SOURCE_SUPABASE;
+  }
+
+  return RADAR_WRITE_SOURCE_SQLITE;
+}
+
+function isPortalPublishedPackageItem(item) {
+  return Boolean(
+    item &&
+    item.review_status === 'approved' &&
+    Number(item.needs_human_review) === 0 &&
+    Number(item.publish_to_client) === 1 &&
+    item.client_publish_status === 'published' &&
+    Number(item.include_in_package) === 1
+  );
+}
+
+function isPortalPublishedPackage(pkg) {
+  return Boolean(
+    pkg &&
+    pkg.package_status === 'published' &&
+    pkg.review_status === 'approved' &&
+    Number(pkg.needs_human_review) === 0 &&
+    Number(pkg.publish_to_client) === 1 &&
+    pkg.client_publish_status === 'published'
+  );
+}
+
+function buildPortalInterestRequest({ requestId, item, client_id, clientName, package_item_id, message, now }) {
+  return {
+    id: requestId,
+    tenant_id: item.tenant_id,
+    client_id,
+    client_name: clientName,
+    package_id: item.package_id,
+    package_item_id,
+    source_type: 'aid_item',
+    source_id: item.source_id,
+    title: item.title,
+    request_type: item.request_type,
+    request_status: 'pending_contact',
+    priority: 'normal',
+    message: message || 'El cliente solicita que su asesoría revise esta oportunidad.',
+    created_at: now,
+    updated_at: now,
+    handled_at: null,
+    handled_by: null,
+    internal_notes: null
+  };
+}
+
+async function getSupabasePortalInterestValidation({ client_id, package_item_id }) {
+  const clientResult = getSupabaseReadonlyClient();
+
+  if (!clientResult.ok) {
+    return clientResult;
+  }
+
+  const { data: item, error: itemError } = await clientResult.client
+    .from('client_publication_package_items')
+    .select('*')
+    .eq('id', package_item_id)
+    .eq('client_id', client_id)
+    .eq('source_type', 'aid_item')
+    .maybeSingle();
+
+  if (itemError) {
+    return {
+      ok: false,
+      http_status: 500,
+      error_code: 'SUPABASE_PORTAL_INTEREST_ITEM_ERROR',
+      message: itemError.message
+    };
+  }
+
+  if (!item) {
+    return {
+      ok: false,
+      http_status: 403,
+      error_code: 'PORTAL_INTEREST_ITEM_NOT_FOUND',
+      message: 'Item not found, does not belong to client, or is not an aid_item'
+    };
+  }
+
+  if (!isPortalPublishedPackageItem(item)) {
+    return {
+      ok: false,
+      http_status: 403,
+      error_code: 'PORTAL_INTEREST_ITEM_NOT_VISIBLE',
+      message: 'Item is not visible in Portal Entidad'
+    };
+  }
+
+  const { data: pkg, error: pkgError } = await clientResult.client
+    .from('client_publication_packages')
+    .select('*')
+    .eq('id', item.package_id)
+    .maybeSingle();
+
+  if (pkgError) {
+    return {
+      ok: false,
+      http_status: 500,
+      error_code: 'SUPABASE_PORTAL_INTEREST_PACKAGE_ERROR',
+      message: pkgError.message
+    };
+  }
+
+  if (!isPortalPublishedPackage(pkg)) {
+    return {
+      ok: false,
+      http_status: 403,
+      error_code: 'PORTAL_INTEREST_PACKAGE_NOT_PUBLISHED',
+      message: 'Parent package is not published'
+    };
+  }
+
+  return {
+    ok: true,
+    item,
+    package: pkg
+  };
+}
+
+async function getSupabaseExistingPendingPortalInterestRequest({ client_id, package_item_id }) {
+  const clientResult = getSupabaseReadonlyClient();
+
+  if (!clientResult.ok) {
+    return clientResult;
+  }
+
+  const { data, error } = await clientResult.client
+    .from('client_interest_requests')
+    .select('*')
+    .eq('client_id', client_id)
+    .eq('package_item_id', package_item_id)
+    .eq('request_status', 'pending_contact')
+    .limit(1);
+
+  if (error) {
+    return {
+      ok: false,
+      http_status: 500,
+      error_code: 'SUPABASE_PORTAL_INTEREST_EXISTING_ERROR',
+      message: error.message
+    };
+  }
+
+  return {
+    ok: true,
+    request: Array.isArray(data) && data.length > 0 ? data[0] : null
+  };
+}
+
+async function createSupabasePortalInterestRequest(request) {
+  const clientResult = getSupabaseReadonlyClient();
+
+  if (!clientResult.ok) {
+    return clientResult;
+  }
+
+  const { data, error } = await clientResult.client
+    .from('client_interest_requests')
+    .insert(request)
+    .select('*')
+    .single();
+
+  if (error) {
+    return {
+      ok: false,
+      http_status: 500,
+      error_code: 'SUPABASE_PORTAL_INTEREST_INSERT_ERROR',
+      message: error.message
+    };
+  }
+
+  return {
+    ok: true,
+    request: data
+  };
+}
+
+
 function getRadarReadSourceStatus() {
     const readSource = getRadarReadSource();
     const supabaseEnvStatus = getSupabaseReadonlyEnvStatus();
@@ -2539,6 +2736,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // API Route: POST /api/portal/interest-requests
+    // write_switch_v1_portal_interest
     if (req.url === '/api/portal/interest-requests') {
         if (req.method !== 'POST') {
             return sendJson(res, 405, { error: 'method_not_allowed' });
@@ -2546,9 +2744,10 @@ const server = http.createServer(async (req, res) => {
 
         let chunks = [];
         req.on('data', chunk => { chunks.push(chunk); });
-        req.on('end', () => {
+        req.on('end', async () => {
             const body = Buffer.concat(chunks).toString('utf8');
             const payload = parseJsonSafe(body);
+
             if (!payload || !payload.client_id || !payload.package_item_id) {
                 return sendJson(res, 400, { error: 'invalid_payload', message: 'client_id and package_item_id are required' });
             }
@@ -2560,89 +2759,167 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 403, { error: 'forbidden', message: 'Client not found' });
             }
 
+            const writeSource = getRadarWriteSource();
+            const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+            const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+
+            let db = null;
+
             try {
-                const db = new DatabaseSync(DB_PATH);
+                let sqliteItem = null;
+                let supabaseItem = null;
+                let sqliteRequest = null;
+                let supabaseRequest = null;
 
-                // Validations
-                const itemStmt = db.prepare('SELECT * FROM client_publication_package_items WHERE id = ? AND client_id = ? AND source_type = ?');
-                const item = itemStmt.get(package_item_id, client_id, 'aid_item');
+                if (shouldUseSqlite) {
+                    db = new DatabaseSync(DB_PATH);
 
-                if (!item) {
-                    db.close();
-                    return sendJson(res, 403, { error: 'forbidden', message: 'Item not found, does not belong to client, or is not an aid_item' });
+                    const itemStmt = db.prepare('SELECT * FROM client_publication_package_items WHERE id = ? AND client_id = ? AND source_type = ?');
+                    sqliteItem = itemStmt.get(package_item_id, client_id, 'aid_item');
+
+                    if (!sqliteItem) {
+                        return sendJson(res, 403, { error: 'forbidden', message: 'Item not found, does not belong to client, or is not an aid_item', write_source: writeSource });
+                    }
+
+                    if (!isPortalPublishedPackageItem(sqliteItem)) {
+                        return sendJson(res, 403, { error: 'forbidden', message: 'Item is not visible in Portal Entidad', write_source: writeSource });
+                    }
+
+                    const pkgStmt = db.prepare('SELECT * FROM client_publication_packages WHERE id = ?');
+                    const pkg = pkgStmt.get(sqliteItem.package_id);
+
+                    if (!isPortalPublishedPackage(pkg)) {
+                        return sendJson(res, 403, { error: 'forbidden', message: 'Parent package is not published', write_source: writeSource });
+                    }
+
+                    const existingStmt = db.prepare('SELECT * FROM client_interest_requests WHERE client_id = ? AND package_item_id = ? AND request_status = ?');
+                    const existing = existingStmt.get(client_id, package_item_id, 'pending_contact');
+
+                    if (existing) {
+                        return sendJson(res, 200, {
+                            status: 'ok',
+                            action: 'existing_pending_request_found',
+                            message: 'Ya tienes una solicitud pendiente para esta oportunidad.',
+                            request: existing,
+                            write_source: writeSource,
+                            sqlite_action: 'existing_pending_request_found',
+                            supabase_action: shouldUseSupabase ? 'not_attempted_existing_sqlite' : 'not_used'
+                        });
+                    }
                 }
 
-                if (item.review_status !== 'approved' || item.needs_human_review !== 0 || item.publish_to_client !== 1 || item.client_publish_status !== 'published' || item.include_in_package !== 1) {
-                    db.close();
-                    return sendJson(res, 403, { error: 'forbidden', message: 'Item is not visible in Portal Entidad' });
+                if (shouldUseSupabase) {
+                    const supabaseValidation = await getSupabasePortalInterestValidation({ client_id, package_item_id });
+
+                    if (!supabaseValidation.ok) {
+                        return sendJson(res, supabaseValidation.http_status || 500, {
+                            error: supabaseValidation.error_code || 'supabase_validation_failed',
+                            message: supabaseValidation.message || 'Supabase validation failed',
+                            write_source: writeSource
+                        });
+                    }
+
+                    supabaseItem = supabaseValidation.item;
+
+                    const existingSupabase = await getSupabaseExistingPendingPortalInterestRequest({ client_id, package_item_id });
+
+                    if (!existingSupabase.ok) {
+                        return sendJson(res, existingSupabase.http_status || 500, {
+                            error: existingSupabase.error_code || 'supabase_existing_check_failed',
+                            message: existingSupabase.message || 'Supabase existing request check failed',
+                            write_source: writeSource
+                        });
+                    }
+
+                    if (existingSupabase.request) {
+                        return sendJson(res, 200, {
+                            status: 'ok',
+                            action: 'existing_pending_request_found',
+                            message: 'Ya tienes una solicitud pendiente para esta oportunidad.',
+                            request: existingSupabase.request,
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_existing_supabase' : 'not_used',
+                            supabase_action: 'existing_pending_request_found'
+                        });
+                    }
                 }
 
-                const pkgStmt = db.prepare('SELECT * FROM client_publication_packages WHERE id = ?');
-                const pkg = pkgStmt.get(item.package_id);
-
-                if (!pkg || pkg.package_status !== 'published' || pkg.review_status !== 'approved' || pkg.needs_human_review !== 0 || pkg.publish_to_client !== 1 || pkg.client_publish_status !== 'published') {
-                    db.close();
-                    return sendJson(res, 403, { error: 'forbidden', message: 'Parent package is not published' });
-                }
-
-                // Check for idempotence
-                const existingStmt = db.prepare('SELECT * FROM client_interest_requests WHERE client_id = ? AND package_item_id = ? AND request_status = ?');
-                const existing = existingStmt.get(client_id, package_item_id, 'pending_contact');
-
-                if (existing) {
-                    db.close();
-                    return sendJson(res, 200, {
-                        status: 'ok',
-                        action: 'existing_pending_request_found',
-                        message: 'Ya tienes una solicitud pendiente para esta oportunidad.',
-                        request: existing
-                    });
-                }
-
-                // Insert
+                const item = supabaseItem || sqliteItem;
                 const requestId = generateId();
-                const defaultMessage = message || "El cliente solicita que su asesoría revise esta oportunidad.";
                 const now = new Date().toISOString();
 
-                const insertStmt = db.prepare(`
-                    INSERT INTO client_interest_requests 
-                    (id, tenant_id, client_id, client_name, package_id, package_item_id, source_type, source_id, title, request_type, request_status, priority, message, created_at, updated_at, handled_at, handled_by, internal_notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, null)
-                `);
-
-                insertStmt.run(
+                const request = buildPortalInterestRequest({
                     requestId,
-                    item.tenant_id,
+                    item,
                     client_id,
-                    client.name,
-                    item.package_id,
+                    clientName: client.name,
                     package_item_id,
-                    'aid_item',
-                    item.source_id,
-                    item.title,
-                    item.request_type,
-                    'pending_contact',
-                    'normal',
-                    defaultMessage,
-                    now,
+                    message,
                     now
-                );
+                });
 
-                const newRequestStmt = db.prepare('SELECT * FROM client_interest_requests WHERE id = ?');
-                const newRequest = newRequestStmt.get(requestId);
+                if (shouldUseSqlite) {
+                    const insertStmt = db.prepare('INSERT INTO client_interest_requests (id, tenant_id, client_id, client_name, package_id, package_item_id, source_type, source_id, title, request_type, request_status, priority, message, created_at, updated_at, handled_at, handled_by, internal_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, null)');
 
-                db.close();
+                    insertStmt.run(
+                        request.id,
+                        request.tenant_id,
+                        request.client_id,
+                        request.client_name,
+                        request.package_id,
+                        request.package_item_id,
+                        request.source_type,
+                        request.source_id,
+                        request.title,
+                        request.request_type,
+                        request.request_status,
+                        request.priority,
+                        request.message,
+                        request.created_at,
+                        request.updated_at
+                    );
+
+                    const newRequestStmt = db.prepare('SELECT * FROM client_interest_requests WHERE id = ?');
+                    sqliteRequest = newRequestStmt.get(request.id);
+                }
+
+                if (shouldUseSupabase) {
+                    const supabaseCreate = await createSupabasePortalInterestRequest(request);
+
+                    if (!supabaseCreate.ok) {
+                        return sendJson(res, supabaseCreate.http_status || 500, {
+                            error: supabaseCreate.error_code || 'supabase_insert_failed',
+                            message: supabaseCreate.message || 'Supabase insert failed',
+                            write_source: writeSource,
+                            sqlite_action: sqliteRequest ? 'created' : 'not_used',
+                            supabase_action: 'failed'
+                        });
+                    }
+
+                    supabaseRequest = supabaseCreate.request;
+                }
 
                 return sendJson(res, 200, {
                     status: 'ok',
                     action: 'created',
                     message: 'Solicitud registrada. Tu asesoría revisará esta oportunidad.',
-                    request: newRequest
+                    request: supabaseRequest || sqliteRequest,
+                    write_source: writeSource,
+                    sqlite_action: shouldUseSqlite ? 'created' : 'not_used',
+                    supabase_action: shouldUseSupabase ? 'created' : 'not_used'
                 });
 
             } catch (err) {
-                console.error('SQLite Error:', err);
-                return sendJson(res, 500, { error: 'internal_error' });
+                console.error('Portal interest request write switch error:', err);
+                return sendJson(res, 500, {
+                    error: 'internal_error',
+                    message: 'Portal interest request could not be processed.',
+                    write_source: writeSource
+                });
+            } finally {
+                if (db) {
+                    try { db.close(); } catch {}
+                }
             }
         });
         return;

@@ -1648,6 +1648,229 @@ function compareReadServicesCommercialDashboard(sqliteDashboard, supabaseDashboa
 }
 // --- /Supabase Read Services V2: commercial dashboard compare ---
 
+// --- Supabase Read Switch V1 ---
+// supabase_read_switch_v1
+
+const RADAR_READ_SOURCE_SQLITE = 'sqlite';
+const RADAR_READ_SOURCE_SUPABASE_READONLY = 'supabase_readonly';
+
+function getRadarReadSource() {
+    const rawValue = String(process.env.RADAR_READ_SOURCE || '').trim().toLowerCase();
+
+    if (rawValue === RADAR_READ_SOURCE_SUPABASE_READONLY) {
+        return RADAR_READ_SOURCE_SUPABASE_READONLY;
+    }
+
+    return RADAR_READ_SOURCE_SQLITE;
+}
+
+function getRadarReadSourceStatus() {
+    const readSource = getRadarReadSource();
+    const supabaseEnvStatus = getSupabaseReadonlyEnvStatus();
+
+    return {
+        read_source: readSource,
+        source_of_truth_current: readSource,
+        allowed_values: [
+            RADAR_READ_SOURCE_SQLITE,
+            RADAR_READ_SOURCE_SUPABASE_READONLY
+        ],
+        default_source: RADAR_READ_SOURCE_SQLITE,
+        env_var: 'RADAR_READ_SOURCE',
+        supabase_readonly: supabaseEnvStatus,
+        safe_mode: readSource === RADAR_READ_SOURCE_SQLITE,
+        note: readSource === RADAR_READ_SOURCE_SQLITE
+            ? 'SQLite sigue siendo la fuente operativa actual.'
+            : 'Supabase readonly activado para endpoints de lectura compatibles.'
+    };
+}
+
+function readSwitchFlagToBoolean(value) {
+    if (value === true) return true;
+    if (value === false || value === null || value === undefined) return false;
+
+    const normalized = String(value).trim().toLowerCase();
+
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
+}
+
+function readSwitchBooleanToInteger(value) {
+    return readSwitchFlagToBoolean(value) ? 1 : 0;
+}
+function normalizeReadSwitchClientForApi(client) {
+    const clientId = extractReadServicesClientId(client);
+
+    return {
+        ...client,
+        id: clientId || client.id || client.client_id || client.client_key || null,
+        client_id: clientId || client.client_id || client.client_key || client.id || null,
+        client_key: client.client_key || clientId || client.client_id || client.id || null,
+        name: client.name || client.nombre || client.client_name || null,
+        nombre: client.nombre || client.client_name || client.name || null,
+        client_name: client.client_name || client.nombre || client.name || null
+    };
+}
+
+function normalizeReadSwitchPackageForPortalApi(pkg, items) {
+    return {
+        ...pkg,
+        needs_human_review: readSwitchBooleanToInteger(pkg.needs_human_review),
+        publish_to_client: readSwitchBooleanToInteger(pkg.publish_to_client),
+        data_quality_warning: readSwitchBooleanToInteger(pkg.data_quality_warning),
+        total_items: toReadServicesNumber(pkg.total_items),
+        total_compliance_items: toReadServicesNumber(pkg.total_compliance_items),
+        total_aid_items: toReadServicesNumber(pkg.total_aid_items),
+        total_radar_items: toReadServicesNumber(pkg.total_radar_items),
+        items: (items || []).map((item) => ({
+            ...item,
+            include_in_package: readSwitchBooleanToInteger(item.include_in_package),
+            needs_human_review: readSwitchBooleanToInteger(item.needs_human_review),
+            publish_to_client: readSwitchBooleanToInteger(item.publish_to_client),
+            data_quality_warning: readSwitchBooleanToInteger(item.data_quality_warning)
+        }))
+    };
+}
+
+async function getSupabaseReadSwitchClientsForApi() {
+    const supabaseResult = await getSupabaseReadServicesClientsCatalog();
+
+    if (!supabaseResult.ok) {
+        return supabaseResult;
+    }
+
+    return {
+        ok: true,
+        source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+        clients: (supabaseResult.clients || []).map(normalizeReadSwitchClientForApi),
+        env_status: supabaseResult.env_status || getSupabaseReadonlyEnvStatus()
+    };
+}
+
+async function getSupabaseReadSwitchPortalPackagesForApi(clientId) {
+    const cleanClientId = String(clientId || '').trim();
+
+    if (!cleanClientId) {
+        return {
+            ok: false,
+            error_code: 'CLIENT_ID_REQUIRED',
+            message: 'client_id es obligatorio.'
+        };
+    }
+
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return clientResult;
+    }
+
+    const clientsResult = await getSupabaseReadSwitchClientsForApi();
+
+    if (!clientsResult.ok) {
+        return {
+            ...clientsResult,
+            error_code: clientsResult.error_code || 'SUPABASE_READ_SWITCH_CLIENTS_ERROR'
+        };
+    }
+
+    const knownClient = (clientsResult.clients || []).find((client) => {
+        return String(client.id || '') === cleanClientId
+            || String(client.client_id || '') === cleanClientId
+            || String(client.client_key || '') === cleanClientId;
+    });
+
+    if (!knownClient) {
+        return {
+            ok: true,
+            source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+            client_id: cleanClientId,
+            packages: [],
+            env_status: clientResult.env_status
+        };
+    }
+
+    const { data: packageRows, error: packageError } = await clientResult.client
+        .from('client_publication_packages')
+        .select('*')
+        .eq('client_id', cleanClientId)
+        .order('published_at', { ascending: false });
+
+    if (packageError) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_READ_SWITCH_PORTAL_PACKAGES_ERROR',
+            message: packageError.message,
+            env_status: clientResult.env_status
+        };
+    }
+
+    const visiblePackages = (packageRows || []).filter(isVisiblePortalPackageRow);
+    const packageIds = visiblePackages.map((pkg) => pkg.id).filter(Boolean);
+
+    let itemRows = [];
+
+    if (packageIds.length > 0) {
+        const { data: rawItemRows, error: itemError } = await clientResult.client
+            .from('client_publication_package_items')
+            .select('*')
+            .in('package_id', packageIds)
+            .order('display_order', { ascending: true })
+            .order('id', { ascending: true });
+
+        if (itemError) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_READ_SWITCH_PORTAL_PACKAGE_ITEMS_ERROR',
+                message: itemError.message,
+                env_status: clientResult.env_status
+            };
+        }
+
+        itemRows = (rawItemRows || []).filter(isVisiblePortalPackageItemRow);
+    }
+
+    const itemsByPackageId = new Map();
+
+    for (const item of itemRows) {
+        const packageId = item.package_id;
+
+        if (!itemsByPackageId.has(packageId)) {
+            itemsByPackageId.set(packageId, []);
+        }
+
+        itemsByPackageId.get(packageId).push(item);
+    }
+
+    const packages = visiblePackages.map((pkg) => {
+        return normalizeReadSwitchPackageForPortalApi(pkg, itemsByPackageId.get(pkg.id) || []);
+    });
+
+    return {
+        ok: true,
+        source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+        client_id: cleanClientId,
+        packages,
+        env_status: clientResult.env_status
+    };
+}
+
+async function getSupabaseReadSwitchCommercialDashboardForApi() {
+    const supabaseResult = await getSupabaseReadServicesCommercialDashboard();
+
+    if (!supabaseResult.ok) {
+        return supabaseResult;
+    }
+
+    return {
+        ok: true,
+        source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+        dashboard: supabaseResult.dashboard,
+        env_status: supabaseResult.env_status || getSupabaseReadonlyEnvStatus()
+    };
+}
+// --- /Supabase Read Switch V1 ---
+
+
+
 
 
 
@@ -2718,6 +2941,16 @@ const server = http.createServer(async (req, res) => {
         });
     }
 
+
+    // API Route: GET /api/manager/read-source/status
+    // supabase_read_switch_v1
+    if (req.url.split('?')[0] === '/api/manager/read-source/status' && req.method === 'GET') {
+        return sendJson(res, 200, {
+            status: 'ok',
+            ...getRadarReadSourceStatus()
+        });
+    }
+
     // API Route: GET /api/manager/supabase-readonly/status
     if (req.url.split('?')[0] === '/api/manager/supabase-readonly/status' && req.method === 'GET') {
         return sendJson(res, 200, {
@@ -2786,6 +3019,36 @@ const server = http.createServer(async (req, res) => {
 
     // API Route: GET /api/manager/commercial-dashboard
     if (req.url.split('?')[0] === '/api/manager/commercial-dashboard' && req.method === 'GET') {
+
+        if (getRadarReadSource() === RADAR_READ_SOURCE_SUPABASE_READONLY) {
+            const supabaseDashboardResult = await getSupabaseReadSwitchCommercialDashboardForApi();
+
+            if (!supabaseDashboardResult.ok) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    mode: 'supabase_read_switch_v1',
+                    resource: 'commercial_dashboard',
+                    read_source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                    source_of_truth_current: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                    error_code: supabaseDashboardResult.error_code || 'SUPABASE_READ_SWITCH_COMMERCIAL_DASHBOARD_ERROR',
+                    message: supabaseDashboardResult.message || 'No se pudo leer dashboard comercial desde Supabase.',
+                    supabase: supabaseDashboardResult
+                });
+            }
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                mode: 'supabase_read_switch_v1',
+                resource: 'commercial_dashboard',
+                read_source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                source_of_truth_current: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                counts: supabaseDashboardResult.dashboard.counts,
+                clients: supabaseDashboardResult.dashboard.clients,
+                requests: supabaseDashboardResult.dashboard.requests,
+                filters: supabaseDashboardResult.dashboard.filters
+            });
+        }
+
         let db;
 
         try {
@@ -3165,6 +3428,33 @@ const server = http.createServer(async (req, res) => {
 
     // API Route: GET /api/clients/entities
     if (req.url.split('?')[0] === '/api/clients/entities' && req.method === 'GET') {
+
+        if (getRadarReadSource() === RADAR_READ_SOURCE_SUPABASE_READONLY) {
+            const supabaseClientsResult = await getSupabaseReadSwitchClientsForApi();
+
+            if (!supabaseClientsResult.ok) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    mode: 'supabase_read_switch_v1',
+                    resource: 'clients',
+                    read_source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                    source_of_truth_current: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                    error_code: supabaseClientsResult.error_code || 'SUPABASE_READ_SWITCH_CLIENTS_ERROR',
+                    message: supabaseClientsResult.message || 'No se pudo leer clientes desde Supabase.',
+                    supabase: supabaseClientsResult
+                });
+            }
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                mode: 'supabase_read_switch_v1',
+                resource: 'clients',
+                read_source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                source_of_truth_current: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                clients: supabaseClientsResult.clients
+            });
+        }
+
         const clients = getClientCatalog();
 
         return sendJson(res, 200, {
@@ -3739,6 +4029,47 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url.split('?')[0] === '/api/portal/packages' && req.method === 'GET') {
+
+        if (getRadarReadSource() === RADAR_READ_SOURCE_SUPABASE_READONLY) {
+            const queryString = req.url.split('?')[1] || '';
+            const searchParams = new URLSearchParams(queryString);
+            const client_id = searchParams.get('client_id');
+
+            if (!client_id) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'CLIENT_ID_REQUIRED',
+                    message: 'client_id es obligatorio.'
+                });
+            }
+
+            const supabasePackagesResult = await getSupabaseReadSwitchPortalPackagesForApi(client_id);
+
+            if (!supabasePackagesResult.ok) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    mode: 'supabase_read_switch_v1',
+                    resource: 'portal_packages',
+                    read_source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                    source_of_truth_current: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                    client_id,
+                    error_code: supabasePackagesResult.error_code || 'SUPABASE_READ_SWITCH_PORTAL_PACKAGES_ERROR',
+                    message: supabasePackagesResult.message || 'No se pudo leer paquetes de portal desde Supabase.',
+                    supabase: supabasePackagesResult
+                });
+            }
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                mode: 'supabase_read_switch_v1',
+                resource: 'portal_packages',
+                read_source: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                source_of_truth_current: RADAR_READ_SOURCE_SUPABASE_READONLY,
+                client_id,
+                packages: supabasePackagesResult.packages
+            });
+        }
+
         const queryString = req.url.split('?')[1] || '';
         const searchParams = new URLSearchParams(queryString);
         const client_id = searchParams.get('client_id');

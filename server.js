@@ -4566,6 +4566,201 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    // API Route: GET /api/manager/publication-packages/generate/preflight
+    // publication_generate_preflight_v1
+    if (req.url.split('?')[0] === '/api/manager/publication-packages/generate/preflight' && req.method === 'GET') {
+        const queryString = req.url.split('?')[1] || '';
+        const searchParams = new URLSearchParams(queryString);
+        const client_id = searchParams.get('client_id');
+        const sector_key = searchParams.get('sector_key');
+        const package_type = 'base_sector_package_v1';
+
+        const writeSource = getRadarPublicationGenerateWriteSource();
+        const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+        const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+
+        let db = null;
+
+        try {
+            if (!client_id || !sector_key) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    mode: 'publication_generate_preflight_v1',
+                    error: 'invalid_payload',
+                    message: 'Missing client_id or sector_key',
+                    write_source: writeSource,
+                    write_mutation_executed: false,
+                    valid_generate_mutation_sent: false
+                });
+            }
+
+            const validClient = getClientCatalog().find(c => c.id === client_id);
+
+            let sqliteSector = null;
+            let sqliteExistingPublished = null;
+            let sqliteDraft = null;
+            let sqliteObligationsCount = null;
+            let sqliteAidsCount = null;
+
+            if (shouldUseSqlite) {
+                db = new DatabaseSync(DB_PATH);
+
+                sqliteSector = db.prepare('SELECT * FROM compliance_sectors WHERE sector_key = ?').get(sector_key);
+
+                sqliteExistingPublished = db.prepare(`
+                    SELECT id FROM client_publication_packages
+                    WHERE client_id = ? AND sector_key = ? AND package_type = ?
+                    AND package_status = 'published' AND review_status = 'approved'
+                    AND publish_to_client = 1 AND needs_human_review = 0 AND client_publish_status = 'published'
+                `).get(client_id, sector_key, package_type);
+
+                sqliteDraft = db.prepare(`
+                    SELECT id FROM client_publication_packages
+                    WHERE client_id = ? AND sector_key = ? AND package_type = ?
+                    AND package_status = 'draft_pending_review'
+                `).get(client_id, sector_key, package_type);
+
+                sqliteObligationsCount = db.prepare(`
+                    SELECT count(*) AS c
+                    FROM compliance_obligations
+                    WHERE sector_key = ? AND id LIKE 'base_obligation_%'
+                `).get(sector_key)?.c ?? 0;
+
+                sqliteAidsCount = db.prepare(`
+                    SELECT count(*) AS c
+                    FROM aid_items
+                    WHERE id LIKE 'aid_base_%'
+                `).get()?.c ?? 0;
+            }
+
+            let supabaseConfigured = false;
+            let supabaseClientError = null;
+            let supabaseExistingPublished = null;
+            let supabaseDraft = null;
+            let supabaseExistingPublishedError = null;
+            let supabaseDraftError = null;
+
+            if (shouldUseSupabase) {
+                const clientResult = getSupabaseReadonlyClient();
+
+                if (!clientResult.ok) {
+                    supabaseClientError = {
+                        error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+                        message: clientResult.message || 'Supabase client unavailable.'
+                    };
+                } else {
+                    supabaseConfigured = true;
+
+                    const { data: publishedRows, error: publishedError } = await clientResult.client
+                        .from('client_publication_packages')
+                        .select('id')
+                        .eq('client_id', client_id)
+                        .eq('sector_key', sector_key)
+                        .eq('package_type', package_type)
+                        .eq('package_status', 'published')
+                        .eq('review_status', 'approved')
+                        .eq('publish_to_client', 1)
+                        .eq('needs_human_review', 0)
+                        .eq('client_publish_status', 'published')
+                        .limit(1);
+
+                    if (publishedError) {
+                        supabaseExistingPublishedError = {
+                            error_code: 'SUPABASE_GENERATE_PREFLIGHT_PUBLISHED_SELECT_FAILED',
+                            message: publishedError.message
+                        };
+                    } else {
+                        supabaseExistingPublished = Array.isArray(publishedRows) && publishedRows.length > 0 ? publishedRows[0] : null;
+                    }
+
+                    const { data: draftRows, error: draftError } = await clientResult.client
+                        .from('client_publication_packages')
+                        .select('id')
+                        .eq('client_id', client_id)
+                        .eq('sector_key', sector_key)
+                        .eq('package_type', package_type)
+                        .eq('package_status', 'draft_pending_review')
+                        .limit(1);
+
+                    if (draftError) {
+                        supabaseDraftError = {
+                            error_code: 'SUPABASE_GENERATE_PREFLIGHT_DRAFT_SELECT_FAILED',
+                            message: draftError.message
+                        };
+                    } else {
+                        supabaseDraft = Array.isArray(draftRows) && draftRows.length > 0 ? draftRows[0] : null;
+                    }
+                }
+            }
+
+            if (db) {
+                db.close();
+                db = null;
+            }
+
+            const sqliteReady = !shouldUseSqlite || Boolean(sqliteSector);
+            const supabaseReady = !shouldUseSupabase || (supabaseConfigured && !supabaseClientError && !supabaseExistingPublishedError && !supabaseDraftError);
+
+            const wouldGenerate = Boolean(
+                validClient &&
+                sqliteReady &&
+                supabaseReady &&
+                !sqliteExistingPublished &&
+                !supabaseExistingPublished
+            );
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                mode: 'publication_generate_preflight_v1',
+                client_id,
+                sector_key,
+                package_type,
+                write_source: writeSource,
+                should_use_sqlite: shouldUseSqlite,
+                should_use_supabase: shouldUseSupabase,
+                valid_client: Boolean(validClient),
+                client_name: validClient ? validClient.name : null,
+                sqlite_sector_found: Boolean(sqliteSector),
+                sqlite_existing_published_found: Boolean(sqliteExistingPublished),
+                sqlite_existing_published_id: sqliteExistingPublished ? sqliteExistingPublished.id : null,
+                sqlite_draft_found: Boolean(sqliteDraft),
+                sqlite_draft_id: sqliteDraft ? sqliteDraft.id : null,
+                sqlite_obligations_count: sqliteObligationsCount,
+                sqlite_aids_count: sqliteAidsCount,
+                supabase_configured: supabaseConfigured,
+                supabase_client_error: supabaseClientError,
+                supabase_existing_published_found: Boolean(supabaseExistingPublished),
+                supabase_existing_published_id: supabaseExistingPublished ? supabaseExistingPublished.id : null,
+                supabase_existing_published_error: supabaseExistingPublishedError,
+                supabase_draft_found: Boolean(supabaseDraft),
+                supabase_draft_id: supabaseDraft ? supabaseDraft.id : null,
+                supabase_draft_error: supabaseDraftError,
+                would_generate: wouldGenerate,
+                write_mutation_executed: false,
+                valid_generate_mutation_sent: false,
+                valid_confirm_true_publish_sent: false,
+                safe_note: 'Preflight only. No INSERT, UPDATE or DELETE executed.'
+            });
+        } catch (err) {
+            if (db) {
+                try { db.close(); } catch {}
+            }
+
+            return sendJson(res, 500, {
+                status: 'error',
+                mode: 'publication_generate_preflight_v1',
+                error: 'preflight_internal_error',
+                message: err.message,
+                client_id,
+                sector_key,
+                write_source: writeSource,
+                write_mutation_executed: false,
+                valid_generate_mutation_sent: false,
+                valid_confirm_true_publish_sent: false
+            });
+        }
+    }
+
     // API Route: POST /api/manager/publication-packages/generate
     if (req.url === '/api/manager/publication-packages/generate' && req.method === 'POST') {
         let body = '';
@@ -5395,6 +5590,7 @@ if (!process.env.VERCEL) {
 export default function handler(req, res) {
     return server.emit('request', req, res);
 }
+
 
 
 

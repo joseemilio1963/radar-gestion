@@ -1858,6 +1858,114 @@ async function getSupabaseExistingPendingPortalInterestRequest({ client_id, pack
   };
 }
 
+
+// write_switch_v1_manager_interest_status
+async function getSupabaseInterestRequestByIdForStatusUpdate(requestId) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            message: clientResult.message || 'Supabase client unavailable.',
+            request: null
+        };
+    }
+
+    try {
+        const { data, error } = await clientResult.client
+            .from('client_interest_requests')
+            .select('*')
+            .eq('id', requestId)
+            .limit(1);
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_INTEREST_REQUEST_STATUS_SELECT_ERROR',
+                message: error.message,
+                request: null
+            };
+        }
+
+        const request = Array.isArray(data) ? data[0] : data;
+
+        if (!request) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_INTEREST_REQUEST_NOT_FOUND',
+                message: 'Interest request not found in Supabase.',
+                request: null
+            };
+        }
+
+        return {
+            ok: true,
+            request
+        };
+    } catch (err) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_INTEREST_REQUEST_STATUS_SELECT_EXCEPTION',
+            message: err.message,
+            request: null
+        };
+    }
+}
+
+async function updateSupabaseInterestRequestStatusForApi(requestId, updatePayload) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            message: clientResult.message || 'Supabase client unavailable.',
+            request: null
+        };
+    }
+
+    try {
+        const { data, error } = await clientResult.client
+            .from('client_interest_requests')
+            .update(updatePayload)
+            .eq('id', requestId)
+            .select('*');
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_INTEREST_REQUEST_STATUS_UPDATE_ERROR',
+                message: error.message,
+                request: null
+            };
+        }
+
+        const request = Array.isArray(data) ? data[0] : data;
+
+        if (!request) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_INTEREST_REQUEST_STATUS_UPDATE_NOT_FOUND',
+                message: 'Interest request status update returned no row.',
+                request: null
+            };
+        }
+
+        return {
+            ok: true,
+            request
+        };
+    } catch (err) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_INTEREST_REQUEST_STATUS_UPDATE_EXCEPTION',
+            message: err.message,
+            request: null
+        };
+    }
+}
+
 async function createSupabasePortalInterestRequest(request) {
   const clientResult = getSupabaseReadonlyClient();
 
@@ -2953,6 +3061,8 @@ const server = http.createServer(async (req, res) => {
 
 
     // API Route: POST /api/manager/interest-requests/:id/status
+    // write_switch_v1_manager_interest_status
+    // dual_write uses Supabase as primary reference and updates SQLite only if the row exists locally.
     if (req.url.split('?')[0].startsWith('/api/manager/interest-requests/') && req.url.split('?')[0].endsWith('/status')) {
         if (req.method !== 'POST') {
             return sendJson(res, 405, { error: 'method_not_allowed' });
@@ -2967,7 +3077,7 @@ const server = http.createServer(async (req, res) => {
 
         let chunks = [];
         req.on('data', chunk => { chunks.push(chunk); });
-        req.on('end', () => {
+        req.on('end', async () => {
             const body = Buffer.concat(chunks).toString('utf8');
             const payload = parseJsonSafe(body);
 
@@ -2985,61 +3095,158 @@ const server = http.createServer(async (req, res) => {
                 });
             }
 
+            const writeSource = getRadarWriteSource();
+            const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+            const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+
+            let db = null;
+
             try {
-                const db = new DatabaseSync(DB_PATH);
+                let existing = null;
+                let sqliteExisting = null;
+                let supabaseExistingRequest = null;
 
-                const existing = db.prepare('SELECT * FROM client_interest_requests WHERE id = ?').get(requestId);
+                if (writeSource === RADAR_WRITE_SOURCE_SQLITE) {
+                    db = new DatabaseSync(DB_PATH);
+                    sqliteExisting = db.prepare('SELECT * FROM client_interest_requests WHERE id = ?').get(requestId);
 
-                if (!existing) {
-                    db.close();
-                    return sendJson(res, 404, { error: 'not_found', message: 'Interest request not found' });
+                    if (!sqliteExisting) {
+                        return sendJson(res, 404, {
+                            error: 'not_found',
+                            message: 'Interest request not found in SQLite.',
+                            write_source: writeSource,
+                            sqlite_action: 'not_found',
+                            supabase_action: 'not_used'
+                        });
+                    }
+
+                    existing = sqliteExisting;
+                }
+
+                if (shouldUseSupabase) {
+                    const supabaseExisting = await getSupabaseInterestRequestByIdForStatusUpdate(requestId);
+
+                    if (!supabaseExisting.ok) {
+                        return sendJson(res, supabaseExisting.error_code === 'SUPABASE_INTEREST_REQUEST_NOT_FOUND' ? 404 : 503, {
+                            error: 'supabase_interest_request_not_available',
+                            error_code: supabaseExisting.error_code,
+                            message: supabaseExisting.message,
+                            write_source: writeSource,
+                            sqlite_action: writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE ? 'not_attempted_after_supabase_select_failure' : 'not_used',
+                            supabase_action: 'select_failed'
+                        });
+                    }
+
+                    supabaseExistingRequest = supabaseExisting.request;
+                    existing = supabaseExistingRequest;
                 }
 
                 const now = new Date().toISOString();
                 const handledAt = ['handled', 'dismissed'].includes(payload.request_status)
                     ? (payload.handled_at || now)
-                    : existing.handled_at;
+                    : (existing.handled_at || null);
 
                 const handledBy = payload.handled_by || existing.handled_by || 'gestor_demo';
-                const internalNotes = payload.internal_notes ?? existing.internal_notes;
+                const internalNotes = payload.internal_notes ?? existing.internal_notes ?? null;
 
-                db.prepare(`
-                    UPDATE client_interest_requests
-                    SET
-                        request_status = ?,
-                        updated_at = ?,
-                        handled_at = ?,
-                        handled_by = ?,
-                        internal_notes = ?
-                    WHERE id = ?
-                `).run(
-                    payload.request_status,
-                    now,
-                    handledAt,
-                    handledBy,
-                    internalNotes,
-                    requestId
-                );
+                const updatePayload = {
+                    request_status: payload.request_status,
+                    updated_at: now,
+                    handled_at: handledAt,
+                    handled_by: handledBy,
+                    internal_notes: internalNotes
+                };
 
-                const updated = db.prepare('SELECT * FROM client_interest_requests WHERE id = ?').get(requestId);
+                let supabaseUpdated = null;
+                let sqliteUpdated = null;
+                let sqliteAction = shouldUseSqlite ? 'not_attempted' : 'not_used';
+                let supabaseAction = shouldUseSupabase ? 'not_attempted' : 'not_used';
 
-                db.close();
+                if (shouldUseSupabase) {
+                    const supabaseUpdate = await updateSupabaseInterestRequestStatusForApi(requestId, updatePayload);
+
+                    if (!supabaseUpdate.ok) {
+                        return sendJson(res, 500, {
+                            status: 'error',
+                            error: 'supabase_update_failed',
+                            error_code: supabaseUpdate.error_code,
+                            message: supabaseUpdate.message,
+                            action: 'interest_request_status_update_failed',
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_after_supabase_failure' : 'not_used',
+                            supabase_action: 'failed',
+                            request_id: requestId
+                        });
+                    }
+
+                    supabaseUpdated = supabaseUpdate.request;
+                    supabaseAction = 'updated';
+                }
+
+                if (shouldUseSqlite) {
+                    if (!db) {
+                        db = new DatabaseSync(DB_PATH);
+                    }
+
+                    sqliteExisting = sqliteExisting || db.prepare('SELECT * FROM client_interest_requests WHERE id = ?').get(requestId);
+
+                    if (sqliteExisting) {
+                        db.prepare(`
+                            UPDATE client_interest_requests
+                            SET
+                                request_status = ?,
+                                updated_at = ?,
+                                handled_at = ?,
+                                handled_by = ?,
+                                internal_notes = ?
+                            WHERE id = ?
+                        `).run(
+                            updatePayload.request_status,
+                            updatePayload.updated_at,
+                            updatePayload.handled_at,
+                            updatePayload.handled_by,
+                            updatePayload.internal_notes,
+                            requestId
+                        );
+
+                        sqliteUpdated = db.prepare('SELECT * FROM client_interest_requests WHERE id = ?').get(requestId);
+                        sqliteAction = 'updated';
+                    } else if (writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE) {
+                        sqliteAction = 'not_found_skipped';
+                    } else {
+                        sqliteAction = 'not_found';
+                    }
+                }
+
+                const updated = supabaseUpdated || sqliteUpdated;
 
                 return sendJson(res, 200, {
                     status: 'ok',
                     action: 'interest_request_status_updated',
-                    request: updated
+                    write_source: writeSource,
+                    sqlite_action: sqliteAction,
+                    supabase_action: supabaseAction,
+                    request: updated,
+                    sqlite_request: sqliteUpdated,
+                    supabase_request: supabaseUpdated
                 });
 
             } catch (err) {
-                console.error('SQLite Error:', err);
-                return sendJson(res, 500, { error: 'internal_error', details: err.message });
+                console.error('Interest Request Status Write Switch Error:', err);
+                return sendJson(res, 500, {
+                    error: 'internal_error',
+                    details: err.message,
+                    write_source: getRadarWriteSource()
+                });
+            } finally {
+                if (db) {
+                    try { db.close(); } catch {}
+                }
             }
         });
 
         return;
     }
-
 
 
     // API Route: GET /api/manager/supabase-read-services/clients/compare

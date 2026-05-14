@@ -4595,6 +4595,8 @@ const server = http.createServer(async (req, res) => {
             }
 
             const validClient = getClientCatalog().find(c => c.id === client_id);
+            const clientSectorKey = validClient ? validClient.sector_key : null;
+            const sectorMatchesClient = Boolean(validClient && clientSectorKey && clientSectorKey === sector_key);
 
             let sqliteSector = null;
             let sqliteExistingPublished = null;
@@ -4703,6 +4705,7 @@ const server = http.createServer(async (req, res) => {
 
             const wouldGenerate = Boolean(
                 validClient &&
+                sectorMatchesClient &&
                 sqliteReady &&
                 supabaseReady &&
                 !sqliteExistingPublished &&
@@ -4719,6 +4722,8 @@ const server = http.createServer(async (req, res) => {
                 should_use_sqlite: shouldUseSqlite,
                 should_use_supabase: shouldUseSupabase,
                 valid_client: Boolean(validClient),
+                client_sector_key: clientSectorKey,
+                sector_matches_client: sectorMatchesClient,
                 client_name: validClient ? validClient.name : null,
                 sqlite_sector_found: Boolean(sqliteSector),
                 sqlite_existing_published_found: Boolean(sqliteExistingPublished),
@@ -5037,6 +5042,8 @@ const server = http.createServer(async (req, res) => {
                 supabase_package_found: Boolean(supabasePkg),
                 supabase_package_error: supabasePackageError,
                 valid_client: Boolean(validClient),
+                client_sector_key: clientSectorKey,
+                sector_matches_client: sectorMatchesClient,
                 client_id: pkg ? pkg.client_id : null,
                 sector_key: pkg ? pkg.sector_key : null,
                 package_type: pkg ? pkg.package_type : null,
@@ -5590,6 +5597,7 @@ if (!process.env.VERCEL) {
 export default function handler(req, res) {
     return server.emit('request', req, res);
 }
+
 
 
 

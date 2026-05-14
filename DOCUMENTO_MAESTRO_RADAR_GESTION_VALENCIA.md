@@ -165,3 +165,46 @@ Antes de activar escritura Supabase para publicacion:
 5. Solo despues plantear RADAR_PUBLICATION_PUBLISH_WRITE_SOURCE=dual_write.
 
 Estado actual recomendado: mantener publicacion en sqlite.
+
+---
+
+## Actualización 2026-05-14 — Publication publish preflight validado en producción
+
+Se añadió y validó en producción el endpoint protegido y read-only:
+
+`GET /api/manager/publication-packages/:id/publish/preflight`
+
+Commit validado:
+
+`938e0be Add publication publish preflight endpoint`
+
+Estado validado:
+
+- Producción online: `https://radar.aulagentia.eu`.
+- Endpoint sin login: `401 MANAGER_AUTH_REQUIRED`.
+- Login gestor: `200`.
+- `SCOPED_WRITE_SOURCE=sqlite`.
+- `SCOPED_DUAL_WRITE_ACTIVE=false`.
+- `SCOPED_SUPABASE_WRITE_ACTIVE=false`.
+- `WRITE_MUTATION_EXECUTED=false`.
+- `VALID_CONFIRM_TRUE_PUBLISH_SENT=false`.
+
+Se evaluaron los 4 paquetes publicados actuales y todos devolvieron:
+
+- `already_published=true`.
+- `would_publish=false`.
+
+Resumen:
+
+- `PACKAGES_TESTED=4`.
+- `ALREADY_PUBLISHED_COUNT=4`.
+- `WOULD_PUBLISH_COUNT=0`.
+- `ERROR_COUNT=0`.
+
+Conclusión operativa:
+
+No hay candidato seguro para ejecutar publicación real en `dual_write` ahora mismo. No activar `RADAR_PUBLICATION_PUBLISH_WRITE_SOURCE=dual_write` en producción hasta disponer de fixture/borrador sincronizado en SQLite y Supabase o Supabase staging.
+
+Checkpoint asociado:
+
+- `checkpoint_publication_publish_preflight_produccion_validado_20260514_173751.md`

@@ -1709,6 +1709,44 @@ function getRadarWriteSourceStatus() {
         : 'Supabase es la fuente efectiva de escritura.'
   };
 }
+function getRadarPublicationGenerateWriteSource() {
+    const rawValue = String(process.env.RADAR_PUBLICATION_GENERATE_WRITE_SOURCE || '').trim().toLowerCase();
+
+    if (rawValue === RADAR_WRITE_SOURCE_DUAL_WRITE) {
+        return RADAR_WRITE_SOURCE_DUAL_WRITE;
+    }
+
+    if (rawValue === RADAR_WRITE_SOURCE_SUPABASE) {
+        return RADAR_WRITE_SOURCE_SUPABASE;
+    }
+
+    return RADAR_WRITE_SOURCE_SQLITE;
+}
+
+function getRadarPublicationGenerateWriteSourceStatus() {
+    const writeSource = getRadarPublicationGenerateWriteSource();
+
+    return {
+        write_source: writeSource,
+        allowed_sources: [
+            RADAR_WRITE_SOURCE_SQLITE,
+            RADAR_WRITE_SOURCE_DUAL_WRITE,
+            RADAR_WRITE_SOURCE_SUPABASE
+        ],
+        default_source: RADAR_WRITE_SOURCE_SQLITE,
+        env_var: 'RADAR_PUBLICATION_GENERATE_WRITE_SOURCE',
+        switch_scope: 'POST /api/manager/publication-packages/generate',
+        production_safe_default: writeSource === RADAR_WRITE_SOURCE_SQLITE,
+        dual_write_active: writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE,
+        supabase_write_active: writeSource === RADAR_WRITE_SOURCE_SUPABASE,
+        note: writeSource === RADAR_WRITE_SOURCE_SQLITE
+            ? 'Publication generate writes are using SQLite only.'
+            : writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE
+                ? 'Publication generate writes are using SQLite + Supabase dual write.'
+                : 'Publication generate writes are using Supabase only.'
+    };
+}
+
 function getRadarPublicationPublishWriteSource() {
     const rawValue = String(process.env.RADAR_PUBLICATION_PUBLISH_WRITE_SOURCE || '').trim().toLowerCase();
 
@@ -3720,6 +3758,16 @@ const server = http.createServer(async (req, res) => {
 
 
 
+    // API Route: GET /api/manager/publication-generate/write-source/status
+    // publication_generate_write_source_status_v1
+    if (req.url.split('?')[0] === '/api/manager/publication-generate/write-source/status' && req.method === 'GET') {
+        return sendJson(res, 200, {
+            status: 'ok',
+            mode: 'publication_generate_write_source_status_v1',
+            ...getRadarPublicationGenerateWriteSourceStatus()
+        });
+    }
+
     // API Route: GET /api/manager/publication-publish/write-source/status
     if (req.url.split('?')[0] === '/api/manager/publication-publish/write-source/status' && req.method === 'GET') {
         return sendJson(res, 200, {
@@ -5347,6 +5395,7 @@ if (!process.env.VERCEL) {
 export default function handler(req, res) {
     return server.emit('request', req, res);
 }
+
 
 
 

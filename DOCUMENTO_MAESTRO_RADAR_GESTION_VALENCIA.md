@@ -208,3 +208,24 @@ No hay candidato seguro para ejecutar publicación real en `dual_write` ahora mi
 Checkpoint asociado:
 
 - `checkpoint_publication_publish_preflight_produccion_validado_20260514_173751.md`
+---
+
+## Actualización 2026-05-14 — Publication generate write source status validado en producción
+
+Endpoint validado en producción:
+
+- GET /api/manager/publication-generate/write-source/status
+- write_source=sqlite
+- env_var=RADAR_PUBLICATION_GENERATE_WRITE_SOURCE
+- production_safe_default=true
+- dual_write_active=false
+- supabase_write_active=false
+- VALID_GENERATE_MUTATION_SENT=False
+- VALID_CONFIRM_TRUE_PUBLISH_SENT=False
+- WRITE_MUTATION_EXECUTED=False
+
+Conclusión: generate queda en modo seguro sqlite. No activar dual_write hasta implementar escritura sincronizada SQLite/Supabase.
+
+Checkpoint asociado:
+
+- checkpoint_publication_generate_write_source_status_produccion_validado_20260514_175647.md

@@ -1966,6 +1966,236 @@ async function updateSupabaseInterestRequestStatusForApi(requestId, updatePayloa
     }
 }
 
+ 
+// write_switch_v1_publication_publish
+async function getSupabasePublicationPackageByIdForApi(packageId) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            message: clientResult.message || 'Supabase client unavailable.',
+            package: null
+        };
+    }
+
+    try {
+        const { data, error } = await clientResult.client
+            .from('client_publication_packages')
+            .select('*')
+            .eq('id', packageId)
+            .limit(1);
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_PUBLICATION_PACKAGE_SELECT_FAILED',
+                message: error.message,
+                package: null
+            };
+        }
+
+        const pkg = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+        if (!pkg) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_PUBLICATION_PACKAGE_NOT_FOUND',
+                message: 'Publication package not found in Supabase.',
+                package: null
+            };
+        }
+
+        return {
+            ok: true,
+            package: pkg
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_PUBLICATION_PACKAGE_SELECT_EXCEPTION',
+            message: error.message,
+            package: null
+        };
+    }
+}
+
+async function getSupabaseDuplicatePublishedPublicationPackageForApi(pkg) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            message: clientResult.message || 'Supabase client unavailable.',
+            duplicate: null
+        };
+    }
+
+    try {
+        const { data, error } = await clientResult.client
+            .from('client_publication_packages')
+            .select('id')
+            .eq('client_id', pkg.client_id)
+            .eq('sector_key', pkg.sector_key)
+            .eq('package_type', pkg.package_type)
+            .eq('package_status', 'published')
+            .eq('review_status', 'approved')
+            .eq('publish_to_client', 1)
+            .eq('needs_human_review', 0)
+            .eq('client_publish_status', 'published')
+            .neq('id', pkg.id)
+            .limit(1);
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_PUBLICATION_DUPLICATE_SELECT_FAILED',
+                message: error.message,
+                duplicate: null
+            };
+        }
+
+        return {
+            ok: true,
+            duplicate: Array.isArray(data) && data.length > 0 ? data[0] : null
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_PUBLICATION_DUPLICATE_SELECT_EXCEPTION',
+            message: error.message,
+            duplicate: null
+        };
+    }
+}
+
+async function updateSupabasePublicationPackagePublishedForApi(packageId, updatePayload) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            message: clientResult.message || 'Supabase client unavailable.',
+            package: null
+        };
+    }
+
+    try {
+        const { data, error } = await clientResult.client
+            .from('client_publication_packages')
+            .update(updatePayload)
+            .eq('id', packageId)
+            .select('*');
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_PUBLICATION_PACKAGE_UPDATE_FAILED',
+                message: error.message,
+                package: null
+            };
+        }
+
+        return {
+            ok: true,
+            package: Array.isArray(data) && data.length > 0 ? data[0] : null
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_PUBLICATION_PACKAGE_UPDATE_EXCEPTION',
+            message: error.message,
+            package: null
+        };
+    }
+}
+
+async function updateSupabasePublicationPackageItemsPublishedForApi(packageId, updatePayload) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            message: clientResult.message || 'Supabase client unavailable.',
+            items: []
+        };
+    }
+
+    try {
+        const { data, error } = await clientResult.client
+            .from('client_publication_package_items')
+            .update(updatePayload)
+            .eq('package_id', packageId)
+            .select('*');
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_PUBLICATION_ITEMS_UPDATE_FAILED',
+                message: error.message,
+                items: []
+            };
+        }
+
+        return {
+            ok: true,
+            items: Array.isArray(data) ? data : []
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_PUBLICATION_ITEMS_UPDATE_EXCEPTION',
+            message: error.message,
+            items: []
+        };
+    }
+}
+
+async function insertSupabasePublicationLogForApi(logRow) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            message: clientResult.message || 'Supabase client unavailable.',
+            log: null
+        };
+    }
+
+    try {
+        const { data, error } = await clientResult.client
+            .from('client_publication_logs')
+            .insert([logRow])
+            .select('*');
+
+        if (error) {
+            return {
+                ok: false,
+                error_code: 'SUPABASE_PUBLICATION_LOG_INSERT_FAILED',
+                message: error.message,
+                log: null
+            };
+        }
+
+        return {
+            ok: true,
+            log: Array.isArray(data) && data.length > 0 ? data[0] : null
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_PUBLICATION_LOG_INSERT_EXCEPTION',
+            message: error.message,
+            log: null
+        };
+    }
+}
+// /write_switch_v1_publication_publish
 async function createSupabasePortalInterestRequest(request) {
   const clientResult = getSupabaseReadonlyClient();
 
@@ -4428,90 +4658,304 @@ const server = http.createServer(async (req, res) => {
     }
 
     // API Route: POST /api/manager/publication-packages/:id/publish
+    // write_switch_v1_publication_publish
     const packagePublishMatch = req.url.match(/^\/api\/manager\/publication-packages\/([^/]+)\/publish$/);
     if (packagePublishMatch && req.method === 'POST') {
         const id = packagePublishMatch[1];
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', () => {
+        req.on('end', async () => {
             const payload = parseJsonSafe(body);
+
             if (!payload || payload.confirm_publish !== true) {
                 return sendJson(res, 400, { error: 'invalid_payload', message: 'confirm_publish = true is required' });
             }
 
+            const writeSource = getRadarWriteSource();
+            const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+            const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+
+            let db = null;
+            let sqliteTransactionStarted = false;
+
             try {
-                const db = new DatabaseSync(DB_PATH);
-                const pkg = db.prepare('SELECT * FROM client_publication_packages WHERE id = ?').get(id);
+                let sqlitePkg = null;
+                let supabasePkg = null;
+
+                if (shouldUseSupabase) {
+                    const supabasePackageResult = await getSupabasePublicationPackageByIdForApi(id);
+
+                    if (!supabasePackageResult.ok) {
+                        return sendJson(res, supabasePackageResult.error_code === 'SUPABASE_PUBLICATION_PACKAGE_NOT_FOUND' ? 404 : 503, {
+                            status: 'error',
+                            error: 'supabase_publication_package_not_available',
+                            error_code: supabasePackageResult.error_code,
+                            message: supabasePackageResult.message,
+                            action: 'publication_publish_failed',
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_after_supabase_select_failure' : 'not_used',
+                            supabase_action: 'select_failed',
+                            package_id: id
+                        });
+                    }
+
+                    supabasePkg = supabasePackageResult.package;
+                }
+
+                if (shouldUseSqlite) {
+                    db = new DatabaseSync(DB_PATH);
+                    sqlitePkg = db.prepare('SELECT * FROM client_publication_packages WHERE id = ?').get(id);
+
+                    if (!sqlitePkg && writeSource === RADAR_WRITE_SOURCE_SQLITE) {
+                        return sendJson(res, 404, {
+                            status: 'error',
+                            error_code: 'package_not_found',
+                            message: 'Publication package not found in SQLite.',
+                            write_source: writeSource,
+                            sqlite_action: 'not_found',
+                            supabase_action: 'not_used'
+                        });
+                    }
+                }
+
+                const pkg = supabasePkg || sqlitePkg;
+
                 if (!pkg) {
-                    db.close();
-                    return sendJson(res, 404, { status: 'error', error_code: 'package_not_found' });
+                    return sendJson(res, 404, {
+                        status: 'error',
+                        error_code: 'package_not_found',
+                        message: 'Publication package not found.',
+                        write_source: writeSource,
+                        sqlite_action: shouldUseSqlite ? 'not_found' : 'not_used',
+                        supabase_action: shouldUseSupabase ? 'not_found' : 'not_used'
+                    });
                 }
 
                 const validClient = getClientCatalog().find(c => c.id === pkg.client_id);
+
                 if (!validClient) {
-                    db.close();
-                    return sendJson(res, 400, { error: 'invalid_client', message: 'No se puede publicar un paquete de un cliente que no existe en Clientes / Entidades.' });
+                    return sendJson(res, 400, {
+                        status: 'error',
+                        error: 'invalid_client',
+                        message: 'No se puede publicar un paquete de un cliente que no existe en Clientes / Entidades.',
+                        write_source: writeSource
+                    });
                 }
 
                 if (pkg.package_status === 'published') {
-                    db.close();
-                    return sendJson(res, 200, { status: 'ok', action: 'already_published_noop' });
+                    return sendJson(res, 200, {
+                        status: 'ok',
+                        action: 'already_published_noop',
+                        write_source: writeSource,
+                        sqlite_action: shouldUseSqlite ? (sqlitePkg ? 'already_published_noop' : 'not_found_skipped') : 'not_used',
+                        supabase_action: shouldUseSupabase ? 'already_published_noop' : 'not_used'
+                    });
                 }
 
-                // Check for duplicates
-                const duplicatePublished = db.prepare(`
-                    SELECT id FROM client_publication_packages 
-                    WHERE client_id = ? AND sector_key = ? AND package_type = ? 
-                    AND id != ? AND package_status = 'published' AND review_status = 'approved'
-                    AND publish_to_client = 1 AND needs_human_review = 0 AND client_publish_status = 'published'
-                `).get(pkg.client_id, pkg.sector_key, pkg.package_type, pkg.id);
+                if (shouldUseSupabase) {
+                    const supabaseDuplicate = await getSupabaseDuplicatePublishedPublicationPackageForApi(pkg);
 
-                if (duplicatePublished) {
-                    db.close();
-                    return sendJson(res, 200, { 
-                        status: 'ok', 
-                        ok: false,
-                        action: 'published_package_already_exists', 
-                        message: 'Ya existe otro paquete publicado para este cliente y sector. No se puede publicar duplicado.',
-                        existing_package_id: duplicatePublished.id
-                    });
+                    if (!supabaseDuplicate.ok) {
+                        return sendJson(res, 503, {
+                            status: 'error',
+                            error: 'supabase_duplicate_check_failed',
+                            error_code: supabaseDuplicate.error_code,
+                            message: supabaseDuplicate.message,
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_after_supabase_duplicate_check_failure' : 'not_used',
+                            supabase_action: 'duplicate_check_failed'
+                        });
+                    }
+
+                    if (supabaseDuplicate.duplicate) {
+                        return sendJson(res, 200, {
+                            status: 'ok',
+                            ok: false,
+                            action: 'published_package_already_exists',
+                            message: 'Ya existe otro paquete publicado para este cliente y sector. No se puede publicar duplicado.',
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_after_supabase_duplicate_found' : 'not_used',
+                            supabase_action: 'duplicate_found',
+                            existing_package_id: supabaseDuplicate.duplicate.id
+                        });
+                    }
+                }
+
+                if (sqlitePkg) {
+                    const duplicatePublished = db.prepare(`
+                        SELECT id FROM client_publication_packages
+                        WHERE client_id = ? AND sector_key = ? AND package_type = ?
+                        AND id != ? AND package_status = 'published' AND review_status = 'approved'
+                        AND publish_to_client = 1 AND needs_human_review = 0 AND client_publish_status = 'published'
+                    `).get(sqlitePkg.client_id, sqlitePkg.sector_key, sqlitePkg.package_type, sqlitePkg.id);
+
+                    if (duplicatePublished) {
+                        return sendJson(res, 200, {
+                            status: 'ok',
+                            ok: false,
+                            action: 'published_package_already_exists',
+                            message: 'Ya existe otro paquete publicado para este cliente y sector. No se puede publicar duplicado.',
+                            write_source: writeSource,
+                            sqlite_action: 'duplicate_found',
+                            supabase_action: shouldUseSupabase ? 'not_attempted_after_sqlite_duplicate_found' : 'not_used',
+                            existing_package_id: duplicatePublished.id
+                        });
+                    }
                 }
 
                 const date = new Date();
                 const pad = function(n) { return n.toString().padStart(2, '0'); };
                 const now = date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
+                const actor = payload.published_by || 'gestor_demo';
+                const notes = payload.notes || 'Package published to client';
 
-                db.prepare(`
-                    UPDATE client_publication_packages SET 
-                        package_status = 'published', review_status = 'approved', 
-                        needs_human_review = 0, publish_to_client = 1, client_publish_status = 'published',
-                        approved_at = ?, approved_by = ?, published_at = ?, published_by = ?, updated_at = ?
-                    WHERE id = ?
-                `).run(now, payload.published_by || 'gestor_demo', now, payload.published_by || 'gestor_demo', now, id);
+                const packageUpdatePayload = {
+                    package_status: 'published',
+                    review_status: 'approved',
+                    needs_human_review: 0,
+                    publish_to_client: 1,
+                    client_publish_status: 'published',
+                    approved_at: now,
+                    approved_by: actor,
+                    published_at: now,
+                    published_by: actor,
+                    updated_at: now
+                };
 
-                db.prepare(`
-                    UPDATE client_publication_package_items SET 
-                        review_status = 'approved', needs_human_review = 0, 
-                        publish_to_client = 1, client_publish_status = 'published', updated_at = ?
-                    WHERE package_id = ?
-                `).run(now, id);
+                const itemUpdatePayload = {
+                    review_status: 'approved',
+                    needs_human_review: 0,
+                    publish_to_client: 1,
+                    client_publish_status: 'published',
+                    updated_at: now
+                };
 
-                db.prepare(`
-                    INSERT INTO client_publication_logs (id, package_id, tenant_id, client_id, action, actor, notes, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `).run(generateId(), id, pkg.tenant_id, pkg.client_id, 'package_published_by_manager', payload.published_by || 'gestor_demo', payload.notes || 'Package published to client', now);
+                const logRow = {
+                    id: generateId(),
+                    package_id: id,
+                    tenant_id: pkg.tenant_id,
+                    client_id: pkg.client_id,
+                    action: 'package_published_by_manager',
+                    actor,
+                    notes,
+                    created_at: now
+                };
 
-                db.close();
+                let supabasePackageUpdate = null;
+                let supabaseItemsUpdate = null;
+                let supabaseLogInsert = null;
 
-                return sendJson(res, 200, { status: 'ok', action: 'published' });
+                if (shouldUseSupabase) {
+                    supabasePackageUpdate = await updateSupabasePublicationPackagePublishedForApi(id, packageUpdatePayload);
+
+                    if (!supabasePackageUpdate.ok) {
+                        return sendJson(res, 500, {
+                            status: 'error',
+                            error: 'supabase_publication_package_update_failed',
+                            error_code: supabasePackageUpdate.error_code,
+                            message: supabasePackageUpdate.message,
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_after_supabase_package_failure' : 'not_used',
+                            supabase_action: 'package_update_failed',
+                            package_id: id
+                        });
+                    }
+
+                    supabaseItemsUpdate = await updateSupabasePublicationPackageItemsPublishedForApi(id, itemUpdatePayload);
+
+                    if (!supabaseItemsUpdate.ok) {
+                        return sendJson(res, 500, {
+                            status: 'error',
+                            error: 'supabase_publication_items_update_failed',
+                            error_code: supabaseItemsUpdate.error_code,
+                            message: supabaseItemsUpdate.message,
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_after_supabase_items_failure' : 'not_used',
+                            supabase_action: 'items_update_failed',
+                            package_id: id
+                        });
+                    }
+
+                    supabaseLogInsert = await insertSupabasePublicationLogForApi(logRow);
+
+                    if (!supabaseLogInsert.ok) {
+                        return sendJson(res, 500, {
+                            status: 'error',
+                            error: 'supabase_publication_log_insert_failed',
+                            error_code: supabaseLogInsert.error_code,
+                            message: supabaseLogInsert.message,
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_after_supabase_log_failure' : 'not_used',
+                            supabase_action: 'log_insert_failed',
+                            package_id: id
+                        });
+                    }
+                }
+
+                let sqliteAction = shouldUseSqlite ? 'not_found_skipped' : 'not_used';
+
+                if (sqlitePkg) {
+                    db.exec('BEGIN');
+                    sqliteTransactionStarted = true;
+
+                    db.prepare(`
+                        UPDATE client_publication_packages SET
+                            package_status = 'published', review_status = 'approved',
+                            needs_human_review = 0, publish_to_client = 1, client_publish_status = 'published',
+                            approved_at = ?, approved_by = ?, published_at = ?, published_by = ?, updated_at = ?
+                        WHERE id = ?
+                    `).run(now, actor, now, actor, now, id);
+
+                    db.prepare(`
+                        UPDATE client_publication_package_items SET
+                            review_status = 'approved', needs_human_review = 0,
+                            publish_to_client = 1, client_publish_status = 'published', updated_at = ?
+                        WHERE package_id = ?
+                    `).run(now, id);
+
+                    db.prepare(`
+                        INSERT INTO client_publication_logs (id, package_id, tenant_id, client_id, action, actor, notes, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `).run(logRow.id, id, pkg.tenant_id, pkg.client_id, logRow.action, actor, notes, now);
+
+                    db.exec('COMMIT');
+                    sqliteTransactionStarted = false;
+                    sqliteAction = 'published_transaction_committed';
+                }
+
+                return sendJson(res, 200, {
+                    status: 'ok',
+                    action: 'published',
+                    write_source: writeSource,
+                    sqlite_action: sqliteAction,
+                    supabase_action: shouldUseSupabase ? 'published' : 'not_used',
+                    package_id: id,
+                    supabase_package: supabasePackageUpdate ? supabasePackageUpdate.package : null,
+                    supabase_items_count: supabaseItemsUpdate && Array.isArray(supabaseItemsUpdate.items) ? supabaseItemsUpdate.items.length : null,
+                    supabase_log: supabaseLogInsert ? supabaseLogInsert.log : null
+                });
             } catch (err) {
-                console.error(err);
-                return sendJson(res, 500, { error: 'internal_error' });
+                if (sqliteTransactionStarted && db) {
+                    try { db.exec('ROLLBACK'); } catch {}
+                }
+
+                console.error('Publication Publish Write Switch Error:', err);
+
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error: 'internal_error',
+                    details: err.message,
+                    write_source: getRadarWriteSource(),
+                    package_id: id
+                });
+            } finally {
+                if (db) {
+                    try { db.close(); } catch {}
+                }
             }
         });
         return;
     }
-
     // Portal APIs (Fail-closed)
     if (req.url.split('?')[0] === '/api/portal/summary' && req.method === 'GET') {
         const queryString = req.url.split('?')[1] || '';

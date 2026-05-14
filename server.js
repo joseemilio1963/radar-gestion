@@ -1709,6 +1709,43 @@ function getRadarWriteSourceStatus() {
         : 'Supabase es la fuente efectiva de escritura.'
   };
 }
+function getRadarPublicationPublishWriteSource() {
+    const rawValue = String(process.env.RADAR_PUBLICATION_PUBLISH_WRITE_SOURCE || '').trim().toLowerCase();
+
+    if (rawValue === RADAR_WRITE_SOURCE_DUAL_WRITE) {
+        return RADAR_WRITE_SOURCE_DUAL_WRITE;
+    }
+
+    if (rawValue === RADAR_WRITE_SOURCE_SUPABASE) {
+        return RADAR_WRITE_SOURCE_SUPABASE;
+    }
+
+    return RADAR_WRITE_SOURCE_SQLITE;
+}
+
+function getRadarPublicationPublishWriteSourceStatus() {
+    const writeSource = getRadarPublicationPublishWriteSource();
+
+    return {
+        write_source: writeSource,
+        allowed_sources: [
+            RADAR_WRITE_SOURCE_SQLITE,
+            RADAR_WRITE_SOURCE_DUAL_WRITE,
+            RADAR_WRITE_SOURCE_SUPABASE
+        ],
+        default_source: RADAR_WRITE_SOURCE_SQLITE,
+        env_var: 'RADAR_PUBLICATION_PUBLISH_WRITE_SOURCE',
+        switch_scope: 'POST /api/manager/publication-packages/:id/publish',
+        production_safe_default: writeSource === RADAR_WRITE_SOURCE_SQLITE,
+        dual_write_active: writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE,
+        supabase_write_active: writeSource === RADAR_WRITE_SOURCE_SUPABASE,
+        note: writeSource === RADAR_WRITE_SOURCE_SQLITE
+            ? 'Publication publish writes are using SQLite only.'
+            : writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE
+                ? 'Publication publish writes are using SQLite + Supabase dual write.'
+                : 'Publication publish writes are using Supabase only.'
+    };
+}
 
 function isPortalPublishedPackageItem(item) {
   return Boolean(
@@ -3682,6 +3719,15 @@ const server = http.createServer(async (req, res) => {
     }
 
 
+
+    // API Route: GET /api/manager/publication-publish/write-source/status
+    if (req.url.split('?')[0] === '/api/manager/publication-publish/write-source/status' && req.method === 'GET') {
+        return sendJson(res, 200, {
+            status: 'ok',
+            mode: 'publication_publish_write_source_status_v1',
+            ...getRadarPublicationPublishWriteSourceStatus()
+        });
+    }
     // API Route: GET /api/manager/write-source/status
     // write_source_status_v1
     if (req.url.split('?')[0] === '/api/manager/write-source/status' && req.method === 'GET') {
@@ -4671,7 +4717,7 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 400, { error: 'invalid_payload', message: 'confirm_publish = true is required' });
             }
 
-            const writeSource = getRadarWriteSource();
+            const writeSource = getRadarPublicationPublishWriteSource();
             const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
             const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
 
@@ -5174,4 +5220,6 @@ if (!process.env.VERCEL) {
 export default function handler(req, res) {
     return server.emit('request', req, res);
 }
+
+
 

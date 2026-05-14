@@ -4703,6 +4703,133 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    // API Route: GET /api/manager/publication-packages/:id/publish/preflight
+    // publication_publish_preflight_v1
+    const packagePublishPreflightMatch = req.url.match(/^\/api\/manager\/publication-packages\/([^/]+)\/publish\/preflight$/);
+    if (packagePublishPreflightMatch && req.method === 'GET') {
+        const id = packagePublishPreflightMatch[1];
+        const writeSource = getRadarPublicationPublishWriteSource();
+        const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+        const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+
+        let db = null;
+
+        try {
+            let sqlitePkg = null;
+            let supabasePkg = null;
+            let sqliteDuplicate = null;
+            let supabaseDuplicate = null;
+            let supabasePackageError = null;
+            let supabaseDuplicateError = null;
+
+            if (shouldUseSupabase) {
+                const supabasePackageResult = await getSupabasePublicationPackageByIdForApi(id);
+
+                if (supabasePackageResult.ok) {
+                    supabasePkg = supabasePackageResult.package;
+                } else {
+                    supabasePackageError = {
+                        error_code: supabasePackageResult.error_code,
+                        message: supabasePackageResult.message
+                    };
+                }
+            }
+
+            if (shouldUseSqlite) {
+                db = new DatabaseSync(DB_PATH);
+                sqlitePkg = db.prepare('SELECT * FROM client_publication_packages WHERE id = ?').get(id);
+            }
+
+            const pkg = supabasePkg || sqlitePkg;
+            const validClient = pkg ? getClientCatalog().find(c => c.id === pkg.client_id) : null;
+            const alreadyPublished = pkg ? pkg.package_status === 'published' : false;
+
+            if (shouldUseSupabase && supabasePkg && !alreadyPublished) {
+                const supabaseDuplicateResult = await getSupabaseDuplicatePublishedPublicationPackageForApi(supabasePkg);
+
+                if (supabaseDuplicateResult.ok) {
+                    supabaseDuplicate = supabaseDuplicateResult.duplicate;
+                } else {
+                    supabaseDuplicateError = {
+                        error_code: supabaseDuplicateResult.error_code,
+                        message: supabaseDuplicateResult.message
+                    };
+                }
+            }
+
+            if (shouldUseSqlite && sqlitePkg && !alreadyPublished) {
+                sqliteDuplicate = db.prepare(`
+                    SELECT id FROM client_publication_packages
+                    WHERE client_id = ? AND sector_key = ? AND package_type = ?
+                    AND id != ? AND package_status = 'published' AND review_status = 'approved'
+                    AND publish_to_client = 1 AND needs_human_review = 0 AND client_publish_status = 'published'
+                `).get(sqlitePkg.client_id, sqlitePkg.sector_key, sqlitePkg.package_type, sqlitePkg.id);
+            }
+
+            if (db) {
+                db.close();
+                db = null;
+            }
+
+            const wouldPublish = Boolean(
+                pkg &&
+                validClient &&
+                !alreadyPublished &&
+                !sqliteDuplicate &&
+                !supabaseDuplicate &&
+                !supabasePackageError &&
+                !supabaseDuplicateError &&
+                (!shouldUseSqlite || sqlitePkg) &&
+                (!shouldUseSupabase || supabasePkg)
+            );
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                mode: 'publication_publish_preflight_v1',
+                package_id: id,
+                write_source: writeSource,
+                should_use_sqlite: shouldUseSqlite,
+                should_use_supabase: shouldUseSupabase,
+                sqlite_package_found: Boolean(sqlitePkg),
+                supabase_package_found: Boolean(supabasePkg),
+                supabase_package_error: supabasePackageError,
+                valid_client: Boolean(validClient),
+                client_id: pkg ? pkg.client_id : null,
+                sector_key: pkg ? pkg.sector_key : null,
+                package_type: pkg ? pkg.package_type : null,
+                package_status: pkg ? pkg.package_status : null,
+                review_status: pkg ? pkg.review_status : null,
+                publish_to_client: pkg ? pkg.publish_to_client : null,
+                needs_human_review: pkg ? pkg.needs_human_review : null,
+                client_publish_status: pkg ? pkg.client_publish_status : null,
+                already_published: alreadyPublished,
+                sqlite_duplicate_found: Boolean(sqliteDuplicate),
+                sqlite_duplicate_id: sqliteDuplicate ? sqliteDuplicate.id : null,
+                supabase_duplicate_found: Boolean(supabaseDuplicate),
+                supabase_duplicate_id: supabaseDuplicate ? supabaseDuplicate.id : null,
+                supabase_duplicate_error: supabaseDuplicateError,
+                would_publish: wouldPublish,
+                write_mutation_executed: false,
+                valid_confirm_true_publish_sent: false,
+                safe_note: 'Preflight only. No UPDATE or INSERT executed.'
+            });
+        } catch (err) {
+            if (db) {
+                try { db.close(); } catch {}
+            }
+
+            return sendJson(res, 500, {
+                status: 'error',
+                mode: 'publication_publish_preflight_v1',
+                error: 'preflight_internal_error',
+                message: err.message,
+                package_id: id,
+                write_source: writeSource,
+                write_mutation_executed: false,
+                valid_confirm_true_publish_sent: false
+            });
+        }
+    }
     // API Route: POST /api/manager/publication-packages/:id/publish
     // write_switch_v1_publication_publish
     const packagePublishMatch = req.url.match(/^\/api\/manager\/publication-packages\/([^/]+)\/publish$/);
@@ -5220,6 +5347,7 @@ if (!process.env.VERCEL) {
 export default function handler(req, res) {
     return server.emit('request', req, res);
 }
+
 
 
 

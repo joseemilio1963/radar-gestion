@@ -229,3 +229,39 @@ Conclusión: generate queda en modo seguro sqlite. No activar dual_write hasta i
 Checkpoint asociado:
 
 - checkpoint_publication_generate_write_source_status_produccion_validado_20260514_175647.md
+
+---
+
+## Actualización 2026-05-14 — Publication generate preflight validado en producción
+
+Se añadió y validó en producción el endpoint protegido y read-only:
+
+- GET /api/manager/publication-packages/generate/preflight
+
+Commit validado:
+
+- 14cf7e4 Guard publication generate preflight by client sector
+
+Estado validado:
+
+- Endpoint sin login: 401 MANAGER_AUTH_REQUIRED.
+- Login gestor: 200.
+- GENERATE_WRITE_SOURCE=sqlite.
+- GENERATE_DUAL_WRITE_ACTIVE=False.
+- GENERATE_SUPABASE_WRITE_ACTIVE=False.
+- VALID_GENERATE_MUTATION_SENT=False.
+- VALID_CONFIRM_TRUE_PUBLISH_SENT=False.
+- WRITE_MUTATION_EXECUTED=False.
+
+Guard validado:
+
+- clinica_dental + clinicas_privadas => sector_matches_client=True, would_generate=False por paquete ya publicado.
+- clinica_dental + transporte => sector_matches_client=False, would_generate=False.
+
+Conclusión:
+
+El preflight de generate queda validado en producción y evita combinaciones cliente-sector incorrectas antes de cualquier generación real.
+
+Checkpoint asociado:
+
+- checkpoint_publication_generate_preflight_produccion_validado_20260514_181442.md

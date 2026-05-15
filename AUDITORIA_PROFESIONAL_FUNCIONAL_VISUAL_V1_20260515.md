@@ -138,3 +138,72 @@ La siguiente acción será ampliar esta auditoría con datos reales de producci�
 - No se mutaron datos.
 - No se imprimieron secretos.
 - El documento está orientado exclusivamente al cierre profesional de producto.
+
+---
+
+## 12. P0.1 — Inventario funcional real read-only de producción
+
+Fecha: 2026-05-15
+
+Este bloque es un control profesional de aceptación funcional read-only sobre producción. No ejecuta mutaciones de negocio.
+
+### 12.1 Protección y acceso
+
+- Home producción HTTP: 200
+- Clients entities HTTP: 200
+- Read source status sin login HTTP: 401
+- Generate write source status sin login HTTP: 401
+- Publish write source status sin login HTTP: 401
+- Login gestor HTTP: 200
+
+### 12.2 Estado autenticado de fuentes
+
+- Read status HTTP: 200
+- read_source: supabase_readonly
+- configured: 
+- Global write status HTTP: 200
+- global write_source: dual_write
+- global dual_write_active: True
+- Generate status HTTP: 200
+- generate write_source: sqlite
+- generate dual_write_active: False
+- generate supabase_write_active: False
+- Publish status HTTP: 200
+- publish write_source: sqlite
+- publish dual_write_active: False
+- publish supabase_write_active: False
+
+### 12.3 Dashboard y paquetes
+
+- Dashboard HTTP: 200
+- clients_total: 
+- packages_published: 
+- package_items_total: 
+- interest_requests_total: 
+- pending_contact: 
+- handled: 
+- Publication packages HTTP: 200
+- publication packages count: 4
+
+### 12.4 Portal Entidad por cliente
+
+| Cliente | HTTP | status | read_source | package_id | package_status | items |
+|---|---:|---|---|---|---|---:|
+| transportes_levante | 200 | ok | supabase_readonly |  |  | 0 |
+| clinica_dental | 200 | ok | supabase_readonly |  |  | 0 |
+| inmobiliaria_turia | 200 | ok | supabase_readonly |  |  | 0 |
+| industrias_metalurgicas_turia | 200 | ok | supabase_readonly |  |  | 0 |
+
+### 12.5 Lectura profesional inicial
+
+- Producción responde.
+- Endpoints internos principales mantienen protección sin login.
+- Fuentes scoped siguen en estado seguro.
+- Portal Entidad devuelve datos por los 4 clientes esperados.
+
+### 12.6 Pendiente de cierre
+
+- Revisión visual real escritorio.
+- Revisión visual real móvil.
+- Auditoría específica de acceso cruzado cliente.
+- Clasificación completa de endpoints oficiales/legacy.

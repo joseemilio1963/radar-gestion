@@ -322,3 +322,47 @@ Pendiente profesional:
 - No hubo mutaciones de negocio.
 - No se ejecutó Vercel.
 - No se imprimieron secretos.
+
+---
+
+## 14. P0.1C — Matriz funcional real Portal Entidad con contrato correcto
+
+Fecha: 2026-05-15
+
+Se reconstruye la matriz funcional del Portal Entidad usando el contrato real detectado:
+
+- respuesta raíz con packages[];
+- items anidados dentro de packages[0].items[];
+- contadores del paquete en packages[0].total_items y equivalentes.
+
+| Cliente | HTTP | status | read_source | packages | package_id | package_status | review_status | client_publish_status | total_items | nested_items | compliance | aids |
+|---|---:|---|---|---:|---|---|---|---|---:|---:|---:|---:|
+| transportes_levante | 200 | ok | supabase_readonly | 1 | j5fotye7bzqmqsl67dao5k | published | approved | published | 8 | 8 | 6 | 2 |
+| clinica_dental | 200 | ok | supabase_readonly | 1 | hsc4tgy50msbz7s3xvsmn7 | published | approved | published | 8 | 8 | 6 | 2 |
+| inmobiliaria_turia | 200 | ok | supabase_readonly | 1 | 515j0rk3e7pkb1pfm8laa | published | approved | published | 7 | 7 | 5 | 2 |
+| industrias_metalurgicas_turia | 200 | ok | supabase_readonly | 1 | lmaq9r54ryf6r5bhd8xa15 | published | approved | published | 10 | 10 | 8 | 2 |
+
+Resultado de aceptación funcional Portal Entidad:
+
+- PORTAL_MATRIX_ALL_OK=True
+
+Conclusión profesional:
+
+- Los 4 clientes devuelven paquete publicado, aprobado y visible desde Portal Entidad.
+- Los items existen correctamente dentro de packages[0].items[].
+- No se detecta fallo funcional read-only en el contrato Portal Entidad.
+
+Pendiente:
+
+- Aceptación visual real en navegador escritorio.
+- Aceptación visual real en navegador móvil.
+- Auditoría de acceso cruzado por manipulación de client_id.
+
+Seguridad:
+
+- Solo lectura.
+- No se ejecutó POST /generate.
+- No se ejecutó confirm_publish=true.
+- No hubo mutaciones de negocio.
+- No se ejecutó Vercel.
+- No se imprimieron secretos.

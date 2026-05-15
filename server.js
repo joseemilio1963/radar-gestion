@@ -4853,6 +4853,11 @@ const server = http.createServer(async (req, res) => {
                     return sendJson(res, 200, {
                         status: 'ok',
                         action: 'existing_published_package_found',
+                        write_source: writeSource,
+                        sqlite_action: 'existing_published_package_found',
+                        supabase_action: 'not_used',
+                        client_sector_key: clientSectorKey,
+                        sector_matches_client: true,
                         message: 'Ya existe un paquete publicado para este cliente y sector.',
                         package: existingPublished,
                         counts: {

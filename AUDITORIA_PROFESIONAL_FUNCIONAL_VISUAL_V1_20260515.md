@@ -207,3 +207,118 @@ Este bloque es un control profesional de aceptación funcional read-only sobre p
 - Revisión visual real móvil.
 - Auditoría específica de acceso cruzado cliente.
 - Clasificación completa de endpoints oficiales/legacy.
+
+---
+
+## 13. P0.1B — Corrección profesional de contrato real de respuestas
+
+Fecha: 2026-05-15
+
+Se inspeccionó la estructura real de las respuestas de producción para evitar conclusiones incorrectas por parsing incompleto.
+
+### 13.1 Dashboard comercial
+
+Endpoint:
+
+- GET /api/manager/commercial-dashboard
+
+Resultado:
+
+- HTTP=200.
+- TOP_LEVEL_KEYS=clients, counts, filters, mode, read_source, requests, resource, source_of_truth_current, status.
+- mode=supabase_read_switch_v1.
+- read_source=supabase_readonly.
+
+Los contadores no están en el nivel raíz. Están dentro del objeto:
+
+- counts.clients_total=4.
+- counts.packages_published=4.
+- counts.package_items_total=33.
+- counts.interest_requests_total=9.
+- counts.pending_contact=0.
+- counts.contacted=0.
+- counts.handled=9.
+- counts.dismissed=0.
+
+Conclusión profesional:
+
+- El inventario anterior que mostraba campos dashboard vacíos no indica fallo funcional.
+- La causa era lectura incorrecta del contrato JSON.
+
+### 13.2 Publication packages
+
+Endpoint:
+
+- GET /api/manager/publication-packages
+
+Resultado:
+
+- HTTP=200.
+- TOP_LEVEL_KEYS=count, packages, status.
+- count=4.
+- packages[0].id=lmaq9r54ryf6r5bhd8xa15.
+- packages[0].client_id=industrias_metalurgicas_turia.
+- packages[0].package_status=published.
+
+Conclusión profesional:
+
+- Existen 4 paquetes publicados gestionables desde entorno interno.
+
+### 13.3 Portal Entidad
+
+Endpoint inspeccionado:
+
+- GET /api/portal/packages?client_id=clinica_dental
+
+Resultado:
+
+- HTTP=200.
+- TOP_LEVEL_KEYS=client_id, mode, packages, read_source, resource, source_of_truth_current, status.
+- client_id=clinica_dental.
+- mode=supabase_read_switch_v1.
+- read_source=supabase_readonly.
+- packages=ARRAY_COUNT_1.
+
+El contrato real del Portal Entidad es:
+
+- packages[] contiene los paquetes visibles.
+- Cada package contiene sus items anidados en package.items[].
+
+Paquete detectado:
+
+- package_id=hsc4tgy50msbz7s3xvsmn7.
+- client_id=clinica_dental.
+- sector_key=clinicas_privadas.
+- package_status=published.
+- review_status=approved.
+- client_publish_status=published.
+- total_items=8.
+
+Conclusión profesional:
+
+- El resultado anterior de items=0 en P0.1 era un error del parser de auditoría.
+- No se detecta fallo funcional en el endpoint Portal Entidad para Clínica Dental.
+- El contrato real debe documentarse y usarse correctamente en futuras auditorías y frontend.
+
+### 13.4 Ajuste de criterio P0.1
+
+La auditoría P0.1 queda corregida:
+
+- Dashboard operativo con counts anidado.
+- Portal Entidad operativo con packages[] e items anidados.
+- Publication packages operativo con count=4.
+
+Pendiente profesional:
+
+- Repetir matriz de Portal Entidad para los 4 clientes usando el contrato correcto packages[].items[].
+- Continuar con auditoría visual real escritorio/móvil.
+- Auditar acceso cruzado cliente por manipulación de client_id.
+
+### 13.5 Seguridad de esta inspección
+
+- Solo lectura.
+- No se ejecutó POST /generate.
+- No se ejecutó confirm_publish=true.
+- No hubo mutaciones de negocio.
+- No se ejecutó Vercel.
+- No se imprimieron secretos.

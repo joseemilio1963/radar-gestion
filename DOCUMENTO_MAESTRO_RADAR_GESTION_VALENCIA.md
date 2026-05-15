@@ -366,3 +366,44 @@ Conclusión:
 Checkpoint asociado:
 
 - checkpoint_publication_generate_sqlite_transaction_preview_no_mutation_20260515_150533.md
+
+---
+
+## Actualización 2026-05-15 — Generate Write Switch V1 real validado en producción
+
+Producción:
+
+- https://radar.aulagentia.eu
+
+Commit main validado:
+
+- c2649dcef48e2ce5898f4bb3465b35052e761820
+
+Backup remoto previo:
+
+- backup-main-before-generate-write-switch-real_20260515_151126
+
+Estado validado:
+
+- main alineado con origin/main.
+- Endpoint POST /api/manager/publication-packages/generate mergeado a main.
+- RADAR_PUBLICATION_GENERATE_WRITE_SOURCE en producción permanece en sqlite.
+- dual_write_active=false.
+- supabase_write_active=false.
+- Caso cruzado clinica_dental + transporte bloqueado con HTTP=400 invalid_client_sector.
+- Caso clinica_dental + clinicas_privadas devuelve existing_published_package_found con contrato completo.
+- Transacción SQLite añadida por código: BEGIN, COMMIT, ROLLBACK y DELETE preparado.
+- No se ejecutó generación válida nueva.
+- No se creó borrador nuevo.
+- No se ejecutó confirm_publish=true.
+- No se ejecutó vercel --prod.
+- No hubo mutaciones.
+
+Conclusión operativa:
+
+- Generate Write Switch V1 real queda validado en producción en modo seguro sqlite.
+- No activar RADAR_PUBLICATION_GENERATE_WRITE_SOURCE=dual_write ni supabase hasta implementar escritura Supabase real para generación.
+
+Checkpoint asociado:
+
+- checkpoint_publication_generate_write_switch_v1_real_produccion_validado_20260515_152824.md

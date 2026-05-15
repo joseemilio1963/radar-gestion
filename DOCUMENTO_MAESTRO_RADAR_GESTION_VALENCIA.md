@@ -294,3 +294,39 @@ Pendiente antes de mergear a main:
 Checkpoint asociado:
 
 - checkpoint_publication_generate_write_switch_v1_real_preview_parcial_20260515_122500.md
+
+---
+
+## Actualización 2026-05-15 — Generate Write Switch V1 real Preview validado
+
+Rama:
+
+- publication-generate-write-switch-v1-real
+
+Commit validado:
+
+- 3b6abbe25c60e3ca5aa1b94459472a1936809651 Complete publication generate existing response contract
+
+Preview validado:
+
+- https://radar-gestion-elg6kbvbl-radar-asesoria-valencia.vercel.app
+
+Estado validado:
+
+- write_source=sqlite.
+- dual_write_active=false.
+- supabase_write_active=false.
+- Caso cruzado clinica_dental + transporte bloqueado con HTTP=400 invalid_client_sector.
+- Caso existing_published_package_found devuelve contrato completo: write_source, sqlite_action, supabase_action, client_sector_key y sector_matches_client.
+- No hubo generación válida de borrador nuevo.
+- No hubo publicación real.
+- Producción no fue tocada.
+
+Conclusión:
+
+- El checkpoint parcial anterior queda superado.
+- El bloque queda listo para decisión de merge controlado a main o para esperar si se quiere añadir transacción SQLite antes.
+
+Checkpoint asociado:
+
+- checkpoint_publication_generate_write_switch_v1_real_preview_validado_20260515_145019.md

@@ -2069,10 +2069,25 @@ function CommercialDashboardPanel() {
         </div>
     );
 
-    const counts = dashboard?.counts || {};
-    const clients = dashboard?.clients || [];
-    const requests = dashboard?.requests || [];
-    const filterOptions = dashboard?.filters || {};
+        const asArray = (value) => Array.isArray(value) ? value : [];
+    const asObject = (value) => (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+
+    const counts = asObject(dashboard?.counts);
+    const clients = asArray(dashboard?.clients);
+    const requests = asArray(dashboard?.requests);
+    const filterOptions = asObject(dashboard?.filters);
+
+    const filterClientOptionsRaw = asArray(filterOptions.clients);
+    const filterClientOptions = filterClientOptionsRaw.length > 0
+        ? filterClientOptionsRaw
+        : clients.map(client => ({
+            client_id: client.client_id,
+            client_name: client.client_name || client.client_id || 'Cliente sin nombre'
+        }));
+
+    const filterStatusOptions = asArray(filterOptions.statuses || filterOptions.request_statuses);
+    const filterRequestTypeOptions = asArray(filterOptions.request_types);
+    const filterPriorityOptions = asArray(filterOptions.priorities);
 
     const filteredRequests = requests.filter(req => {
         if (filters.client_id !== 'all' && req.client_id !== filters.client_id) return false;
@@ -2124,7 +2139,7 @@ function CommercialDashboardPanel() {
                             className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
                         >
                             <option value="all">Todos los clientes</option>
-                            {(filterOptions.clients || []).map(client => (
+                            {filterClientOptions.map(client => (
                                 <option key={client.client_id} value={client.client_id}>{client.client_name}</option>
                             ))}
                         </select>
@@ -2138,7 +2153,7 @@ function CommercialDashboardPanel() {
                             className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
                         >
                             <option value="all">Todos los estados</option>
-                            {(filterOptions.statuses || []).map(status => (
+                            {filterStatusOptions.map(status => (
                                 <option key={status} value={status}>{statusLabel(status)}</option>
                             ))}
                         </select>
@@ -2152,7 +2167,7 @@ function CommercialDashboardPanel() {
                             className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
                         >
                             <option value="all">Todos los tipos</option>
-                            {(filterOptions.request_types || []).map(type => (
+                            {filterRequestTypeOptions.map(type => (
                                 <option key={type} value={type}>{labelFromKey(type)}</option>
                             ))}
                         </select>
@@ -2166,7 +2181,7 @@ function CommercialDashboardPanel() {
                             className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
                         >
                             <option value="all">Todas las prioridades</option>
-                            {(filterOptions.priorities || []).map(priority => (
+                            {filterPriorityOptions.map(priority => (
                                 <option key={priority} value={priority}>{priorityLabel(priority)}</option>
                             ))}
                         </select>
@@ -2199,7 +2214,7 @@ function CommercialDashboardPanel() {
                             {filteredClients.map(client => (
                                 <tr key={client.client_id} className="text-slate-300">
                                     <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{client.client_name || client.client_id}</td>
-                                    <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{formatHumanLabel(client.sector_key || 'Sin sector')}</td>
+                                    <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{labelFromKey(client.sector_key || 'Sin sector')}</td>
                                     <td className="py-4 pr-4 font-semibold">{client.packages_published}</td>
                                     <td className="py-4 pr-4">{client.total_package_items}</td>
                                     <td className="py-4 pr-4">{client.interest_requests_total}</td>
@@ -2651,4 +2666,5 @@ function NavTab({ active, onClick, label, icon, disabled }) {
         </button>
     );
 }
+
 

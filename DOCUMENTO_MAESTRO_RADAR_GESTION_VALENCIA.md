@@ -330,3 +330,39 @@ Conclusión:
 Checkpoint asociado:
 
 - checkpoint_publication_generate_write_switch_v1_real_preview_validado_20260515_145019.md
+
+---
+
+## Actualización 2026-05-15 — Generate SQLite transaction Preview no-mutación validada
+
+Rama:
+
+- publication-generate-write-switch-v1-real
+
+Commit validado:
+
+- 7b44c4cfeaed453e31f4f512059298b4cbd07788 Add SQLite transaction to publication generate
+
+Preview validado:
+
+- https://radar-gestion-k22yy5oe0-radar-asesoria-valencia.vercel.app
+
+Estado validado:
+
+- write_source=sqlite.
+- dual_write_active=false.
+- supabase_write_active=false.
+- Caso cruzado clinica_dental + transporte bloqueado con HTTP=400 invalid_client_sector.
+- Caso existing_published_package_found mantiene contrato completo.
+- Transacción SQLite añadida por código: BEGIN, COMMIT, ROLLBACK y DELETE preparado.
+- No se ejercitó generación real nueva porque no hay candidato seguro sin paquete publicado.
+- Producción no fue tocada.
+- No hubo mutaciones.
+
+Conclusión:
+
+- El bloque queda listo para merge controlado a main con validación producción sin mutaciones.
+
+Checkpoint asociado:
+
+- checkpoint_publication_generate_sqlite_transaction_preview_no_mutation_20260515_150533.md

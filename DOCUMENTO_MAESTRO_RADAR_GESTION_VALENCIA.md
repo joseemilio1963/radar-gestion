@@ -265,3 +265,32 @@ El preflight de generate queda validado en producción y evita combinaciones cli
 Checkpoint asociado:
 
 - checkpoint_publication_generate_preflight_produccion_validado_20260514_181442.md
+
+---
+
+## Actualización 2026-05-15 — Generate Write Switch V1 real Preview parcial
+
+Rama: publication-generate-write-switch-v1-real.
+
+Commit Preview validado:
+
+- d0d07e07c0b3451680a4121d8f39715464f82c49 Guard publication generate write switch V1 fail closed.
+
+Estado validado:
+
+- POST /api/manager/publication-packages/generate usa write source scoped.
+- write_source=sqlite en Preview.
+- dual_write_active=false.
+- supabase_write_active=false.
+- Caso cruzado clinica_dental + transporte bloqueado con HTTP=400 invalid_client_sector.
+- No hubo generación real válida.
+- No hubo publicación real.
+- Producción no fue tocada.
+
+Pendiente antes de mergear a main:
+
+- Pulir contrato de respuesta existing_published_package_found para devolver write_source, sqlite_action y supabase_action.
+
+Checkpoint asociado:
+
+- checkpoint_publication_generate_write_switch_v1_real_preview_parcial_20260515_122500.md

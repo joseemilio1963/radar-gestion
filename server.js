@@ -4816,8 +4816,11 @@ const server = http.createServer(async (req, res) => {
                 });
             }
 
+            let db = null;
+            let sqliteTransactionStarted = false;
+
             try {
-                const db = new DatabaseSync(DB_PATH);
+                db = new DatabaseSync(DB_PATH);
                 const date = new Date();
                 const pad = function(n) { return n.toString().padStart(2, '0'); };
                 const now = date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
@@ -4872,15 +4875,18 @@ const server = http.createServer(async (req, res) => {
                 // Check if draft already exists
                 let pkg = db.prepare('SELECT id FROM client_publication_packages WHERE client_id = ? AND sector_key = ? AND package_type = ? AND package_status = ?').get(payload.client_id, payload.sector_key, package_type, 'draft_pending_review');
                 
+                const obligations = db.prepare("SELECT * FROM compliance_obligations WHERE sector_key = ? AND id LIKE 'base_obligation_%'").all(payload.sector_key) || [];
+                const aids = db.prepare("SELECT * FROM aid_items WHERE id LIKE 'aid_base_%'").all() || [];
+
                 let package_id = pkg ? pkg.id : generateId();
+
+                db.exec('BEGIN');
+                sqliteTransactionStarted = true;
 
                 if (pkg) {
                     // Clean previous items
-                    db.exec("DELETE FROM client_publication_package_items WHERE package_id = '" + package_id + "'");
+                    db.prepare("DELETE FROM client_publication_package_items WHERE package_id = ?").run(package_id);
                 }
-
-                const obligations = db.prepare("SELECT * FROM compliance_obligations WHERE sector_key = ? AND id LIKE 'base_obligation_%'").all(payload.sector_key) || [];
-                const aids = db.prepare("SELECT * FROM aid_items WHERE id LIKE 'aid_base_%'").all() || [];
 
                 if (!pkg) {
                     db.prepare(`
@@ -4942,6 +4948,9 @@ const server = http.createServer(async (req, res) => {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `).run(generateId(), package_id, payload.tenant_id || 'default', payload.client_id, 'package_generated_pending_review', payload.generated_by || 'system', 'Package drafted', now);
 
+                db.exec('COMMIT');
+                sqliteTransactionStarted = false;
+
                 const generatedPkg = db.prepare('SELECT * FROM client_publication_packages WHERE id = ?').get(package_id);
                 db.close();
 
@@ -4956,8 +4965,23 @@ const server = http.createServer(async (req, res) => {
                     }
                 });
             } catch (err) {
+                if (sqliteTransactionStarted && db) {
+                    try { db.exec('ROLLBACK'); } catch {}
+                    sqliteTransactionStarted = false;
+                }
+
+                if (db) {
+                    try { db.close(); } catch {}
+                }
+
                 console.error(err);
-                return sendJson(res, 500, { error: 'internal_error' });
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error: 'internal_error',
+                    write_source: writeSource,
+                    sqlite_action: shouldUseSqlite ? 'rolled_back_or_failed' : 'not_used',
+                    supabase_action: shouldUseSupabase ? 'not_attempted_after_sqlite_error' : 'not_used'
+                });
             }
         });
         return;

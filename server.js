@@ -4767,18 +4767,53 @@ const server = http.createServer(async (req, res) => {
     }
 
     // API Route: POST /api/manager/publication-packages/generate
+    // write_switch_v1_publication_generate_real_sqlite_safe
     if (req.url === '/api/manager/publication-packages/generate' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
         req.on('end', () => {
             const payload = parseJsonSafe(body);
+            const writeSource = getRadarPublicationGenerateWriteSource();
+            const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+            const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
             if (!payload || !payload.client_id || !payload.sector_key) {
                 return sendJson(res, 400, { error: 'invalid_payload', message: 'Missing client_id or sector_key' });
             }
 
             const validClient = getClientCatalog().find(c => c.id === payload.client_id);
+            const clientSectorKey = validClient ? validClient.sector_key : null;
+            const sectorMatchesClient = Boolean(validClient && clientSectorKey && clientSectorKey === payload.sector_key);
             if (!validClient) {
                 return sendJson(res, 400, { error: 'invalid_client', message: 'El cliente indicado no existe en Clientes / Entidades.' });
+            }
+
+            if (!sectorMatchesClient) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error: 'invalid_client_sector',
+                    message: 'El sector indicado no corresponde al cliente seleccionado.',
+                    client_id: payload.client_id,
+                    sector_key: payload.sector_key,
+                    client_sector_key: clientSectorKey,
+                    sector_matches_client: false,
+                    write_source: writeSource,
+                    sqlite_action: shouldUseSqlite ? 'not_attempted_invalid_client_sector' : 'not_used',
+                    supabase_action: shouldUseSupabase ? 'not_attempted_invalid_client_sector' : 'not_used'
+                });
+            }
+
+            if (shouldUseSupabase) {
+                return sendJson(res, 501, {
+                    status: 'error',
+                    error: 'publication_generate_supabase_write_not_implemented',
+                    message: 'Supabase write path for publication generate is not implemented yet. Keeping fail-closed.',
+                    write_source: writeSource,
+                    sqlite_action: shouldUseSqlite ? 'not_attempted_supabase_path_not_ready' : 'not_used',
+                    supabase_action: 'not_implemented_fail_closed',
+                    write_mutation_executed: false,
+                    valid_generate_mutation_sent: false,
+                    valid_confirm_true_publish_sent: false
+                });
             }
 
             try {

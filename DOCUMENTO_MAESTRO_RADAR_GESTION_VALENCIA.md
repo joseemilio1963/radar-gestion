@@ -407,3 +407,22 @@ Conclusión operativa:
 Checkpoint asociado:
 
 - checkpoint_publication_generate_write_switch_v1_real_produccion_validado_20260515_152824.md
+
+---
+
+## Plan de cierre profesional definitivo
+
+Se añade el documento:
+
+- PLAN_CIERRE_PROFESIONAL_RADAR_GESTION_VALENCIA.md
+
+Criterio actualizado del proyecto:
+
+- El objetivo ya no es demo, MVP ni prototipo.
+- El objetivo único es app profesional definitiva.
+- Las validaciones futuras serán controles de aceptación profesional.
+- Todo avance deberá cerrar arquitectura, UX, seguridad, operación o documentación final.
+
+Siguiente bloque recomendado:
+
+- Auditoría profesional funcional y visual V1.

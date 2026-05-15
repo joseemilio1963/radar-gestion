@@ -366,3 +366,83 @@ Seguridad:
 - No hubo mutaciones de negocio.
 - No se ejecutó Vercel.
 - No se imprimieron secretos.
+
+---
+
+## 15. P0.2/P0.3-A — Auditoría visual técnica del frontend
+
+Fecha: 2026-05-15
+
+Este bloque revisa el código frontend real versionado para detectar riesgos técnicos de UX escritorio y móvil antes de la aceptación visual en navegador.
+
+No es una simulación. Es una auditoría técnica de producto final orientada a detectar deuda visual real.
+
+### 15.1 Inventario
+
+- Archivos frontend versionados revisados: 8
+- Archivos con señales de riesgo visual/responsive: 3
+
+### 15.2 Patrones detectados
+
+| Patrón | Coincidencias | Archivos | Muestras |
+|---|---:|---:|---|
+| overflow-x | 3 | 1 | src/App.jsx |
+| overflowX | 0 | 0 | - |
+| white-space | 1 | 1 | public_legacy/index.html |
+| whitespace-nowrap | 11 | 1 | src/App.jsx |
+| min-width | 0 | 0 | - |
+| minWidth | 0 | 0 | - |
+| max-width | 3 | 1 | public_legacy/index.html |
+| maxWidth | 0 | 0 | - |
+| table | 69 | 2 | server.js, src/App.jsx |
+| thead | 6 | 2 | server.js, src/App.jsx |
+| tbody | 4 | 1 | src/App.jsx |
+| grid | 22 | 1 | src/App.jsx |
+| flex | 120 | 2 | public_legacy/index.html, src/App.jsx |
+| @media | 0 | 0 | - |
+| mobile | 2 | 1 | src/App.jsx |
+| responsive | 0 | 0 | - |
+| tabs | 0 | 0 | - |
+| tab | 122 | 2 | server.js, src/App.jsx |
+| button | 67 | 2 | public_legacy/index.html, src/App.jsx |
+| Button | 67 | 2 | public_legacy/index.html, src/App.jsx |
+| Portal | 111 | 2 | server.js, src/App.jsx |
+| Dashboard | 63 | 2 | server.js, src/App.jsx |
+| Solicitud | 29 | 2 | server.js, src/App.jsx |
+| solicitud | 29 | 2 | server.js, src/App.jsx |
+| cliente | 71 | 3 | public_legacy/index.html, server.js, src/App.jsx |
+| Cliente | 71 | 3 | public_legacy/index.html, server.js, src/App.jsx |
+
+### 15.3 Archivos con mayor riesgo visual técnico
+
+| Riesgo | Archivo | Marcadores |
+|---:|---|---|
+| 7 | src/App.jsx | overflow-x, nowrap, table, tabs, business-ui, responsive-marker |
+| 4 | server.js | table, tabs, business-ui |
+| 1 | public_legacy/index.html | business-ui |
+
+### 15.4 Lectura profesional
+
+La presencia de overflow-x, nowrap, tablas, tabs o anchos mínimos no implica automáticamente un fallo, pero marca zonas que deben revisarse visualmente en móvil y escritorio.
+
+Criterio profesional:
+
+- Si una tabla, pestaña o fila obliga a scroll horizontal en móvil sin alternativa clara, será incidencia P0 o P1 según afecte a acciones principales.
+- Si una CTA principal queda fuera de pantalla o visualmente oculta, será P0.
+- Si el gestor no puede entender estado/acción en móvil, será P1 como mínimo.
+- Si el Portal Entidad no es entendible en móvil por un cliente, será P0.
+
+### 15.5 Siguiente paso obligatorio
+
+Ejecutar aceptación visual real en navegador sobre las pantallas principales:
+
+- escritorio 1366x768, 1440x900, 1920x1080;
+- móvil 360x800, 390x844, 412x915;
+- tablet 768x1024.
+
+### 15.6 Seguridad
+
+- No se ejecutó Vercel.
+- No se tocó producción.
+- No se mutaron datos.
+- No se imprimieron secretos.

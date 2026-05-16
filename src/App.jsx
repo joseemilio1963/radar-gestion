@@ -108,7 +108,7 @@ function RadarPanel() {
                                     )}
 
                                     <div className="flex justify-between items-start mb-3 gap-4">
-                                        <h3 className="text-base font-bold leading-snug text-slate-100 group-hover:text-indigo-300 transition-colors">{item.title}</h3>
+                                        <h3 className="text-base font-bold leading-snug text-slate-100 group-hover:text-indigo-300 transition-colors">{textFromValue(item.title, 'Sin título')}</h3>
                                         <span className="shrink-0 bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-widest shadow-sm">
                                             {item.review_status || 'pending_review'}
                                         </span>
@@ -415,6 +415,31 @@ function CompliancePanel() {
     );
 }
 
+function textFromValue(value, fallback = '') {
+  if (value === null || value === undefined || value === '') {
+    return fallback;
+  }
+
+  if (typeof value === 'object') {
+    const resolved = value.label
+      ?? value.name
+      ?? value.title
+      ?? value.value
+      ?? value.key
+      ?? value.status
+      ?? value.request_status
+      ?? value.request_type
+      ?? value.priority
+      ?? value.client_name
+      ?? value.client_id
+      ?? fallback;
+
+    return String(resolved ?? fallback);
+  }
+
+  return String(value);
+}
+
 function labelFromKey(value) {
   if (value === null || value === undefined || value === '') {
     return 'Sin definir';
@@ -565,7 +590,7 @@ function AidsPanel() {
                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-2xl"></div>
                                     )}
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-4 min-w-0">
-                                        <h3 className="min-w-0 text-base font-bold leading-snug text-slate-100 group-hover:text-emerald-300 transition-colors break-words">{item.title}</h3>
+                                        <h3 className="min-w-0 text-base font-bold leading-snug text-slate-100 group-hover:text-emerald-300 transition-colors break-words">{textFromValue(item.title, 'Sin título')}</h3>
                                         <span className="shrink-0 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wide whitespace-normal break-words text-left leading-snug shadow-sm">
                                             {labelFromKey(item.aid_type || 'AYUDA')}
                                         </span>
@@ -574,7 +599,7 @@ function AidsPanel() {
                                         <span className="p-1.5 bg-slate-700/50 rounded-md text-slate-300">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path></svg>
                                         </span>
-                                        {item.source_name || 'Desconocido'}
+                                        {textFromValue(item.source_name, 'Desconocido')}
                                     </div>
                                     <div className="grid grid-cols-2 gap-3 text-xs mb-5 bg-slate-900/40 p-4 rounded-xl border border-slate-700/30">
                                         <div>
@@ -852,7 +877,7 @@ function ClientsPanel() {
                                         {selectedClient.complianceItems.map(item => (
                                             <div key={item.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
                                                 <div className="flex justify-between items-start mb-2">
-                                                    <span className="font-bold text-slate-200 text-sm">{item.title}</span>
+                                                    <span className="font-bold text-slate-200 text-sm">{textFromValue(item.title, 'Sin título')}</span>
                                                     <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${item.status === 'ok' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
                                                 </div>
                                                 <div className="text-xs text-slate-500 font-medium">{item.date}</div>
@@ -1455,7 +1480,7 @@ function ClientPackagesPanel() {
                             <div key={req.id} className="bg-slate-900/50 border border-slate-700/60 rounded-xl p-4 grid grid-cols-1 lg:grid-cols-[1.1fr_1.5fr_0.8fr] gap-3 items-start">
                                 <div>
                                     <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1">Cliente</div>
-                                    <div className="font-bold text-slate-200">{req.client_name || req.client_id}</div>
+                                    <div className="font-bold text-slate-200">{textFromValue(req.client_name ?? req.client_id, 'Cliente sin nombre')}</div>
                                 </div>
 
                                 <div>
@@ -1566,7 +1591,7 @@ function ClientPackagesPanel() {
                                             }`}>
                                                 {item.source_type === 'aid_item' ? 'Ayuda / oportunidad' : 'Normativa'}
                                             </div>
-                                            <div className="font-bold text-slate-100">{item.title}</div>
+                                            <div className="font-bold text-slate-100">{textFromValue(item.title, 'Sin título')}</div>
                                             <OfficialReferenceBlock item={item} compact />
                                         </div>
 
@@ -2181,7 +2206,7 @@ function CommercialDashboardPanel() {
                         >
                             <option value="all">Todos los clientes</option>
                             {filterClientOptions.map(client => (
-                                <option key={client.client_id} value={client.client_id}>{client.client_name}</option>
+                                <option key={textFromValue(client.client_id || client)} value={textFromValue(client.client_id || client)}>{textFromValue(client.client_name ?? client.label ?? client.name ?? client.client_id ?? client, 'Cliente sin nombre')}</option>
                             ))}
                         </select>
                     </div>
@@ -2195,7 +2220,7 @@ function CommercialDashboardPanel() {
                         >
                             <option value="all">Todos los estados</option>
                             {filterStatusOptions.map(status => (
-                                <option key={status} value={status}>{statusLabel(status)}</option>
+                                <option key={textFromValue(status)} value={textFromValue(status)}>{statusLabel(textFromValue(status))}</option>
                             ))}
                         </select>
                     </div>
@@ -2209,7 +2234,7 @@ function CommercialDashboardPanel() {
                         >
                             <option value="all">Todos los tipos</option>
                             {filterRequestTypeOptions.map(type => (
-                                <option key={type} value={type}>{labelFromKey(type)}</option>
+                                <option key={textFromValue(type)} value={textFromValue(type)}>{labelFromKey(type)}</option>
                             ))}
                         </select>
                     </div>
@@ -2223,7 +2248,7 @@ function CommercialDashboardPanel() {
                         >
                             <option value="all">Todas las prioridades</option>
                             {filterPriorityOptions.map(priority => (
-                                <option key={priority} value={priority}>{priorityLabel(priority)}</option>
+                                <option key={textFromValue(priority)} value={textFromValue(priority)}>{priorityLabel(textFromValue(priority))}</option>
                             ))}
                         </select>
                     </div>
@@ -2246,7 +2271,7 @@ function CommercialDashboardPanel() {
                             <div key={client.client_id} className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
                                 <div className="flex items-start justify-between gap-3 mb-4">
                                     <div>
-                                        <h4 className="font-bold text-slate-100">{client.client_name || client.client_id}</h4>
+                                        <h4 className="font-bold text-slate-100">{textFromValue(client.client_name ?? client.client_id, 'Cliente sin nombre')}</h4>
                                         <p className="text-xs font-semibold text-slate-500 mt-1">{labelFromKey(client.sector_key || 'Sin sector')}</p>
                                     </div>
                                     <span className="rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-1 text-xs font-bold text-slate-300">
@@ -2306,7 +2331,7 @@ function CommercialDashboardPanel() {
                         <tbody className="divide-y divide-slate-800/80">
                             {filteredClients.map(client => (
                                 <tr key={client.client_id} className="text-slate-300">
-                                    <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{client.client_name || client.client_id}</td>
+                                    <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{textFromValue(client.client_name ?? client.client_id, 'Cliente sin nombre')}</td>
                                     <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{labelFromKey(client.sector_key || 'Sin sector')}</td>
                                     <td className="py-4 pr-4 font-semibold">{client.packages_published}</td>
                                     <td className="py-4 pr-4">{client.total_package_items}</td>
@@ -2339,7 +2364,7 @@ function CommercialDashboardPanel() {
                                 <div key={req.id} className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
                                     <div className="flex items-start justify-between gap-3 mb-4">
                                         <div>
-                                            <h4 className="font-bold text-slate-100">{req.client_name || req.client_id}</h4>
+                                            <h4 className="font-bold text-slate-100">{textFromValue(req.client_name ?? req.client_id, 'Cliente sin nombre')}</h4>
                                             <p className="text-xs font-semibold text-slate-500 mt-1">{labelFromKey(req.request_type)}</p>
                                         </div>
                                         <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${priorityClass(req.priority)}`}>
@@ -2350,7 +2375,7 @@ function CommercialDashboardPanel() {
                                     <div className="space-y-4 text-sm">
                                         <div>
                                             <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Oportunidad</div>
-                                            <div className="mt-1 font-semibold text-slate-100">{req.title || 'Sin título'}</div>
+                                            <div className="mt-1 font-semibold text-slate-100">{textFromValue(req.title, 'Sin título')}</div>
                                             {req.message && <div className="text-xs text-slate-500 mt-2">{req.message}</div>}
                                         </div>
 
@@ -2414,9 +2439,9 @@ function CommercialDashboardPanel() {
                                 <tbody className="divide-y divide-slate-800/80">
                                     {filteredRequests.map(req => (
                                         <tr key={req.id} className="text-slate-300 align-top">
-                                            <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{req.client_name || req.client_id}</td>
+                                            <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{textFromValue(req.client_name ?? req.client_id, 'Cliente sin nombre')}</td>
                                             <td className="py-4 pr-4 min-w-[280px]">
-                                                <div className="font-semibold text-slate-100">{req.title || 'Sin título'}</div>
+                                                <div className="font-semibold text-slate-100">{textFromValue(req.title, 'Sin título')}</div>
                                                 {req.message && <div className="text-xs text-slate-500 mt-1">{req.message}</div>}
                                             </td>
                                             <td className="py-4 pr-4 whitespace-nowrap">{labelFromKey(req.request_type)}</td>

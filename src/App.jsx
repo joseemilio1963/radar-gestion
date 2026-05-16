@@ -521,14 +521,14 @@ function AidsPanel() {
                     ) : (
                         <div className="space-y-4">
                             {items.map(item => (
-                                <div key={item.id} className={`group relative bg-slate-800/60 backdrop-blur-sm p-6 rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md ${detailItem?.item?.id === item.id ? 'border-emerald-500/50 bg-slate-800/90 ring-1 ring-emerald-500/20 translate-x-1' : 'border-slate-700/60 hover:border-slate-600 hover:bg-slate-800/80'}`}>
+                                <div key={item.id} className={`group relative min-w-0 overflow-hidden bg-slate-800/60 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md ${detailItem?.item?.id === item.id ? 'border-emerald-500/50 bg-slate-800/90 ring-1 ring-emerald-500/20 translate-x-1' : 'border-slate-700/60 hover:border-slate-600 hover:bg-slate-800/80'}`}>
                                     {detailItem?.item?.id === item.id && (
                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-2xl"></div>
                                     )}
-                                    <div className="flex justify-between items-start mb-3 gap-4">
-                                        <h3 className="text-base font-bold leading-snug text-slate-100 group-hover:text-emerald-300 transition-colors">{item.title}</h3>
-                                        <span className="shrink-0 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-widest shadow-sm">
-                                            {item.aid_type || 'AYUDA'}
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-4 min-w-0">
+                                        <h3 className="min-w-0 text-base font-bold leading-snug text-slate-100 group-hover:text-emerald-300 transition-colors break-words">{item.title}</h3>
+                                        <span className="shrink-0 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wide whitespace-normal break-words text-left leading-snug shadow-sm">
+                                            {labelFromKey(item.aid_type || 'AYUDA')}
                                         </span>
                                     </div>
                                     <div className="text-slate-400 text-sm mb-5 flex items-center gap-2.5 font-medium">
@@ -623,7 +623,7 @@ function AidsPanel() {
                             </div>
 
                             <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2.5 mb-8">
-                                <div className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-1.5">Estado Operativo</div>
+                                <div className="text-slate-500 text-[10px] uppercase font-bold tracking-wide whitespace-normal break-words text-left leading-snug mb-1.5">Estado Operativo</div>
                                 {detailItem.item.needs_human_review === 1 && (
                                     <div className="flex items-center gap-2 text-rose-400 text-xs font-semibold select-none cursor-default">
                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
@@ -897,6 +897,8 @@ function formatHumanLabel(value) {
         aid_item: 'Ayuda / oportunidad',
         compliance_obligation: 'Normativa',
         BONIFICACION_INCENTIVO_CONTRATACION: 'Bonificación / incentivo de contratación',
+        INCENTIVO_FORMACION_CONTRATACION: 'Incentivo para formación y contratación',
+        'INCENTIVO_FORMACIÓN_CONTRATACION': 'Incentivo para formación y contratación',
         TRAMITACION_AYUDA_SUBVENCION: 'Tramitación de ayuda o subvención'
     };
 
@@ -2782,6 +2784,7 @@ function NavTab({ active, onClick, label, icon, disabled }) {
         </button>
     );
 }
+
 
 
 

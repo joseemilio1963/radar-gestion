@@ -2195,7 +2195,59 @@ function CommercialDashboardPanel() {
                     <span className="text-sm text-slate-500 font-medium">{filteredClients.length} resultados</span>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="lg:hidden space-y-3">
+                    {filteredClients.length === 0 ? (
+                        <div className="text-sm text-slate-500 bg-slate-900/40 border border-dashed border-slate-700/60 rounded-xl p-5">
+                            No hay clientes con los filtros seleccionados.
+                        </div>
+                    ) : (
+                        filteredClients.map(client => (
+                            <div key={client.client_id} className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
+                                <div className="flex items-start justify-between gap-3 mb-4">
+                                    <div>
+                                        <h4 className="font-bold text-slate-100">{client.client_name || client.client_id}</h4>
+                                        <p className="text-xs font-semibold text-slate-500 mt-1">{labelFromKey(client.sector_key || 'Sin sector')}</p>
+                                    </div>
+                                    <span className="rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-1 text-xs font-bold text-slate-300">
+                                        {client.packages_published} publicados
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Items</div>
+                                        <div className="mt-1 font-bold text-slate-200">{client.total_package_items}</div>
+                                    </div>
+                                    <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Solicitudes</div>
+                                        <div className="mt-1 font-bold text-slate-200">{client.interest_requests_total}</div>
+                                    </div>
+                                    <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Pendientes</div>
+                                        <div className="mt-1 font-bold text-amber-300">{client.pending_contact}</div>
+                                    </div>
+                                    <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Gestionadas</div>
+                                        <div className="mt-1 font-bold text-emerald-300">{client.handled}</div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 space-y-3 text-sm">
+                                    <div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Última actualización</div>
+                                        <div className="mt-1 text-slate-300">{formatDateTime(client.last_request_update)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Próxima acción</div>
+                                        <div className="mt-1 font-semibold text-slate-200">{client.next_action_recommended}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="hidden lg:block overflow-x-auto">
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="text-left text-xs uppercase tracking-widest text-slate-500 border-b border-slate-700/60">
@@ -2206,8 +2258,8 @@ function CommercialDashboardPanel() {
                                 <th className="py-3 pr-4 font-bold">Solicitudes</th>
                                 <th className="py-3 pr-4 font-bold">Pendientes</th>
                                 <th className="py-3 pr-4 font-bold">Gestionadas</th>
-                                <th className="py-3 pr-4 font-bold">Ultima actualizacion</th>
-                                <th className="py-3 font-bold">Proxima accion</th>
+                                <th className="py-3 pr-4 font-bold">Última actualización</th>
+                                <th className="py-3 font-bold">Próxima acción</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/80">
@@ -2240,49 +2292,113 @@ function CommercialDashboardPanel() {
                         No hay solicitudes con los filtros seleccionados.
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-xs uppercase tracking-widest text-slate-500 border-b border-slate-700/60">
-                                    <th className="py-3 pr-4 font-bold">Cliente</th>
-                                    <th className="py-3 pr-4 font-bold">Oportunidad</th>
-                                    <th className="py-3 pr-4 font-bold">Tipo</th>
-                                    <th className="py-3 pr-4 font-bold">Estado</th>
-                                    <th className="py-3 pr-4 font-bold">Prioridad</th>
-                                    <th className="py-3 pr-4 font-bold">Fecha</th>
-                                    <th className="py-3 pr-4 font-bold">Proxima accion</th>
-                                    <th className="py-3 pr-4 font-bold">Nota interna</th>
-                                    <th className="py-3 font-bold">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800/80">
-                                {filteredRequests.map(req => (
-                                    <tr key={req.id} className="text-slate-300 align-top">
-                                        <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{req.client_name || req.client_id}</td>
-                                        <td className="py-4 pr-4 min-w-[280px]">
-                                            <div className="font-semibold text-slate-100">{req.title || 'Sin titulo'}</div>
-                                            {req.message && <div className="text-xs text-slate-500 mt-1">{req.message}</div>}
-                                        </td>
-                                        <td className="py-4 pr-4 whitespace-nowrap">{labelFromKey(req.request_type)}</td>
-                                        <td className="py-4 pr-4 whitespace-nowrap">
-                                            <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${statusClass(req.request_status)}`}>
-                                                {statusLabel(req.request_status)}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 pr-4 whitespace-nowrap">
-                                            <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${priorityClass(req.priority)}`}>
-                                                {priorityLabel(req.priority)}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{formatDateTime(req.updated_at || req.created_at)}</td>
-                                        <td className="py-4 pr-4 font-semibold text-slate-200 whitespace-nowrap">{req.next_action_recommended}</td>
-                                        <td className="py-4 pr-4 text-slate-400 min-w-[220px]">{displayCommercialNote(req.internal_notes)}</td>
-                                        <td className="py-4">{renderCommercialRequestActions(req)}</td>
+                    <>
+                        <div className="lg:hidden space-y-3">
+                            {filteredRequests.map(req => (
+                                <div key={req.id} className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
+                                    <div className="flex items-start justify-between gap-3 mb-4">
+                                        <div>
+                                            <h4 className="font-bold text-slate-100">{req.client_name || req.client_id}</h4>
+                                            <p className="text-xs font-semibold text-slate-500 mt-1">{labelFromKey(req.request_type)}</p>
+                                        </div>
+                                        <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${priorityClass(req.priority)}`}>
+                                            {priorityLabel(req.priority)}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-4 text-sm">
+                                        <div>
+                                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Oportunidad</div>
+                                            <div className="mt-1 font-semibold text-slate-100">{req.title || 'Sin título'}</div>
+                                            {req.message && <div className="text-xs text-slate-500 mt-2">{req.message}</div>}
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Tipo</div>
+                                                <div className="mt-1 font-semibold text-slate-200">{labelFromKey(req.request_type)}</div>
+                                            </div>
+                                            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Estado</div>
+                                                <span className={`mt-1 inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${statusClass(req.request_status)}`}>
+                                                    {statusLabel(req.request_status)}
+                                                </span>
+                                            </div>
+                                            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Prioridad</div>
+                                                <span className={`mt-1 inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${priorityClass(req.priority)}`}>
+                                                    {priorityLabel(req.priority)}
+                                                </span>
+                                            </div>
+                                            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Fecha</div>
+                                                <div className="mt-1 font-semibold text-slate-300">{formatDateTime(req.updated_at || req.created_at)}</div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Próxima acción</div>
+                                            <div className="mt-1 font-semibold text-slate-200">{req.next_action_recommended}</div>
+                                        </div>
+
+                                        <div>
+                                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Nota interna</div>
+                                            <div className="mt-1 text-slate-400">{displayCommercialNote(req.internal_notes)}</div>
+                                        </div>
+
+                                        <div className="pt-1">
+                                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Acciones</div>
+                                            {renderCommercialRequestActions(req)}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="hidden lg:block overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="text-left text-xs uppercase tracking-widest text-slate-500 border-b border-slate-700/60">
+                                        <th className="py-3 pr-4 font-bold">Cliente</th>
+                                        <th className="py-3 pr-4 font-bold">Oportunidad</th>
+                                        <th className="py-3 pr-4 font-bold">Tipo</th>
+                                        <th className="py-3 pr-4 font-bold">Estado</th>
+                                        <th className="py-3 pr-4 font-bold">Prioridad</th>
+                                        <th className="py-3 pr-4 font-bold">Fecha</th>
+                                        <th className="py-3 pr-4 font-bold">Próxima acción</th>
+                                        <th className="py-3 pr-4 font-bold">Nota interna</th>
+                                        <th className="py-3 font-bold">Acciones</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800/80">
+                                    {filteredRequests.map(req => (
+                                        <tr key={req.id} className="text-slate-300 align-top">
+                                            <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{req.client_name || req.client_id}</td>
+                                            <td className="py-4 pr-4 min-w-[280px]">
+                                                <div className="font-semibold text-slate-100">{req.title || 'Sin título'}</div>
+                                                {req.message && <div className="text-xs text-slate-500 mt-1">{req.message}</div>}
+                                            </td>
+                                            <td className="py-4 pr-4 whitespace-nowrap">{labelFromKey(req.request_type)}</td>
+                                            <td className="py-4 pr-4 whitespace-nowrap">
+                                                <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${statusClass(req.request_status)}`}>
+                                                    {statusLabel(req.request_status)}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 pr-4 whitespace-nowrap">
+                                                <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-bold ${priorityClass(req.priority)}`}>
+                                                    {priorityLabel(req.priority)}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{formatDateTime(req.updated_at || req.created_at)}</td>
+                                            <td className="py-4 pr-4 font-semibold text-slate-200 whitespace-nowrap">{req.next_action_recommended}</td>
+                                            <td className="py-4 pr-4 text-slate-400 min-w-[220px]">{displayCommercialNote(req.internal_notes)}</td>
+                                            <td className="py-4">{renderCommercialRequestActions(req)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
                 )}
             </div>
         </div>
@@ -2666,5 +2782,6 @@ function NavTab({ active, onClick, label, icon, disabled }) {
         </button>
     );
 }
+
 
 

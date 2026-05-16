@@ -415,6 +415,45 @@ function CompliancePanel() {
     );
 }
 
+function labelFromKey(value) {
+  if (value === null || value === undefined || value === '') {
+    return 'Sin definir';
+  }
+
+  const rawValue = String(value);
+  const normalizedKey = rawValue
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+
+  const labels = {
+    BONIFICACION_INCENTIVO_CONTRATACION: 'Bonificación / incentivo de contratación',
+    INCENTIVO_FORMACION_CONTRATACION: 'Incentivo para formación y contratación',
+    TRAMITACION_AYUDA_SUBVENCION: 'Tramitación de ayuda o subvención',
+    COMPLIANCE_OBLIGATION: 'Obligación normativa',
+    AID_ITEM: 'Ayuda o subvención',
+    PENDING_REVIEW: 'Pendiente de revisión',
+    APPROVED: 'Aprobado',
+    REJECTED: 'Descartado',
+    PUBLISHED: 'Publicado',
+    HANDLED: 'Gestionada',
+    PENDING_CONTACT: 'Pendiente de contacto',
+    CONTACTED: 'Contactada',
+    DISMISSED: 'Descartada',
+    NORMAL: 'Normal',
+    HIGH: 'Alta',
+    LOW: 'Baja'
+  };
+
+  if (labels[normalizedKey]) {
+    return labels[normalizedKey];
+  }
+
+  return rawValue
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/(^|\s)\S/g, char => char.toUpperCase());
+}
 function AidsPanel() {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);

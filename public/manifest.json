@@ -1,0 +1,25 @@
+{
+  "name": "Radar Gestión Valencia",
+  "short_name": "Radar Gestión",
+  "description": "Portal profesional de gestión normativa, ayudas y oportunidades para asesorías y clientes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050B14",
+  "theme_color": "#0A1120",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

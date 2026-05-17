@@ -1746,7 +1746,7 @@ function ClientPackagesPanel() {
     );
 }
 
-function PortalEntidadPanel() {
+function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false } = {}) {
     const [interestLoadingId, setInterestLoadingId] = useState(null);
     const [interestFeedback, setInterestFeedback] = useState({});
 
@@ -1818,14 +1818,35 @@ function PortalEntidadPanel() {
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'ok') {
-                    setValidClients(data.clients || []);
-                    if (data.clients && data.clients.length > 0) {
-                        setClientId(data.clients[0].id);
+                    const clients = data.clients || [];
+                    setValidClients(clients);
+
+                    if (fixedClientId) {
+                        const matchedClient = clients.find(client =>
+                            client.id === fixedClientId ||
+                            client.client_id === fixedClientId ||
+                            client.client_key === fixedClientId
+                        );
+
+                        if (matchedClient) {
+                            setClientId(matchedClient.id || matchedClient.client_id || fixedClientId);
+                        } else {
+                            setClientId('');
+                            setError('Portal no disponible para esta entidad.');
+                        }
+
+                        return;
+                    }
+
+                    if (clients.length > 0) {
+                        setClientId(clients[0].id);
                     }
                 }
             })
-            .catch(console.error);
-    }, []);
+            .catch(() => {
+                setError('No se ha podido cargar el acceso del portal.');
+            });
+    }, [fixedClientId]);
     const [summary, setSummary] = useState(null);
     const [obligations, setObligations] = useState([]);
     const [aids, setAids] = useState([]);
@@ -1860,26 +1881,53 @@ function PortalEntidadPanel() {
         }
         setLoading(false);
     };
+    useEffect(() => {
+        if (exclusiveClientPortal && clientId) {
+            loadPortalData();
+        }
+    }, [exclusiveClientPortal, clientId]);
+
+    const selectedPortalClient = validClients.find(client =>
+        client.id === clientId ||
+        client.client_id === clientId ||
+        client.client_key === clientId
+    );
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm flex items-end gap-4">
-                <div className="flex-1">
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Vista demo del Portal Entidad</label>
-                    <p className="text-[10px] text-slate-500 mb-2">Selecciona un cliente para visualizar la información publicada por la asesoría.</p>
-                    <select value={clientId} onChange={e => setClientId(e.target.value)} className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-blue-500">
-                        <option value="" disabled>Selecciona un cliente</option>
-                        {validClients.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
+            {exclusiveClientPortal ? (
+                <div className="bg-slate-800/80 p-5 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Portal Entidad</div>
+                    <h2 className="text-xl font-extrabold text-white">{selectedPortalClient?.name || clientId || 'Entidad'}</h2>
+                    <p className="text-sm text-slate-400 mt-2">
+                        Información publicada por tu asesoría para esta entidad.
+                    </p>
                 </div>
-                <button onClick={loadPortalData} disabled={loading || !clientId} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm shadow-blue-500/20 disabled:opacity-50 h-[38px]">
-                    Ver portal del cliente
-                </button>
-            </div>
+            ) : (
+                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm flex items-end gap-4">
+                    <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Portal Entidad por cliente</label>
+                        <p className="text-[10px] text-slate-500 mb-2">Selecciona una entidad para revisar la información publicada.</p>
+                        <select value={clientId} onChange={e => setClientId(e.target.value)} className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-blue-500">
+                            <option value="" disabled>Selecciona un cliente</option>
+                            {validClients.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <button onClick={loadPortalData} disabled={loading || !clientId} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm shadow-blue-500/20 disabled:opacity-50 h-[38px]">
+                        Ver portal del cliente
+                    </button>
+                </div>
+            )}
 
             {loading && <div className="text-center text-slate-400 py-12">Cargando datos del portal...</div>}
+
+            {error && (
+                <div className="bg-red-950/40 text-red-300 p-5 rounded-2xl border border-red-500/20">
+                    {error}
+                </div>
+            )}
 
             {!loading && summary && summary.total_published_packages === 0 && (
                 <div className="bg-slate-800/40 p-12 rounded-3xl border border-slate-700/50 border-dashed text-center flex flex-col items-center justify-center text-slate-400 backdrop-blur-sm">
@@ -2619,26 +2667,30 @@ function ManagerLoginGate({ onLogin, loading, error, onOpenPortal }) {
                     </button>
                 </form>
 
-                <button
-                    type="button"
-                    onClick={onOpenPortal}
-                    className="w-full mt-4 px-4 py-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors"
-                >
-                    Abrir Portal Entidad sin PIN
-                </button>
+                
             </div>
         </div>
     );
 }
 
 export default function App() {
-    const [view, setView] = useState('radar');
+    const portalClientFromUrl = (() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return (params.get('portal_client') || '').trim();
+        } catch {
+            return '';
+        }
+    })();
+
+    const isClientExclusivePortal = Boolean(portalClientFromUrl);
+    const [view, setView] = useState(() => isClientExclusivePortal ? 'portal' : 'radar');
     const [managerAuthenticated, setManagerAuthenticated] = useState(false);
     const [authLoading, setAuthLoading] = useState(true);
     const [authSubmitting, setAuthSubmitting] = useState(false);
     const [authError, setAuthError] = useState('');
 
-    const managerInternalView = view !== 'portal';
+    const managerInternalView = !isClientExclusivePortal && view !== 'portal';
 
     useEffect(() => {
         let active = true;
@@ -2746,8 +2798,8 @@ export default function App() {
         // Forzamos explícitamente la vista a 'radar' al montar el componente.
         // Esto previene que Vite mantenga en caché el estado de sesiones anteriores
         // (Hot Module Replacement) o que quede guardado en la memoria del navegador.
-        setView('radar');
-    }, []);
+        setView(isClientExclusivePortal ? 'portal' : 'radar');
+    }, [isClientExclusivePortal]);
 
 
     if (managerInternalView && authLoading) {
@@ -2769,6 +2821,26 @@ export default function App() {
                 error={authError}
                 onOpenPortal={() => setView('portal')}
             />
+        );
+    }    if (isClientExclusivePortal) {
+        return (
+            <div className="min-h-screen bg-[#050B14] text-slate-200 font-sans selection:bg-indigo-500/30">
+                <header className="bg-[#0A1120] border-b border-slate-800/80 px-6 py-5 sticky top-0 z-50 backdrop-blur-md bg-opacity-90">
+                    <div className="max-w-[1400px] mx-auto flex items-center gap-4">
+                        <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
+                            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        </div>
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Radar Gestión Valencia</h1>
+                            <p className="text-indigo-400 font-semibold text-sm mt-0.5 tracking-wide">Portal Entidad</p>
+                        </div>
+                    </div>
+                </header>
+
+                <main className="max-w-[1400px] mx-auto px-6 py-8">
+                    <PortalEntidadPanel fixedClientId={portalClientFromUrl} exclusiveClientPortal={true} />
+                </main>
+            </div>
         );
     }
 

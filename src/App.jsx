@@ -2903,8 +2903,39 @@ export default function App() {
         }
     })();
 
-    const isClientExclusivePortal = Boolean(portalClientFromUrl);
+    const storedPortalClient = (() => {
+        try {
+            return (window.localStorage.getItem('radar_portal_client') || '').trim();
+        } catch {
+            return '';
+        }
+    })();
+
+    const effectivePortalClient = portalClientFromUrl || storedPortalClient;
+    const isClientExclusivePortal = Boolean(effectivePortalClient);
     const [view, setView] = useState(() => isClientExclusivePortal ? 'portal' : 'radar');
+
+    useEffect(() => {
+        if (!portalClientFromUrl) {
+            return;
+        }
+
+        try {
+            window.localStorage.setItem('radar_portal_client', portalClientFromUrl);
+        } catch {}
+    }, [portalClientFromUrl]);
+
+    useEffect(() => {
+        if (portalClientFromUrl || !storedPortalClient) {
+            return;
+        }
+
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('portal_client', storedPortalClient);
+            window.history.replaceState({}, '', url.toString());
+        } catch {}
+    }, [portalClientFromUrl, storedPortalClient]);
     const [managerAuthenticated, setManagerAuthenticated] = useState(false);
     const [authLoading, setAuthLoading] = useState(true);
     const [authSubmitting, setAuthSubmitting] = useState(false);
@@ -3065,7 +3096,7 @@ export default function App() {
                 </header>
 
                 <main className="max-w-[1400px] mx-auto px-6 py-8">
-                    <PortalEntidadPanel fixedClientId={portalClientFromUrl} exclusiveClientPortal={true} />
+                    <PortalEntidadPanel fixedClientId={effectivePortalClient} exclusiveClientPortal={true} />
                 </main>
             </div>
         );

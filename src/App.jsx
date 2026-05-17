@@ -1746,6 +1746,133 @@ function ClientPackagesPanel() {
     );
 }
 
+function portalNormalizeText(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function portalObligationRiskStyle(item) {
+  const risk = portalNormalizeText(item?.risk_level);
+
+  if (risk.includes('alto') || risk.includes('critico') || risk.includes('crítico')) {
+    return {
+      card: 'border-rose-500/25 bg-rose-500/10',
+      badge: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+      dot: 'bg-rose-500',
+      label: 'Riesgo alto'
+    };
+  }
+
+  if (risk.includes('medio') || risk.includes('warning')) {
+    return {
+      card: 'border-amber-500/25 bg-amber-500/10',
+      badge: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+      dot: 'bg-amber-500',
+      label: 'Requiere atención'
+    };
+  }
+
+  return {
+    card: 'border-emerald-500/20 bg-emerald-500/10',
+    badge: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    dot: 'bg-emerald-500',
+    label: 'Validada'
+  };
+}
+
+function portalImplementationGuidance(item) {
+  const source = portalNormalizeText([
+    item?.source_id,
+    item?.title,
+    item?.item_type,
+    item?.obligation_type,
+    item?.tags_json
+  ].filter(Boolean).join(' '));
+
+  if (source.includes('registro_jornada') || source.includes('registro diario de jornada') || source.includes('registro horario')) {
+    return 'Implantación: utiliza un sistema diario de registro horario, conserva los registros y tenlos disponibles para plantilla, representación legal e Inspección.';
+  }
+
+  if (source.includes('registro_retributivo') || source.includes('registro retributivo')) {
+    return 'Implantación: prepara el registro salarial desglosado, revisa diferencias retributivas y actualízalo periódicamente con apoyo de tu asesoría.';
+  }
+
+  if (source.includes('protocolo_acoso') || source.includes('acoso sexual') || source.includes('razon de sexo')) {
+    return 'Implantación: aprueba un protocolo interno, comunica el procedimiento a la plantilla y habilita un canal claro para prevención y denuncia.';
+  }
+
+  if (source.includes('proteccion_datos') || source.includes('rgpd') || source.includes('lopdgdd')) {
+    return 'Implantación: revisa tratamientos de datos, cláusulas informativas, contratos con encargados, medidas de seguridad y atención de derechos.';
+  }
+
+  if (source.includes('prl') || source.includes('prevencion de riesgos')) {
+    return 'Implantación: mantén evaluación de riesgos, planificación preventiva, formación, información a la plantilla y vigilancia de la salud cuando proceda.';
+  }
+
+  if (source.includes('tacografo') || source.includes('conduccion') || source.includes('descanso')) {
+    return 'Implantación: controla uso y descargas del tacógrafo, revisa tiempos de conducción y descanso y conserva la documentación exigible.';
+  }
+
+  if (source.includes('equipos_trabajo') || source.includes('maquinaria')) {
+    return 'Implantación: identifica equipos y maquinaria, revisa adecuación, mantenimiento, instrucciones de uso y formación preventiva de los trabajadores.';
+  }
+
+  if (source.includes('residuos_envases') || source.includes('envases')) {
+    return 'Implantación: identifica envases afectados, revisa obligaciones de gestión o responsabilidad ampliada y conserva justificantes o declaraciones.';
+  }
+
+  if (source.includes('residuos_general') || source.includes('residuos y suelos')) {
+    return 'Implantación: clasifica los residuos generados, trabaja con gestores autorizados y conserva contratos, albaranes y archivo documental.';
+  }
+
+  if (source.includes('consumidores') || source.includes('usuarios') || source.includes('consumo')) {
+    return 'Implantación: revisa información contractual, garantías, hojas de reclamaciones y comunicaciones comerciales dirigidas a consumidores.';
+  }
+
+  return 'Implantación: revisa con tu asesoría los pasos concretos aplicables a tu empresa antes de ejecutar cambios.';
+}
+
+function PortalObligationCard({ obligation }) {
+  const style = portalObligationRiskStyle(obligation);
+  const legalReference = obligation?.legal_reference || 'Referencia legal pendiente de completar por la asesoría.';
+  const summary = obligation?.summary || 'Resumen pendiente de completar por la asesoría.';
+  const implementation = portalImplementationGuidance(obligation);
+
+  return (
+    <div className={`rounded-xl border p-4 ${style.card}`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+        <h4 className="font-bold text-slate-100 leading-snug">{obligation?.title || 'Normativa publicada'}</h4>
+        <span className={`inline-flex w-fit items-center gap-2 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${style.badge}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`}></span>
+          {style.label}
+        </span>
+      </div>
+
+      <div className="space-y-2 text-xs leading-relaxed text-slate-300">
+        <p>
+          <span className="font-bold text-slate-100">Referencia legal: </span>
+          {legalReference}
+        </p>
+        <p>
+          <span className="font-bold text-slate-100">Qué dice: </span>
+          {summary}
+        </p>
+        <p>
+          <span className="font-bold text-slate-100">Cómo implantarla: </span>
+          {implementation}
+        </p>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-emerald-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        Información publicada por tu asesoría
+      </div>
+    </div>
+  );
+}
+
 function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false } = {}) {
     const [interestLoadingId, setInterestLoadingId] = useState(null);
     const [interestFeedback, setInterestFeedback] = useState({});
@@ -1893,6 +2020,43 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
         client.client_key === clientId
     );
 
+    const portalObligations = Array.isArray(obligations) ? obligations : [];
+    const portalAids = Array.isArray(aids) ? aids : [];
+
+    const isImplementationPendingObligation = (item) => {
+        const text = [
+            item?.status,
+            item?.review_status,
+            item?.client_publish_status,
+            item?.implementation_status,
+            item?.title,
+            item?.summary
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+
+        if (!text) return false;
+
+        return [
+            'pendiente',
+            'warning',
+            'requiere',
+            'implantar',
+            'implantacion',
+            'actualizacion',
+            'regularizar',
+            'revision',
+            'riesgo'
+        ].some(pattern => text.includes(pattern));
+    };
+
+    const obligationsForImplementation = portalObligations.filter(isImplementationPendingObligation);
+    const validatedObligations = portalObligations.filter(item => !isImplementationPendingObligation(item));
+    const relevantAlertsCount = Number(summary?.total_radar_items || 0);
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {exclusiveClientPortal ? (
@@ -1902,6 +2066,16 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     <p className="text-sm text-slate-400 mt-2">
                         Información publicada por tu asesoría para esta entidad.
                     </p>
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <a href="#portal-normativas" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 hover:bg-emerald-500/20 transition-colors">
+                            <div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Normativas</div>
+                            <div className="text-sm text-emerald-100 mt-1">Obligaciones, implantación y alertas.</div>
+                        </a>
+                        <a href="#portal-ayudas" className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 hover:bg-blue-500/20 transition-colors">
+                            <div className="text-xs font-bold uppercase tracking-widest text-blue-300">Ayudas y subvenciones</div>
+                            <div className="text-sm text-blue-100 mt-1">Oportunidades publicadas por tu asesoría.</div>
+                        </a>
+                    </div>
                 </div>
             ) : (
                 <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm flex items-end gap-4">
@@ -1949,32 +2123,78 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
+                        <div id="portal-normativas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                Obligaciones principales de tu empresa
+                                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                Normativas y obligaciones de tu empresa
                             </h3>
-                            <div className="space-y-4">
-                                {obligations.map(obl => (
-                                    <div key={obl.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
-                                        <h4 className="font-bold text-slate-200 mb-2">{obl.title}</h4>
-                                        <p className="text-xs text-slate-400 leading-relaxed mb-3">{obl.summary}</p>
-                                        <OfficialReferenceBlock item={obl} compact />
-                                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-emerald-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Información revisada por tu asesoría
-                                        </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                                <a href="#portal-obligaciones-validadas" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 hover:bg-emerald-500/20 transition-colors">
+                                    <div className="text-[11px] font-bold uppercase tracking-widest text-emerald-300">Obligaciones validadas</div>
+                                    <div className="text-2xl font-black text-emerald-200 mt-1">{validatedObligations.length}</div>
+                                </a>
+                                <a href="#portal-obligaciones-implantar" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 hover:bg-amber-500/20 transition-colors">
+                                    <div className="text-[11px] font-bold uppercase tracking-widest text-amber-300">Para implantar</div>
+                                    <div className="text-2xl font-black text-amber-200 mt-1">{obligationsForImplementation.length}</div>
+                                </a>
+                                <a href="#portal-alertas-relevantes" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 hover:bg-rose-500/20 transition-colors">
+                                    <div className="text-[11px] font-bold uppercase tracking-widest text-rose-300">Alertas relevantes</div>
+                                    <div className="text-2xl font-black text-rose-200 mt-1">{relevantAlertsCount}</div>
+                                </a>
+                            </div>
+
+                            <div id="portal-obligaciones-validadas" className="scroll-mt-28 mb-6">
+                                <div className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Obligaciones validadas</div>
+                                {validatedObligations.length === 0 ? (
+                                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-400">
+                                        No hay obligaciones validadas publicadas en este momento.
                                     </div>
-                                ))}
+                                ) : (
+                                    <div className="space-y-4">
+                                        {validatedObligations.map(obl => (
+                                            <PortalObligationCard key={obl.id} obligation={obl} />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div id="portal-obligaciones-implantar" className="scroll-mt-28 mb-6">
+                                <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-3">Obligaciones para implantar o revisar</div>
+                                {obligationsForImplementation.length === 0 ? (
+                                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-400">
+                                        No hay obligaciones pendientes de implantación publicadas por tu asesoría.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {obligationsForImplementation.map(obl => (
+                                            <PortalObligationCard key={`implantar-${obl.id}`} obligation={obl} />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div id="portal-alertas-relevantes" className="scroll-mt-28">
+                                <div className="text-xs font-bold uppercase tracking-widest text-rose-300 mb-3">Alertas relevantes</div>
+                                {relevantAlertsCount > 0 ? (
+                                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+                                        Tu asesoría ha publicado {relevantAlertsCount} alerta(s) relevante(s) asociada(s) a tu entidad. Revisa la información publicada y contacta con tu asesoría si necesitas aclaración.
+                                    </div>
+                                ) : (
+                                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-400">
+                                        No hay alertas relevantes publicadas por tu asesoría en este momento.
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
+                        <div id="portal-ayudas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                 <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                Ayudas y oportunidades disponibles
+                                Ayudas y subvenciones disponibles
                             </h3>
                             <div className="space-y-4">
-                                {aids.map(aid => (
+                                {portalAids.map(aid => (
                                     <div key={aid.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
                                         <h4 className="font-bold text-slate-200 mb-2">{aid.title}</h4>
                                         <p className="text-xs text-slate-400 leading-relaxed mb-4">
@@ -2832,7 +3052,14 @@ export default function App() {
                         </div>
                         <div>
                             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Radar Gestión Valencia</h1>
-                            <p className="text-indigo-400 font-semibold text-sm mt-0.5 tracking-wide">Portal Entidad</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <a href="#portal-normativas" className="inline-flex items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-colors">
+                                    Normativas
+                                </a>
+                                <a href="#portal-ayudas" className="inline-flex items-center rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-500/20 transition-colors">
+                                    Ayudas y subvenciones
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </header>

@@ -440,6 +440,101 @@ function textFromValue(value, fallback = '') {
   return String(value);
 }
 
+function requestTextFromValue(value, fallback = '') {
+  if (value === null || value === undefined || value === '') {
+    return fallback;
+  }
+
+  if (typeof value === 'object') {
+    const resolved = value.label
+      ?? value.name
+      ?? value.title
+      ?? value.value
+      ?? value.key
+      ?? value.status
+      ?? value.request_status
+      ?? value.request_type
+      ?? value.priority
+      ?? value.client_name
+      ?? value.client_id
+      ?? fallback;
+
+    return String(resolved ?? fallback);
+  }
+
+  return String(value);
+}
+
+function isTechnicalInternalText(value) {
+  const text = requestTextFromValue(value, '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (!text) return false;
+
+  const technicalPatterns = [
+    'validacion automatica',
+    'solicitud de prueba',
+    'prueba idempotente',
+    'idempotente',
+    'prod_dual_write_test',
+    'cambio a handled',
+    'cambio a contacted',
+    'cambio a dismissed',
+    'cliente marcado como contactado desde vista comercial',
+    'solicitud marcada como gestionada desde vista comercial',
+    'solicitud descartada desde vista comercial',
+    'cliente marcado como contactado desde panel gestor',
+    'solicitud marcada como gestionada desde panel gestor'
+  ];
+
+  return technicalPatterns.some(pattern => text.includes(pattern));
+}
+
+function displayClientVisibleRequestMessage(value) {
+  if (!value || isTechnicalInternalText(value)) {
+    return 'El cliente solicita que su asesoría revise esta oportunidad.';
+  }
+
+  return requestTextFromValue(value, 'El cliente solicita que su asesoría revise esta oportunidad.');
+}
+
+function requestDisplayDedupeKey(req) {
+  if (!req || typeof req !== 'object') {
+    return '';
+  }
+
+  return [
+    requestTextFromValue(req.client_id, ''),
+    requestTextFromValue(req.package_item_id ?? req.source_id ?? req.title, ''),
+    requestTextFromValue(req.request_type ?? req.source_type, '')
+  ].join('|');
+}
+
+function dedupeRequestsForDisplay(requests) {
+  if (!Array.isArray(requests)) {
+    return [];
+  }
+
+  const seen = new Set();
+  const result = [];
+
+  for (const req of requests) {
+    const key = requestDisplayDedupeKey(req);
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(req);
+  }
+
+  return result;
+}
+
 function labelFromKey(value) {
   if (value === null || value === undefined || value === '') {
     return 'Sin definir';
@@ -1470,13 +1565,13 @@ function ClientPackagesPanel() {
                     </div>
                 </div>
 
-                {interestRequests.length === 0 ? (
+                {dedupeRequestsForDisplay(interestRequests).length === 0 ? (
                     <div className="text-sm text-slate-500 bg-slate-900/40 border border-dashed border-slate-700/60 rounded-xl p-4">
                         Todavía no hay solicitudes recibidas desde el Portal Entidad.
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {interestRequests.map(req => (
+                        {dedupeRequestsForDisplay(interestRequests).map(req => (
                             <div key={req.id} className="bg-slate-900/50 border border-slate-700/60 rounded-xl p-4 grid grid-cols-1 lg:grid-cols-[1.1fr_1.5fr_0.8fr] gap-3 items-start">
                                 <div>
                                     <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1">Cliente</div>
@@ -1487,7 +1582,7 @@ function ClientPackagesPanel() {
                                     <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1">Ayuda / oportunidad</div>
                                     <div className="font-semibold text-slate-200">{req.title}</div>
                                     <div className="text-xs text-slate-400 mt-1">
-                                        {req.message || 'El cliente solicita que su asesoría revise esta oportunidad.'}
+                                        {displayClientVisibleRequestMessage(req.message)}
                                     </div>
                                 </div>
 
@@ -2155,13 +2250,13 @@ function CommercialDashboardPanel() {
     const filterRequestTypeOptions = asArray(filterOptions.request_types);
     const filterPriorityOptions = asArray(filterOptions.priorities);
 
-    const filteredRequests = requests.filter(req => {
+    const filteredRequests = dedupeRequestsForDisplay(requests.filter(req => {
         if (filters.client_id !== 'all' && req.client_id !== filters.client_id) return false;
         if (filters.status !== 'all' && req.request_status !== filters.status) return false;
         if (filters.request_type !== 'all' && req.request_type !== filters.request_type) return false;
         if (filters.priority !== 'all' && req.priority !== filters.priority) return false;
         return true;
-    });
+    }));
 
     const requestFilterActive = filters.status !== 'all' || filters.request_type !== 'all' || filters.priority !== 'all';
     const filteredRequestClientIds = new Set(filteredRequests.map(req => req.client_id));
@@ -2376,7 +2471,7 @@ function CommercialDashboardPanel() {
                                         <div>
                                             <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Oportunidad</div>
                                             <div className="mt-1 font-semibold text-slate-100">{textFromValue(req.title, 'Sin título')}</div>
-                                            {req.message && <div className="text-xs text-slate-500 mt-2">{req.message}</div>}
+                                            {req.message && !isTechnicalInternalText(req.message) && <div className="text-xs text-slate-500 mt-2">{displayClientVisibleRequestMessage(req.message)}</div>}
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
@@ -2442,7 +2537,7 @@ function CommercialDashboardPanel() {
                                             <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{textFromValue(req.client_name ?? req.client_id, 'Cliente sin nombre')}</td>
                                             <td className="py-4 pr-4 min-w-[280px]">
                                                 <div className="font-semibold text-slate-100">{textFromValue(req.title, 'Sin título')}</div>
-                                                {req.message && <div className="text-xs text-slate-500 mt-1">{req.message}</div>}
+                                                {req.message && !isTechnicalInternalText(req.message) && <div className="text-xs text-slate-500 mt-1">{displayClientVisibleRequestMessage(req.message)}</div>}
                                             </td>
                                             <td className="py-4 pr-4 whitespace-nowrap">{labelFromKey(req.request_type)}</td>
                                             <td className="py-4 pr-4 whitespace-nowrap">

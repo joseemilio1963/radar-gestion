@@ -2835,6 +2835,232 @@ function CommercialDashboardPanel() {
 }
 
 
+
+function ClientPortalAuthGate({ clientId, onAuthenticated }) {
+    const [mode, setMode] = useState('login');
+    const [phone, setPhone] = useState('');
+    const [accessKey, setAccessKey] = useState('');
+    const [accessKeyRepeat, setAccessKeyRepeat] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
+
+    const resetMessages = () => {
+        setError('');
+        setNotice('');
+    };
+
+    const handleLogin = async (event) => {
+        event.preventDefault();
+        resetMessages();
+
+        if (!accessKey.trim()) {
+            setError('Introduce tu clave de acceso.');
+            return;
+        }
+
+        setSubmitting(true);
+
+        try {
+            const response = await fetch('/api/client-portal/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    client_id: clientId,
+                    access_key: accessKey
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.authenticated !== true) {
+                setError(data.message || 'No se ha podido validar la clave.');
+                return;
+            }
+
+            onAuthenticated();
+        } catch {
+            setError('No se ha podido conectar con el servidor de acceso.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleSetup = async (event) => {
+        event.preventDefault();
+        resetMessages();
+
+        if (!phone.trim()) {
+            setError('Introduce el teléfono autorizado.');
+            return;
+        }
+
+        if (!accessKey.trim() || accessKey.length < 6) {
+            setError('La clave debe tener al menos 6 caracteres.');
+            return;
+        }
+
+        if (accessKey !== accessKeyRepeat) {
+            setError('Las claves no coinciden.');
+            return;
+        }
+
+        setSubmitting(true);
+
+        try {
+            const response = await fetch('/api/client-portal/auth/setup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    client_id: clientId,
+                    phone,
+                    access_key: accessKey
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.authenticated !== true) {
+                setError(data.message || 'No se ha podido crear o regenerar la clave.');
+                return;
+            }
+
+            setNotice('Clave configurada correctamente.');
+            onAuthenticated();
+        } catch {
+            setError('No se ha podido conectar con el servidor de acceso.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <section className="mx-auto max-w-lg rounded-3xl border border-slate-700/70 bg-slate-900/90 p-6 shadow-2xl">
+            <div className="mb-6 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10">
+                    <svg className="h-7 w-7 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                </div>
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-300">Acceso seguro</p>
+                <h2 className="mt-2 text-2xl font-black text-white">Portal Entidad</h2>
+                <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                    Accede con tu clave o créala usando el teléfono autorizado por tu asesoría.
+                </p>
+            </div>
+
+            <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-950/70 p-1">
+                <button
+                    type="button"
+                    onClick={() => { setMode('login'); resetMessages(); }}
+                    className={`rounded-xl px-3 py-2 text-sm font-bold transition-colors ${mode === 'login' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Ya tengo clave
+                </button>
+                <button
+                    type="button"
+                    onClick={() => { setMode('setup'); resetMessages(); }}
+                    className={`rounded-xl px-3 py-2 text-sm font-bold transition-colors ${mode === 'setup' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Crear clave
+                </button>
+            </div>
+
+            {mode === 'login' ? (
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                        <label className="mb-2 block text-sm font-semibold text-slate-300">Clave de acceso</label>
+                        <input
+                            type="password"
+                            value={accessKey}
+                            onChange={event => setAccessKey(event.target.value)}
+                            autoComplete="current-password"
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition-colors focus:border-blue-500"
+                            placeholder="Introduce tu clave"
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={submitting || !accessKey.trim()}
+                        className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-700"
+                    >
+                        {submitting ? 'Validando...' : 'Entrar al portal'}
+                    </button>
+                </form>
+            ) : (
+                <form onSubmit={handleSetup} className="space-y-4">
+                    <div>
+                        <label className="mb-2 block text-sm font-semibold text-slate-300">Teléfono autorizado</label>
+                        <input
+                            type="tel"
+                            value={phone}
+                            onChange={event => setPhone(event.target.value)}
+                            autoComplete="tel"
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition-colors focus:border-emerald-500"
+                            placeholder="Introduce el teléfono autorizado"
+                        />
+                        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                            El teléfono solo verifica que puedes crear o regenerar la clave. No se usa como contraseña.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-sm font-semibold text-slate-300">Nueva clave</label>
+                        <input
+                            type="password"
+                            value={accessKey}
+                            onChange={event => setAccessKey(event.target.value)}
+                            autoComplete="new-password"
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition-colors focus:border-emerald-500"
+                            placeholder="Mínimo 6 caracteres"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-sm font-semibold text-slate-300">Repetir clave</label>
+                        <input
+                            type="password"
+                            value={accessKeyRepeat}
+                            onChange={event => setAccessKeyRepeat(event.target.value)}
+                            autoComplete="new-password"
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition-colors focus:border-emerald-500"
+                            placeholder="Repite la clave"
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={submitting || !phone.trim() || !accessKey.trim() || !accessKeyRepeat.trim()}
+                        className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-700"
+                    >
+                        {submitting ? 'Configurando...' : 'Crear o regenerar clave'}
+                    </button>
+                </form>
+            )}
+
+            {error && (
+                <div className="mt-5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300">
+                    {error}
+                </div>
+            )}
+
+            {notice && (
+                <div className="mt-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300">
+                    {notice}
+                </div>
+            )}
+
+            <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
+                Si no reconoces este acceso, contacta con tu asesoría.
+            </p>
+        </section>
+    );
+}
+
+
 function ManagerLoginGate({ onLogin, loading, error, onOpenPortal }) {
     const [pin, setPin] = useState('');
 
@@ -2941,9 +3167,49 @@ export default function App() {
     const [authSubmitting, setAuthSubmitting] = useState(false);
     const [authError, setAuthError] = useState('');
 
-    const managerInternalView = !isClientExclusivePortal && view !== 'portal';
+    
+    const [clientPortalAuthenticated, setClientPortalAuthenticated] = useState(false);
+    const [clientPortalAuthLoading, setClientPortalAuthLoading] = useState(Boolean(isClientExclusivePortal));
+const managerInternalView = !isClientExclusivePortal && view !== 'portal';
 
+    
+    // CLIENT_PORTAL_FRONTEND_SESSION_CHECK_V1
     useEffect(() => {
+        let active = true;
+
+        if (!isClientExclusivePortal || !effectivePortalClient) {
+            setClientPortalAuthenticated(false);
+            setClientPortalAuthLoading(false);
+            return () => {
+                active = false;
+            };
+        }
+
+        setClientPortalAuthLoading(true);
+
+        fetch(`/api/client-portal/auth/session?client_id=${encodeURIComponent(effectivePortalClient)}`, {
+            credentials: 'same-origin'
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (!active) return;
+                setClientPortalAuthenticated(Boolean(data.authenticated));
+            })
+            .catch(() => {
+                if (!active) return;
+                setClientPortalAuthenticated(false);
+            })
+            .finally(() => {
+                if (!active) return;
+                setClientPortalAuthLoading(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [isClientExclusivePortal, effectivePortalClient]);
+
+useEffect(() => {
         let active = true;
 
         fetch('/api/auth/manager/session', { credentials: 'same-origin' })
@@ -3075,30 +3341,37 @@ export default function App() {
         );
     }    if (isClientExclusivePortal) {
         return (
-            <div className="min-h-screen bg-[#050B14] text-slate-200 font-sans selection:bg-indigo-500/30">
-                <header className="bg-[#0A1120] border-b border-slate-800/80 px-6 py-5 sticky top-0 z-50 backdrop-blur-md bg-opacity-90">
-                    <div className="max-w-[1400px] mx-auto flex items-center gap-4">
-                        <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
-                            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                        </div>
-                        <div>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Radar Gestión Valencia</h1>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                <a href="#portal-normativas" className="inline-flex items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-colors">
-                                    Normativas
-                                </a>
-                                <a href="#portal-ayudas" className="inline-flex items-center rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-500/20 transition-colors">
-                                    Ayudas y subvenciones
-                                </a>
+            <main className="min-h-screen bg-slate-950 text-slate-100">
+                <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+                    <header className="mb-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-300">Radar Gestión Valencia</p>
+                                <h1 className="mt-2 text-2xl font-black text-white">Portal Entidad</h1>
+                                <p className="mt-1 text-sm text-slate-400">Acceso privado a normativas, ayudas y oportunidades publicadas por tu asesoría.</p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-xs font-semibold text-slate-400">
+                                Cliente: <span className="text-slate-100">{effectivePortalClient}</span>
                             </div>
                         </div>
-                    </div>
-                </header>
+                    </header>
 
-                <main className="max-w-[1400px] mx-auto px-6 py-8">
-                    <PortalEntidadPanel fixedClientId={effectivePortalClient} exclusiveClientPortal={true} />
-                </main>
-            </div>
+                    {/* CLIENT_PORTAL_AUTH_GATE_RENDER_V1 */}
+                    {clientPortalAuthLoading ? (
+                        <section className="mx-auto max-w-lg rounded-3xl border border-slate-700/70 bg-slate-900/90 p-8 text-center shadow-2xl">
+                            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                            <p className="text-sm font-semibold text-slate-300">Comprobando acceso seguro...</p>
+                        </section>
+                    ) : clientPortalAuthenticated ? (
+                        <PortalEntidadPanel fixedClientId={effectivePortalClient} exclusiveClientPortal={true} />
+                    ) : (
+                        <ClientPortalAuthGate
+                            clientId={effectivePortalClient}
+                            onAuthenticated={() => setClientPortalAuthenticated(true)}
+                        />
+                    )}
+                </div>
+            </main>
         );
     }
 
@@ -3273,6 +3546,7 @@ function NavTab({ active, onClick, label, icon, disabled }) {
         </button>
     );
 }
+
 
 
 

@@ -528,6 +528,26 @@ function initInterestRequestsTables() {
 }
 initInterestRequestsTables();
 
+
+function initClientPortalAccessTables() {
+    const db = new DatabaseSync(DB_PATH);
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS client_portal_access (
+            client_id TEXT PRIMARY KEY,
+            authorized_phone_hash TEXT NOT NULL,
+            access_key_hash TEXT,
+            access_key_salt TEXT,
+            access_configured INTEGER NOT NULL DEFAULT 0,
+            failed_attempts INTEGER NOT NULL DEFAULT 0,
+            locked_until TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+    `);
+    db.close();
+}
+initClientPortalAccessTables();
+
 const MIME_TYPES = {
     '.html': 'text/html',
     '.css': 'text/css',
@@ -2835,8 +2855,515 @@ function handleManagerAuthRoute(req, res, pathname) {
 }
 // === AUTH GESTOR V1 END ===
 
+
+const CLIENT_PORTAL_SESSION_COOKIE_NAME = 'rgv_client_portal_session';
+
+function getClientPortalSessionTtlHours() {
+    const parsed = Number(process.env.CLIENT_PORTAL_SESSION_TTL_HOURS || 24 * 14);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 336;
+}
+
+function getClientPortalAuthSecret() {
+    return process.env.CLIENT_PORTAL_AUTH_SECRET || process.env.MANAGER_SESSION_SECRET || 'local-client-portal-dev-secret';
+}
+
+function normalizePhoneForClientPortal(phone) {
+    return String(phone || '').replace(/\D/g, '').trim();
+}
+
+function isValidClientPortalPhone(phone) {
+    const normalized = normalizePhoneForClientPortal(phone);
+    return normalized.length >= 9 && normalized.length <= 15;
+}
+
+function hashClientPortalPhone(phone) {
+    return crypto
+        .createHmac('sha256', getClientPortalAuthSecret())
+        .update(normalizePhoneForClientPortal(phone), 'utf8')
+        .digest('hex');
+}
+
+function createClientPortalAccessKeyHash(accessKey, salt) {
+    return crypto
+        .pbkdf2Sync(String(accessKey || ''), String(salt || ''), 120000, 32, 'sha256')
+        .toString('hex');
+}
+
+function isValidClientPortalAccessKey(accessKey) {
+    const value = String(accessKey || '').trim();
+    return value.length >= 6 && value.length <= 64;
+}
+
+function createClientPortalSessionToken(clientId) {
+    const now = Math.floor(Date.now() / 1000);
+    const ttlSeconds = Math.floor(getClientPortalSessionTtlHours() * 60 * 60);
+
+    const payload = {
+        scope: 'client_portal',
+        client_id: String(clientId || ''),
+        iat: now,
+        exp: now + ttlSeconds
+    };
+
+    const payloadEncoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+
+    const signature = crypto
+        .createHmac('sha256', getClientPortalAuthSecret())
+        .update(payloadEncoded)
+        .digest('base64url');
+
+    return payloadEncoded + '.' + signature;
+}
+
+function verifyClientPortalSessionToken(token, expectedClientId) {
+    try {
+        const parts = String(token || '').split('.');
+        if (parts.length !== 2) return false;
+
+        const payloadEncoded = parts[0];
+        const signature = parts[1];
+
+        if (!payloadEncoded || !signature) return false;
+
+        const expectedSignature = crypto
+            .createHmac('sha256', getClientPortalAuthSecret())
+            .update(payloadEncoded)
+            .digest('base64url');
+
+        if (!safeEqualText(signature, expectedSignature)) return false;
+
+        const payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf8'));
+
+        if (!payload || payload.scope !== 'client_portal') return false;
+        if (String(payload.client_id || '') !== String(expectedClientId || '')) return false;
+
+        const now = Math.floor(Date.now() / 1000);
+        if (!payload.exp || Number(payload.exp) <= now) return false;
+
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function setClientPortalSessionCookie(res, clientId) {
+    const ttlSeconds = Math.floor(getClientPortalSessionTtlHours() * 60 * 60);
+    const token = createClientPortalSessionToken(clientId);
+
+    res.setHeader('Set-Cookie', serializeCookie(CLIENT_PORTAL_SESSION_COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: Boolean(process.env.VERCEL || process.env.NODE_ENV === 'production'),
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: ttlSeconds
+    }));
+}
+
+function clearClientPortalSessionCookie(res) {
+    res.setHeader('Set-Cookie', serializeCookie(CLIENT_PORTAL_SESSION_COOKIE_NAME, '', {
+        httpOnly: true,
+        secure: Boolean(process.env.VERCEL || process.env.NODE_ENV === 'production'),
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: 0
+    }));
+}
+
+function isClientPortalAuthenticatedForClient(req, clientId) {
+    const cookies = parseCookies(req);
+    return verifyClientPortalSessionToken(cookies[CLIENT_PORTAL_SESSION_COOKIE_NAME], clientId);
+}
+
+function requireClientPortalAuth(res, clientId) {
+    return sendJson(res, 401, {
+        status: 'error',
+        error_code: 'CLIENT_PORTAL_AUTH_REQUIRED',
+        message: 'Acceso cliente requerido.',
+        client_id: clientId || null
+    });
+}
+
+function isClientPortalProtectedGetApiPath(pathname) {
+    return pathname === '/api/portal/summary' ||
+        pathname === '/api/portal/packages' ||
+        pathname === '/api/portal/compliance/obligations' ||
+        pathname === '/api/portal/aids/items';
+}
+
+function getClientPortalAccessLocal(clientId) {
+    const db = new DatabaseSync(DB_PATH);
+    try {
+        return db.prepare('SELECT * FROM client_portal_access WHERE client_id = ?').get(clientId) || null;
+    } finally {
+        db.close();
+    }
+}
+
+function upsertClientPortalAccessLocal({ clientId, authorizedPhoneHash, accessKeyHash = null, accessKeySalt = null, accessConfigured = 0 }) {
+    const now = new Date().toISOString();
+    const db = new DatabaseSync(DB_PATH);
+
+    try {
+        const existing = db.prepare('SELECT * FROM client_portal_access WHERE client_id = ?').get(clientId);
+
+        if (existing) {
+            db.prepare(`
+                UPDATE client_portal_access
+                SET authorized_phone_hash = ?,
+                    access_key_hash = COALESCE(?, access_key_hash),
+                    access_key_salt = COALESCE(?, access_key_salt),
+                    access_configured = ?,
+                    failed_attempts = 0,
+                    locked_until = null,
+                    updated_at = ?
+                WHERE client_id = ?
+            `).run(
+                authorizedPhoneHash,
+                accessKeyHash,
+                accessKeySalt,
+                accessConfigured ? 1 : Number(existing.access_configured || 0),
+                now,
+                clientId
+            );
+        } else {
+            db.prepare(`
+                INSERT INTO client_portal_access (
+                    client_id,
+                    authorized_phone_hash,
+                    access_key_hash,
+                    access_key_salt,
+                    access_configured,
+                    failed_attempts,
+                    locked_until,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, 0, null, ?, ?)
+            `).run(
+                clientId,
+                authorizedPhoneHash,
+                accessKeyHash,
+                accessKeySalt,
+                accessConfigured ? 1 : 0,
+                now,
+                now
+            );
+        }
+
+        return db.prepare('SELECT * FROM client_portal_access WHERE client_id = ?').get(clientId);
+    } finally {
+        db.close();
+    }
+}
+
+async function getClientPortalAccessSupabase(clientId) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            access: null
+        };
+    }
+
+    const { data, error } = await clientResult.client
+        .from('client_portal_access')
+        .select('*')
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+    if (error) {
+        return {
+            ok: false,
+            error_code: 'CLIENT_PORTAL_ACCESS_SELECT_FAILED',
+            message: error.message,
+            access: null
+        };
+    }
+
+    return {
+        ok: true,
+        access: data || null
+    };
+}
+
+async function upsertClientPortalAccessSupabase({ clientId, authorizedPhoneHash, accessKeyHash = null, accessKeySalt = null, accessConfigured = false }) {
+    const clientResult = getSupabaseReadonlyClient();
+
+    if (!clientResult.ok) {
+        return {
+            ok: false,
+            error_code: clientResult.error_code || 'SUPABASE_CLIENT_UNAVAILABLE',
+            access: null
+        };
+    }
+
+    const payload = {
+        client_id: clientId,
+        authorized_phone_hash: authorizedPhoneHash,
+        updated_at: new Date().toISOString()
+    };
+
+    if (accessKeyHash) payload.access_key_hash = accessKeyHash;
+    if (accessKeySalt) payload.access_key_salt = accessKeySalt;
+    if (accessConfigured) {
+        payload.access_configured = true;
+        payload.failed_attempts = 0;
+        payload.locked_until = null;
+    }
+
+    const { data, error } = await clientResult.client
+        .from('client_portal_access')
+        .upsert(payload, { onConflict: 'client_id' })
+        .select('*')
+        .maybeSingle();
+
+    if (error) {
+        return {
+            ok: false,
+            error_code: 'CLIENT_PORTAL_ACCESS_UPSERT_FAILED',
+            message: error.message,
+            access: null
+        };
+    }
+
+    return {
+        ok: true,
+        access: data || null
+    };
+}
+
+async function getClientPortalAccess(clientId) {
+    const supabaseResult = await getClientPortalAccessSupabase(clientId);
+
+    if (supabaseResult.ok) {
+        return supabaseResult.access;
+    }
+
+    return getClientPortalAccessLocal(clientId);
+}
+
+async function configureClientPortalAuthorizedPhone({ clientId, authorizedPhone }) {
+    const authorizedPhoneHash = hashClientPortalPhone(authorizedPhone);
+
+    const local = upsertClientPortalAccessLocal({
+        clientId,
+        authorizedPhoneHash,
+        accessConfigured: 0
+    });
+
+    const supabase = await upsertClientPortalAccessSupabase({
+        clientId,
+        authorizedPhoneHash,
+        accessConfigured: false
+    });
+
+    return {
+        ok: true,
+        local_configured: Boolean(local),
+        supabase_configured: Boolean(supabase.ok),
+        supabase_error_code: supabase.ok ? null : supabase.error_code || null
+    };
+}
+
+async function setClientPortalAccessKey({ clientId, phone, accessKey }) {
+    const access = await getClientPortalAccess(clientId);
+
+    if (!access) {
+        return {
+            ok: false,
+            http_status: 404,
+            error_code: 'CLIENT_PORTAL_ACCESS_NOT_CONFIGURED',
+            message: 'El acceso cliente no está configurado.'
+        };
+    }
+
+    const receivedPhoneHash = hashClientPortalPhone(phone);
+
+    if (!safeEqualHex(receivedPhoneHash, access.authorized_phone_hash)) {
+        return {
+            ok: false,
+            http_status: 401,
+            error_code: 'INVALID_AUTHORIZED_PHONE',
+            message: 'El teléfono autorizado no coincide.'
+        };
+    }
+
+    if (!isValidClientPortalAccessKey(accessKey)) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'INVALID_CLIENT_ACCESS_KEY',
+            message: 'La clave debe tener entre 6 y 64 caracteres.'
+        };
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const accessKeyHash = createClientPortalAccessKeyHash(accessKey, salt);
+    const authorizedPhoneHash = access.authorized_phone_hash;
+
+    upsertClientPortalAccessLocal({
+        clientId,
+        authorizedPhoneHash,
+        accessKeyHash,
+        accessKeySalt: salt,
+        accessConfigured: 1
+    });
+
+    const supabase = await upsertClientPortalAccessSupabase({
+        clientId,
+        authorizedPhoneHash,
+        accessKeyHash,
+        accessKeySalt: salt,
+        accessConfigured: true
+    });
+
+    return {
+        ok: true,
+        supabase_configured: Boolean(supabase.ok),
+        supabase_error_code: supabase.ok ? null : supabase.error_code || null
+    };
+}
+
+async function verifyClientPortalAccessKey({ clientId, accessKey }) {
+    const access = await getClientPortalAccess(clientId);
+
+    if (!access || !access.access_configured || !access.access_key_hash || !access.access_key_salt) {
+        return {
+            ok: false,
+            http_status: 401,
+            error_code: 'CLIENT_PORTAL_KEY_NOT_CONFIGURED',
+            message: 'La clave cliente todavía no está configurada.'
+        };
+    }
+
+    const receivedHash = createClientPortalAccessKeyHash(accessKey, access.access_key_salt);
+
+    if (!safeEqualHex(receivedHash, access.access_key_hash)) {
+        return {
+            ok: false,
+            http_status: 401,
+            error_code: 'INVALID_CLIENT_ACCESS_KEY',
+            message: 'Clave incorrecta.'
+        };
+    }
+
+    return {
+        ok: true
+    };
+}
+
+function handleClientPortalAuthRoute(req, res, pathname) {
+    if (pathname === '/api/client-portal/auth/session') {
+        if (req.method !== 'GET') {
+            return sendJson(res, 405, { status: 'error', error_code: 'METHOD_NOT_ALLOWED' });
+        }
+
+        const queryString = req.url.split('?')[1] || '';
+        const searchParams = new URLSearchParams(queryString);
+        const clientId = String(searchParams.get('client_id') || '').trim();
+
+        return sendJson(res, 200, {
+            status: 'ok',
+            authenticated: Boolean(clientId && isClientPortalAuthenticatedForClient(req, clientId)),
+            client_id: clientId || null
+        });
+    }
+
+    if (pathname === '/api/client-portal/auth/logout') {
+        if (req.method !== 'POST') {
+            return sendJson(res, 405, { status: 'error', error_code: 'METHOD_NOT_ALLOWED' });
+        }
+
+        clearClientPortalSessionCookie(res);
+        return sendJson(res, 200, { status: 'ok', authenticated: false });
+    }
+
+    if (pathname === '/api/client-portal/auth/setup') {
+        if (req.method !== 'POST') {
+            return sendJson(res, 405, { status: 'error', error_code: 'METHOD_NOT_ALLOWED' });
+        }
+
+        return readRequestJson(req, async payload => {
+            const clientId = String(payload.client_id || '').trim();
+            const phone = String(payload.phone || '').trim();
+            const accessKey = String(payload.access_key || '').trim();
+
+            if (!clientId || !getClientCatalog().some(client => client.id === clientId)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_CLIENT_ID', message: 'Cliente no válido.' });
+            }
+
+            if (!isValidClientPortalPhone(phone)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_AUTHORIZED_PHONE', message: 'Teléfono no válido.' });
+            }
+
+            const result = await setClientPortalAccessKey({ clientId, phone, accessKey });
+
+            if (!result.ok) {
+                return sendJson(res, result.http_status || 400, {
+                    status: 'error',
+                    error_code: result.error_code,
+                    message: result.message
+                });
+            }
+
+            setClientPortalSessionCookie(res, clientId);
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                authenticated: true,
+                client_id: clientId
+            });
+        });
+    }
+
+    if (pathname === '/api/client-portal/auth/login') {
+        if (req.method !== 'POST') {
+            return sendJson(res, 405, { status: 'error', error_code: 'METHOD_NOT_ALLOWED' });
+        }
+
+        return readRequestJson(req, async payload => {
+            const clientId = String(payload.client_id || '').trim();
+            const accessKey = String(payload.access_key || '').trim();
+
+            if (!clientId || !getClientCatalog().some(client => client.id === clientId)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_CLIENT_ID', message: 'Cliente no válido.' });
+            }
+
+            const result = await verifyClientPortalAccessKey({ clientId, accessKey });
+
+            if (!result.ok) {
+                return sendJson(res, result.http_status || 401, {
+                    status: 'error',
+                    error_code: result.error_code,
+                    message: result.message
+                });
+            }
+
+            setClientPortalSessionCookie(res, clientId);
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                authenticated: true,
+                client_id: clientId
+            });
+        });
+    }
+
+    return sendJson(res, 404, {
+        status: 'error',
+        error_code: 'CLIENT_PORTAL_AUTH_ROUTE_NOT_FOUND'
+    });
+}
+
 const server = http.createServer(async (req, res) => {
     const pathname = req.url.split('?')[0];
+
+    // CLIENT_PORTAL_AUTH_ROUTE_HOOK_V1
+    if (pathname.startsWith('/api/client-portal/auth/')) {
+        handleClientPortalAuthRoute(req, res, pathname);
+        return;
+    }
 
     if (pathname.startsWith('/api/auth/manager/')) {
         handleManagerAuthRoute(req, res, pathname);
@@ -2848,6 +3375,44 @@ const server = http.createServer(async (req, res) => {
     if (isProtectedManagerApiPath(pathname) && !isManagerAuthenticated(req)) {
         requireManagerAuth(req, res);
         return;
+    }
+
+    // CLIENT_PORTAL_MANAGER_CONFIGURE_PHONE_V1
+    if (pathname === '/api/manager/client-portal-access/configure' && req.method === 'POST') {
+        return readRequestJson(req, async payload => {
+            const clientId = String(payload.client_id || '').trim();
+            const authorizedPhone = String(payload.authorized_phone || '').trim();
+
+            if (!clientId || !getClientCatalog().some(client => client.id === clientId)) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_CLIENT_ID',
+                    message: 'Cliente no válido.'
+                });
+            }
+
+            if (!isValidClientPortalPhone(authorizedPhone)) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_AUTHORIZED_PHONE',
+                    message: 'Teléfono autorizado no válido.'
+                });
+            }
+
+            const result = await configureClientPortalAuthorizedPhone({
+                clientId,
+                authorizedPhone
+            });
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                client_id: clientId,
+                authorized_phone_configured: true,
+                local_configured: result.local_configured,
+                supabase_configured: result.supabase_configured,
+                supabase_error_code: result.supabase_error_code
+            });
+        });
     }
 
 
@@ -3192,6 +3757,12 @@ const server = http.createServer(async (req, res) => {
             }
 
             const { client_id, package_item_id, message } = payload;
+
+
+            // CLIENT_PORTAL_AUTH_REQUIRED_INTEREST_POST_V1
+            if (!isClientPortalAuthenticatedForClient(req, client_id)) {
+                return requireClientPortalAuth(res, client_id);
+            }
 
             const client = getClientCatalog().find(c => c.id === client_id);
             if (!client) {
@@ -5443,6 +6014,19 @@ const server = http.createServer(async (req, res) => {
         });
         return;
     }
+
+    // CLIENT_PORTAL_AUTH_REQUIRED_GET_GUARD_V1
+    if (isClientPortalProtectedGetApiPath(pathname) && req.method === 'GET') {
+        const queryString = req.url.split('?')[1] || '';
+        const searchParams = new URLSearchParams(queryString);
+        const clientId = String(searchParams.get('client_id') || '').trim();
+
+        if (!clientId || !isClientPortalAuthenticatedForClient(req, clientId)) {
+            requireClientPortalAuth(res, clientId);
+            return;
+        }
+    }
+
     // Portal APIs (Fail-closed)
     if (req.url.split('?')[0] === '/api/portal/summary' && req.method === 'GET') {
         const queryString = req.url.split('?')[1] || '';

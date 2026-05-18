@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+import { BRAND_CONFIG, formatConfiguredClientName } from './brandConfig';
+import React, { useState, useEffect } from 'react';
 
 function RadarPanel() {
     const [items, setItems] = useState([]);
@@ -75,7 +76,7 @@ function RadarPanel() {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Bloque de métricas */}
+            {/* Bloque de mÃ©tricas */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <MetricCard title="Hallazgos pendientes" value={metrics.pending} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
                 <MetricCard title="Normativas detectadas" value={metrics.normativas} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
@@ -108,7 +109,7 @@ function RadarPanel() {
                                     )}
 
                                     <div className="flex justify-between items-start mb-3 gap-4">
-                                        <h3 className="text-base font-bold leading-snug text-slate-100 group-hover:text-indigo-300 transition-colors">{textFromValue(item.title, 'Sin título')}</h3>
+                                        <h3 className="text-base font-bold leading-snug text-slate-100 group-hover:text-indigo-300 transition-colors">{textFromValue(item.title, 'Sin tÃ­tulo')}</h3>
                                         <span className="shrink-0 bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-widest shadow-sm">
                                             {item.review_status || 'pending_review'}
                                         </span>
@@ -123,7 +124,7 @@ function RadarPanel() {
                                     
                                     <div className="grid grid-cols-3 gap-3 text-xs mb-5 bg-slate-900/40 p-4 rounded-xl border border-slate-700/30">
                                         <div>
-                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">Categoría</span> 
+                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">CategorÃ­a</span> 
                                             <span className="text-slate-200 font-medium">{item.category}</span>
                                         </div>
                                         <div>
@@ -131,7 +132,7 @@ function RadarPanel() {
                                             <span className="text-slate-200 font-medium">{item.territory}</span>
                                         </div>
                                         <div>
-                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">Publicación</span> 
+                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">PublicaciÃ³n</span> 
                                             <span className="text-slate-200 font-medium">{item.published_at || 'N/A'}</span>
                                         </div>
                                     </div>
@@ -139,7 +140,7 @@ function RadarPanel() {
                                     <div className="flex flex-wrap gap-2.5 mb-6">
                                         {item.needs_human_review === 1 && (
                                             <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1.5 uppercase tracking-wider shadow-sm">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Revisión humana
+                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> RevisiÃ³n humana
                                             </span>
                                         )}
                                         {item.publish_to_client === 0 && (
@@ -182,7 +183,7 @@ function RadarPanel() {
                 {/* Columna derecha: Panel de detalle */}
                 <div className="lg:col-span-5 xl:col-span-5 lg:sticky lg:top-8">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-5">
-                        <h2 className="text-lg font-bold text-slate-200">Panel de Inspección</h2>
+                        <h2 className="text-lg font-bold text-slate-200">Panel de InspecciÃ³n</h2>
                     </div>
 
                     {detailLoading && !detailItem ? (
@@ -211,16 +212,16 @@ function RadarPanel() {
                                 </span>
                                 <div>
                                     <h4 className="text-indigo-300 text-sm font-bold mb-1">No visible para el cliente final</h4>
-                                    <p className="text-indigo-200/70 text-xs leading-relaxed font-medium">Este hallazgo requiere revisión humana y validación explícita antes de ser publicado en el portal de la entidad.</p>
+                                    <p className="text-indigo-200/70 text-xs leading-relaxed font-medium">Este hallazgo requiere revisiÃ³n humana y validaciÃ³n explÃ­cita antes de ser publicado en el portal de la entidad.</p>
                                 </div>
                             </div>
 
                             <div className="space-y-4 text-sm mb-8">
                                 <div className="grid grid-cols-2 gap-4">
                                     <DetailField label="Tipo Documento" value={detailItem.item.document_type} />
-                                    <DetailField label="Categoría" value={detailItem.item.category} />
+                                    <DetailField label="CategorÃ­a" value={detailItem.item.category} />
                                     <DetailField label="Territorio" value={detailItem.item.territory} />
-                                    <DetailField label="Publicación" value={detailItem.item.published_at} />
+                                    <DetailField label="PublicaciÃ³n" value={detailItem.item.published_at} />
                                 </div>
 
                                 {detailItem.marc_record?.record_id && (
@@ -237,7 +238,7 @@ function RadarPanel() {
                                 <div className="pt-6 border-t border-slate-700/60">
                                     <div className="text-slate-400 text-xs uppercase font-bold tracking-widest mb-4 flex items-center gap-2">
                                         <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        Historial de Revisión
+                                        Historial de RevisiÃ³n
                                     </div>
                                     <div className="space-y-3 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-700 before:to-transparent">
                                         {detailItem.review_logs.map((log, i) => (
@@ -317,7 +318,7 @@ function CompliancePanel() {
                 <h2 className="text-xl font-bold text-white mb-2">Normativas base de obligado cumplimiento</h2>
                 <div className="flex items-center gap-2.5 text-amber-400 bg-amber-950/30 p-3 rounded-xl border border-amber-500/20">
                     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                    <p className="text-sm font-medium">Catálogo sectorial en preparación. Las obligaciones se mostrarán tras revisión humana y verificación de fuente oficial.</p>
+                    <p className="text-sm font-medium">CatÃ¡logo sectorial en preparaciÃ³n. Las obligaciones se mostrarÃ¡n tras revisiÃ³n humana y verificaciÃ³n de fuente oficial.</p>
                 </div>
             </div>
 
@@ -354,7 +355,7 @@ function CompliancePanel() {
                             ) : obligations.length === 0 ? (
                                 <div className="text-slate-400 text-center py-16 bg-slate-800/30 rounded-2xl border border-slate-700/50 border-dashed">
                                     <svg className="w-10 h-10 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                    <p className="text-base font-medium">No hay obligaciones cargadas todavía para este sector.</p>
+                                    <p className="text-base font-medium">No hay obligaciones cargadas todavÃ­a para este sector.</p>
                                 </div>
                             ) : (
                                 <div className="space-y-3">
@@ -390,7 +391,7 @@ function CompliancePanel() {
                                 <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2.5">
                                     <div className="flex items-center gap-2 text-rose-400 text-xs font-semibold select-none cursor-default">
                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                        Revisión humana requerida
+                                        RevisiÃ³n humana requerida
                                     </div>
                                     
                                     <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold select-none cursor-default">
@@ -399,7 +400,7 @@ function CompliancePanel() {
                                     </div>
                                 </div>
                                 <p className="text-[10px] text-slate-500 font-medium leading-relaxed pt-1">
-                                    Las acciones de aprobación, publicación y comunicación al cliente estarán disponibles cuando existan obligaciones verificadas por fuente oficial.
+                                    Las acciones de aprobaciÃ³n, publicaciÃ³n y comunicaciÃ³n al cliente estarÃ¡n disponibles cuando existan obligaciones verificadas por fuente oficial.
                                 </p>
                             </div>
                         </div>
@@ -495,10 +496,10 @@ function isTechnicalInternalText(value) {
 
 function displayClientVisibleRequestMessage(value) {
   if (!value || isTechnicalInternalText(value)) {
-    return 'El cliente solicita que su asesoría revise esta oportunidad.';
+    return 'El cliente solicita que su asesorÃ­a revise esta oportunidad.';
   }
 
-  return requestTextFromValue(value, 'El cliente solicita que su asesoría revise esta oportunidad.');
+  return requestTextFromValue(value, 'El cliente solicita que su asesorÃ­a revise esta oportunidad.');
 }
 
 function requestDisplayDedupeKey(req) {
@@ -547,12 +548,12 @@ function labelFromKey(value) {
     .toUpperCase();
 
   const labels = {
-    BONIFICACION_INCENTIVO_CONTRATACION: 'Bonificación / incentivo de contratación',
-    INCENTIVO_FORMACION_CONTRATACION: 'Incentivo para formación y contratación',
-    TRAMITACION_AYUDA_SUBVENCION: 'Tramitación de ayuda o subvención',
-    COMPLIANCE_OBLIGATION: 'Obligación normativa',
-    AID_ITEM: 'Ayuda o subvención',
-    PENDING_REVIEW: 'Pendiente de revisión',
+    BONIFICACION_INCENTIVO_CONTRATACION: 'BonificaciÃ³n / incentivo de contrataciÃ³n',
+    INCENTIVO_FORMACION_CONTRATACION: 'Incentivo para formaciÃ³n y contrataciÃ³n',
+    TRAMITACION_AYUDA_SUBVENCION: 'TramitaciÃ³n de ayuda o subvenciÃ³n',
+    COMPLIANCE_OBLIGATION: 'ObligaciÃ³n normativa',
+    AID_ITEM: 'Ayuda o subvenciÃ³n',
+    PENDING_REVIEW: 'Pendiente de revisiÃ³n',
     APPROVED: 'Aprobado',
     REJECTED: 'Descartado',
     PUBLISHED: 'Publicado',
@@ -653,7 +654,7 @@ function AidsPanel() {
                 <h2 className="text-xl font-bold text-white mb-2">Ayudas, subvenciones, bonificaciones e incentivos</h2>
                 <div className="flex items-center gap-2.5 text-emerald-400 bg-emerald-950/30 p-3 rounded-xl border border-emerald-500/20">
                     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <p className="text-sm font-medium">Módulo preparado para oportunidades económicas detectadas por Lorena. Toda ayuda requiere revisión humana antes de comunicarse al cliente.</p>
+                    <p className="text-sm font-medium">MÃ³dulo preparado para oportunidades econÃ³micas detectadas por Lorena. Toda ayuda requiere revisiÃ³n humana antes de comunicarse al cliente.</p>
                 </div>
             </div>
 
@@ -674,7 +675,7 @@ function AidsPanel() {
                     {items.length === 0 ? (
                         <div className="text-slate-400 text-center py-24 bg-slate-800/30 rounded-2xl border border-slate-700/50 border-dashed">
                             <svg className="w-12 h-12 mx-auto mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            <p className="text-lg font-medium text-slate-300">No hay ayudas o subvenciones pendientes de revisión.</p>
+                            <p className="text-lg font-medium text-slate-300">No hay ayudas o subvenciones pendientes de revisiÃ³n.</p>
                             <p className="text-sm mt-1 opacity-70">Todas las oportunidades han sido procesadas o no hay nuevas.</p>
                         </div>
                     ) : (
@@ -685,7 +686,7 @@ function AidsPanel() {
                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-2xl"></div>
                                     )}
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-4 min-w-0">
-                                        <h3 className="min-w-0 text-base font-bold leading-snug text-slate-100 group-hover:text-emerald-300 transition-colors break-words">{textFromValue(item.title, 'Sin título')}</h3>
+                                        <h3 className="min-w-0 text-base font-bold leading-snug text-slate-100 group-hover:text-emerald-300 transition-colors break-words">{textFromValue(item.title, 'Sin tÃ­tulo')}</h3>
                                         <span className="shrink-0 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wide whitespace-normal break-words text-left leading-snug shadow-sm">
                                             {labelFromKey(item.aid_type || 'AYUDA')}
                                         </span>
@@ -709,7 +710,7 @@ function AidsPanel() {
                                     <div className="flex flex-wrap gap-2.5 mb-6">
                                         {item.needs_human_review === 1 && (
                                             <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1.5 uppercase tracking-wider shadow-sm">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Revisión humana
+                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> RevisiÃ³n humana
                                             </span>
                                         )}
                                         {item.publish_to_client === 0 && (
@@ -735,7 +736,7 @@ function AidsPanel() {
 
                 <div className="lg:col-span-5 xl:col-span-5 lg:sticky lg:top-8">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-5">
-                        <h2 className="text-lg font-bold text-slate-200">Panel de Inspección</h2>
+                        <h2 className="text-lg font-bold text-slate-200">Panel de InspecciÃ³n</h2>
                     </div>
 
                     {detailLoading && !detailItem ? (
@@ -764,8 +765,8 @@ function AidsPanel() {
                                     <DetailField label="Fuente Oficial" value={detailItem.item.source_name} />
                                     <DetailField label="Territorio" value={detailItem.item.territory_name || detailItem.item.territory} />
                                     <DetailField label="Plazo" value={detailItem.item.deadline_label} />
-                                    <DetailField label="Cuantía" value={detailItem.item.amount_summary} />
-                                    <DetailField label="Acción Recomendada" value={detailItem.item.recommended_action} />
+                                    <DetailField label="CuantÃ­a" value={detailItem.item.amount_summary} />
+                                    <DetailField label="AcciÃ³n Recomendada" value={detailItem.item.recommended_action} />
                                 </div>
                                 
                                 {detailItem.item.data_quality_warning === 1 && (
@@ -786,7 +787,7 @@ function AidsPanel() {
                                 {detailItem.item.needs_human_review === 1 && (
                                     <div className="flex items-center gap-2 text-rose-400 text-xs font-semibold select-none cursor-default">
                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                        Revisión humana requerida
+                                        RevisiÃ³n humana requerida
                                     </div>
                                 )}
                                 {detailItem.item.publish_to_client === 0 && (
@@ -797,7 +798,7 @@ function AidsPanel() {
                                 )}
                                 <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold select-none cursor-default">
                                     <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    Estado de revisión: {detailItem.item.review_status || 'N/A'}
+                                    Estado de revisiÃ³n: {detailItem.item.review_status || 'N/A'}
                                 </div>
                             </div>
 
@@ -805,7 +806,7 @@ function AidsPanel() {
                                 <div className="pt-6 border-t border-slate-700/60">
                                     <div className="text-slate-400 text-xs uppercase font-bold tracking-widest mb-4 flex items-center gap-2">
                                         <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        Historial de Revisión
+                                        Historial de RevisiÃ³n
                                     </div>
                                     <div className="space-y-3 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-700 before:to-transparent">
                                         {detailItem.review_logs.map((log, i) => (
@@ -883,7 +884,7 @@ function ClientsPanel() {
                     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <div>
                         <p className="text-sm font-bold">Vista interna de seguimiento normativo, ayudas y estado de cumplimiento por cliente.</p>
-                        <p className="text-xs font-medium opacity-80 mt-0.5">La información mostrada es de uso interno de la asesoría y no sustituye la revisión profesional.</p>
+                        <p className="text-xs font-medium opacity-80 mt-0.5">La informaciÃ³n mostrada es de uso interno de la asesorÃ­a y no sustituye la revisiÃ³n profesional.</p>
                     </div>
                 </div>
             </div>
@@ -949,7 +950,7 @@ function ClientsPanel() {
                             <div className="flex justify-between items-start mb-6">
                                 <div>
                                     <h2 className="text-2xl font-bold text-white mb-1">{selectedClient.name}</h2>
-                                    <p className="text-slate-400 text-sm font-medium">{selectedClient.sector} • {selectedClient.employees} empleados</p>
+                                    <p className="text-slate-400 text-sm font-medium">{selectedClient.sector} â€¢ {selectedClient.employees} empleados</p>
                                 </div>
                                 <div className={`px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-widest shadow-sm flex items-center gap-2 ${selectedClient.globalStatus === 'green' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : selectedClient.globalStatus === 'yellow' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : selectedClient.globalStatus === 'red' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-slate-500/10 text-slate-400 border-slate-500/30'}`}>
                                     <span className={`w-2 h-2 rounded-full ${selectedClient.globalStatus === 'green' ? 'bg-emerald-500' : selectedClient.globalStatus === 'yellow' ? 'bg-amber-500 animate-pulse' : selectedClient.globalStatus === 'red' ? 'bg-rose-500 animate-pulse' : 'bg-slate-500'}`}></span>
@@ -959,7 +960,7 @@ function ClientsPanel() {
 
                             <div className="bg-indigo-950/20 p-3 rounded-lg border border-indigo-500/20 flex items-center gap-2 text-indigo-300 text-xs font-semibold mb-8">
                                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
-                                Información no visible para cliente final salvo publicación expresa.
+                                InformaciÃ³n no visible para cliente final salvo publicaciÃ³n expresa.
                             </div>
 
                             <div className="space-y-8">
@@ -972,7 +973,7 @@ function ClientsPanel() {
                                         {selectedClient.complianceItems.map(item => (
                                             <div key={item.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
                                                 <div className="flex justify-between items-start mb-2">
-                                                    <span className="font-bold text-slate-200 text-sm">{textFromValue(item.title, 'Sin título')}</span>
+                                                    <span className="font-bold text-slate-200 text-sm">{textFromValue(item.title, 'Sin tÃ­tulo')}</span>
                                                     <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${item.status === 'ok' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
                                                 </div>
                                                 <div className="text-xs text-slate-500 font-medium">{item.date}</div>
@@ -995,7 +996,7 @@ function ClientsPanel() {
                                                         <span className="font-bold text-slate-200 text-sm">{aid.title}</span>
                                                     </div>
                                                     <p className="text-xs text-slate-400 font-medium mb-2">{aid.desc}</p>
-                                                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Límite: {aid.deadline}</div>
+                                                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">LÃ­mite: {aid.deadline}</div>
                                                 </div>
                                                 <div className="shrink-0 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/20 text-xs font-bold uppercase tracking-widest">
                                                     {aid.status}
@@ -1040,25 +1041,25 @@ function formatHumanLabel(value) {
     if (!value) return 'Sin dato';
 
     const map = {
-        clinicas_privadas: 'Clínicas privadas',
-        peluqueria_estetica: 'Peluquería y estética',
-        alimentacion: 'Alimentación',
-        construccion: 'Construcción',
-        hosteleria: 'Hostelería',
+        clinicas_privadas: 'ClÃ­nicas privadas',
+        peluqueria_estetica: 'PeluquerÃ­a y estÃ©tica',
+        alimentacion: 'AlimentaciÃ³n',
+        construccion: 'ConstrucciÃ³n',
+        hosteleria: 'HostelerÃ­a',
         comercio: 'Comercio',
         metal: 'Metal',
         oficinas: 'Oficinas',
         talleres: 'Talleres',
         transporte: 'Transporte',
-        pending_review: 'Pendiente de revisión',
+        pending_review: 'Pendiente de revisiÃ³n',
         approved: 'Aprobado',
         published: 'Publicado',
         aid_item: 'Ayuda / oportunidad',
         compliance_obligation: 'Normativa',
-        BONIFICACION_INCENTIVO_CONTRATACION: 'Bonificación / incentivo de contratación',
-        INCENTIVO_FORMACION_CONTRATACION: 'Incentivo para formación y contratación',
-        'INCENTIVO_FORMACIÓN_CONTRATACION': 'Incentivo para formación y contratación',
-        TRAMITACION_AYUDA_SUBVENCION: 'Tramitación de ayuda o subvención'
+        BONIFICACION_INCENTIVO_CONTRATACION: 'BonificaciÃ³n / incentivo de contrataciÃ³n',
+        INCENTIVO_FORMACION_CONTRATACION: 'Incentivo para formaciÃ³n y contrataciÃ³n',
+        'INCENTIVO_FORMACIÃ“N_CONTRATACION': 'Incentivo para formaciÃ³n y contrataciÃ³n',
+        TRAMITACION_AYUDA_SUBVENCION: 'TramitaciÃ³n de ayuda o subvenciÃ³n'
     };
 
     const key = String(value);
@@ -1107,7 +1108,7 @@ function OfficialReferenceBlock({ item, compact = false }) {
 
             {!hasLegal && !hasUrl && (
                 <div className="font-semibold text-amber-300">
-                    Referencia oficial pendiente de revisión
+                    Referencia oficial pendiente de revisiÃ³n
                 </div>
             )}
         </div>
@@ -1419,9 +1420,9 @@ function ClientPackagesPanel() {
                 }
 
                 if (data.action === 'existing_published_package_found') {
-                    setMessage({ type: 'error', text: data.message + ' Puedes consultarlo en el Portal Entidad. Para modificarlo, será necesario crear una nueva versión del paquete.' });
+                    setMessage({ type: 'error', text: data.message + ' Puedes consultarlo en el Portal Entidad. Para modificarlo, serÃ¡ necesario crear una nueva versiÃ³n del paquete.' });
                 } else {
-                    setMessage({ type: 'success', text: 'Paquete preparado para revisión rápida' });
+                    setMessage({ type: 'success', text: 'Paquete preparado para revisiÃ³n rÃ¡pida' });
                 }
             } else {
                 setMessage({ type: 'error', text: data.message || 'Error al generar' });
@@ -1480,14 +1481,14 @@ function ClientPackagesPanel() {
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sector</label>
                         <select value={sectorKey} onChange={e => setSectorKey(e.target.value)} className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-indigo-500">
-                            <option value="alimentacion">Alimentación</option>
-                            <option value="clinicas_privadas">Clínicas Privadas</option>
+                            <option value="alimentacion">AlimentaciÃ³n</option>
+                            <option value="clinicas_privadas">ClÃ­nicas Privadas</option>
                             <option value="comercio">Comercio</option>
-                            <option value="construccion">Construcción</option>
-                            <option value="hosteleria">Hostelería</option>
+                            <option value="construccion">ConstrucciÃ³n</option>
+                            <option value="hosteleria">HostelerÃ­a</option>
                             <option value="metal">Metal</option>
                             <option value="oficinas">Oficinas</option>
-                            <option value="peluqueria_estetica">Peluquería y Estética</option>
+                            <option value="peluqueria_estetica">PeluquerÃ­a y EstÃ©tica</option>
                             <option value="talleres">Talleres</option>
                             <option value="transporte">Transporte</option>
                         </select>
@@ -1509,7 +1510,7 @@ function ClientPackagesPanel() {
                     <div>
                         <h3 className="text-lg font-bold text-white">Solicitudes recibidas desde Portal Entidad</h3>
                         <p className="text-sm text-slate-400 mt-1">
-                            Peticiones de clientes que quieren que la asesoría revise una ayuda u oportunidad.
+                            Peticiones de clientes que quieren que la asesorÃ­a revise una ayuda u oportunidad.
                         </p>
                     </div>
                     <button
@@ -1567,7 +1568,7 @@ function ClientPackagesPanel() {
 
                 {dedupeRequestsForDisplay(interestRequests).length === 0 ? (
                     <div className="text-sm text-slate-500 bg-slate-900/40 border border-dashed border-slate-700/60 rounded-xl p-4">
-                        Todavía no hay solicitudes recibidas desde el Portal Entidad.
+                        TodavÃ­a no hay solicitudes recibidas desde el Portal Entidad.
                     </div>
                 ) : (
                     <div className="space-y-3">
@@ -1637,10 +1638,10 @@ function ClientPackagesPanel() {
                     <div className="flex justify-between items-start mb-6">
                         <div>
                             <h3 className="text-lg font-bold text-white mb-1">Resumen del Paquete</h3>
-                            <p className="text-slate-400 text-sm">Cliente: <span className="font-semibold text-slate-200">{packageData.package.client_name}</span> • Sector: <span className="font-semibold text-slate-200">{formatHumanLabel(packageData.package.sector_key)}</span></p>
+                            <p className="text-slate-400 text-sm">Cliente: <span className="font-semibold text-slate-200">{packageData.package.client_name}</span> â€¢ Sector: <span className="font-semibold text-slate-200">{formatHumanLabel(packageData.package.sector_key)}</span></p>
                         </div>
                         <div className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg text-xs uppercase font-bold tracking-widest flex items-center gap-2">
-                            {packageData.package.package_status === 'published' ? 'Publicado' : 'Pendiente de revisión'}
+                            {packageData.package.package_status === 'published' ? 'Publicado' : 'Pendiente de revisiÃ³n'}
                         </div>
                     </div>
 
@@ -1655,10 +1656,10 @@ function ClientPackagesPanel() {
                         <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
                                 <h4 className="text-sm font-bold text-slate-200 uppercase tracking-widest">
-                                    Items incluidos para revisión humana
+                                    Items incluidos para revisiÃ³n humana
                                 </h4>
                                 <p className="text-xs text-slate-500 mt-1">
-                                    Ningún item se publica al cliente hasta que el paquete sea aprobado expresamente.
+                                    NingÃºn item se publica al cliente hasta que el paquete sea aprobado expresamente.
                                 </p>
                             </div>
                             <div className="text-xs font-bold text-slate-500">
@@ -1686,7 +1687,7 @@ function ClientPackagesPanel() {
                                             }`}>
                                                 {item.source_type === 'aid_item' ? 'Ayuda / oportunidad' : 'Normativa'}
                                             </div>
-                                            <div className="font-bold text-slate-100">{textFromValue(item.title, 'Sin título')}</div>
+                                            <div className="font-bold text-slate-100">{textFromValue(item.title, 'Sin tÃ­tulo')}</div>
                                             <OfficialReferenceBlock item={item} compact />
                                         </div>
 
@@ -1705,16 +1706,16 @@ function ClientPackagesPanel() {
                                             </div>
                                             <div className="space-y-2 text-xs">
                                                 <div className="flex justify-between gap-3">
-                                                    <span className="text-slate-500">Revisión</span>
+                                                    <span className="text-slate-500">RevisiÃ³n</span>
                                                     <span className="font-bold text-amber-400">{item.review_status}</span>
                                                 </div>
                                                 <div className="flex justify-between gap-3">
-                                                    <span className="text-slate-500">Requiere revisión</span>
-                                                    <span className="font-bold text-amber-400">{Number(item.needs_human_review) === 1 ? 'Sí' : 'No'}</span>
+                                                    <span className="text-slate-500">Requiere revisiÃ³n</span>
+                                                    <span className="font-bold text-amber-400">{Number(item.needs_human_review) === 1 ? 'SÃ­' : 'No'}</span>
                                                 </div>
                                                 <div className="flex justify-between gap-3">
                                                     <span className="text-slate-500">Publicado cliente</span>
-                                                    <span className="font-bold text-slate-300">{Number(item.publish_to_client) === 1 ? 'Sí' : 'No'}</span>
+                                                    <span className="font-bold text-slate-300">{Number(item.publish_to_client) === 1 ? 'SÃ­' : 'No'}</span>
                                                 </div>
                                                 <div className="flex justify-between gap-3">
                                                     <span className="text-slate-500">Estado portal</span>
@@ -1756,7 +1757,7 @@ function portalNormalizeText(value = '') {
 function portalObligationRiskStyle(item) {
   const risk = portalNormalizeText(item?.risk_level);
 
-  if (risk.includes('alto') || risk.includes('critico') || risk.includes('crítico')) {
+  if (risk.includes('alto') || risk.includes('critico') || risk.includes('crÃ­tico')) {
     return {
       card: 'border-rose-500/25 bg-rose-500/10',
       badge: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
@@ -1770,7 +1771,7 @@ function portalObligationRiskStyle(item) {
       card: 'border-amber-500/25 bg-amber-500/10',
       badge: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
       dot: 'bg-amber-500',
-      label: 'Requiere atención'
+      label: 'Requiere atenciÃ³n'
     };
   }
 
@@ -1792,52 +1793,52 @@ function portalImplementationGuidance(item) {
   ].filter(Boolean).join(' '));
 
   if (source.includes('registro_jornada') || source.includes('registro diario de jornada') || source.includes('registro horario')) {
-    return 'Implantación: utiliza un sistema diario de registro horario, conserva los registros y tenlos disponibles para plantilla, representación legal e Inspección.';
+    return 'ImplantaciÃ³n: utiliza un sistema diario de registro horario, conserva los registros y tenlos disponibles para plantilla, representaciÃ³n legal e InspecciÃ³n.';
   }
 
   if (source.includes('registro_retributivo') || source.includes('registro retributivo')) {
-    return 'Implantación: prepara el registro salarial desglosado, revisa diferencias retributivas y actualízalo periódicamente con apoyo de tu asesoría.';
+    return 'ImplantaciÃ³n: prepara el registro salarial desglosado, revisa diferencias retributivas y actualÃ­zalo periÃ³dicamente con apoyo de tu asesorÃ­a.';
   }
 
   if (source.includes('protocolo_acoso') || source.includes('acoso sexual') || source.includes('razon de sexo')) {
-    return 'Implantación: aprueba un protocolo interno, comunica el procedimiento a la plantilla y habilita un canal claro para prevención y denuncia.';
+    return 'ImplantaciÃ³n: aprueba un protocolo interno, comunica el procedimiento a la plantilla y habilita un canal claro para prevenciÃ³n y denuncia.';
   }
 
   if (source.includes('proteccion_datos') || source.includes('rgpd') || source.includes('lopdgdd')) {
-    return 'Implantación: revisa tratamientos de datos, cláusulas informativas, contratos con encargados, medidas de seguridad y atención de derechos.';
+    return 'ImplantaciÃ³n: revisa tratamientos de datos, clÃ¡usulas informativas, contratos con encargados, medidas de seguridad y atenciÃ³n de derechos.';
   }
 
   if (source.includes('prl') || source.includes('prevencion de riesgos')) {
-    return 'Implantación: mantén evaluación de riesgos, planificación preventiva, formación, información a la plantilla y vigilancia de la salud cuando proceda.';
+    return 'ImplantaciÃ³n: mantÃ©n evaluaciÃ³n de riesgos, planificaciÃ³n preventiva, formaciÃ³n, informaciÃ³n a la plantilla y vigilancia de la salud cuando proceda.';
   }
 
   if (source.includes('tacografo') || source.includes('conduccion') || source.includes('descanso')) {
-    return 'Implantación: controla uso y descargas del tacógrafo, revisa tiempos de conducción y descanso y conserva la documentación exigible.';
+    return 'ImplantaciÃ³n: controla uso y descargas del tacÃ³grafo, revisa tiempos de conducciÃ³n y descanso y conserva la documentaciÃ³n exigible.';
   }
 
   if (source.includes('equipos_trabajo') || source.includes('maquinaria')) {
-    return 'Implantación: identifica equipos y maquinaria, revisa adecuación, mantenimiento, instrucciones de uso y formación preventiva de los trabajadores.';
+    return 'ImplantaciÃ³n: identifica equipos y maquinaria, revisa adecuaciÃ³n, mantenimiento, instrucciones de uso y formaciÃ³n preventiva de los trabajadores.';
   }
 
   if (source.includes('residuos_envases') || source.includes('envases')) {
-    return 'Implantación: identifica envases afectados, revisa obligaciones de gestión o responsabilidad ampliada y conserva justificantes o declaraciones.';
+    return 'ImplantaciÃ³n: identifica envases afectados, revisa obligaciones de gestiÃ³n o responsabilidad ampliada y conserva justificantes o declaraciones.';
   }
 
   if (source.includes('residuos_general') || source.includes('residuos y suelos')) {
-    return 'Implantación: clasifica los residuos generados, trabaja con gestores autorizados y conserva contratos, albaranes y archivo documental.';
+    return 'ImplantaciÃ³n: clasifica los residuos generados, trabaja con gestores autorizados y conserva contratos, albaranes y archivo documental.';
   }
 
   if (source.includes('consumidores') || source.includes('usuarios') || source.includes('consumo')) {
-    return 'Implantación: revisa información contractual, garantías, hojas de reclamaciones y comunicaciones comerciales dirigidas a consumidores.';
+    return 'ImplantaciÃ³n: revisa informaciÃ³n contractual, garantÃ­as, hojas de reclamaciones y comunicaciones comerciales dirigidas a consumidores.';
   }
 
-  return 'Implantación: revisa con tu asesoría los pasos concretos aplicables a tu empresa antes de ejecutar cambios.';
+  return 'ImplantaciÃ³n: revisa con tu asesorÃ­a los pasos concretos aplicables a tu empresa antes de ejecutar cambios.';
 }
 
 function PortalObligationCard({ obligation }) {
   const style = portalObligationRiskStyle(obligation);
-  const legalReference = obligation?.legal_reference || 'Referencia legal pendiente de completar por la asesoría.';
-  const summary = obligation?.summary || 'Resumen pendiente de completar por la asesoría.';
+  const legalReference = obligation?.legal_reference || 'Referencia legal pendiente de completar por la asesorÃ­a.';
+  const summary = obligation?.summary || 'Resumen pendiente de completar por la asesorÃ­a.';
   const implementation = portalImplementationGuidance(obligation);
 
   return (
@@ -1856,18 +1857,18 @@ function PortalObligationCard({ obligation }) {
           {legalReference}
         </p>
         <p>
-          <span className="font-bold text-slate-100">Qué dice: </span>
+          <span className="font-bold text-slate-100">QuÃ© dice: </span>
           {summary}
         </p>
         <p>
-          <span className="font-bold text-slate-100">Cómo implantarla: </span>
+          <span className="font-bold text-slate-100">CÃ³mo implantarla: </span>
           {implementation}
         </p>
       </div>
 
       <div className="mt-3 flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-emerald-400">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        Información publicada por tu asesoría
+        InformaciÃ³n publicada por tu asesorÃ­a
       </div>
     </div>
   );
@@ -1908,7 +1909,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                         sent: true,
                         message: alreadyExists
                             ? 'Ya tienes una solicitud pendiente para esta oportunidad.'
-                            : 'Solicitud enviada a tu asesoría. Te contactarán para revisar esta oportunidad.'
+                            : 'Solicitud enviada a tu asesorÃ­a. Te contactarÃ¡n para revisar esta oportunidad.'
                     }
                 }));
             } else {
@@ -1917,7 +1918,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     [aid.id]: {
                         type: 'error',
                         sent: false,
-                        message: 'No se ha podido registrar la solicitud. Inténtalo de nuevo o contacta con tu asesoría.'
+                        message: 'No se ha podido registrar la solicitud. IntÃ©ntalo de nuevo o contacta con tu asesorÃ­a.'
                     }
                 }));
             }
@@ -1927,7 +1928,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                 [aid.id]: {
                     type: 'error',
                     sent: false,
-                    message: 'No se ha podido registrar la solicitud. Inténtalo de nuevo o contacta con tu asesoría.'
+                    message: 'No se ha podido registrar la solicitud. IntÃ©ntalo de nuevo o contacta con tu asesorÃ­a.'
                 }
             }));
         } finally {
@@ -2004,7 +2005,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                 setError('Error al cargar portal');
             }
         } catch (err) {
-            setError('Error de conexión');
+            setError('Error de conexiÃ³n');
         }
         setLoading(false);
     };
@@ -2064,16 +2065,16 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Portal Entidad</div>
                     <h2 className="text-xl font-extrabold text-white">{selectedPortalClient?.name || clientId || 'Entidad'}</h2>
                     <p className="text-sm text-slate-400 mt-2">
-                        Información publicada por tu asesoría para esta entidad.
+                        InformaciÃ³n publicada por tu asesorÃ­a para esta entidad.
                     </p>
                     <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <a href="#portal-normativas" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 hover:bg-emerald-500/20 transition-colors">
                             <div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Normativas</div>
-                            <div className="text-sm text-emerald-100 mt-1">Obligaciones, implantación y alertas.</div>
+                            <div className="text-sm text-emerald-100 mt-1">Obligaciones, implantaciÃ³n y alertas.</div>
                         </a>
                         <a href="#portal-ayudas" className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 hover:bg-blue-500/20 transition-colors">
                             <div className="text-xs font-bold uppercase tracking-widest text-blue-300">Ayudas y subvenciones</div>
-                            <div className="text-sm text-blue-100 mt-1">Oportunidades publicadas por tu asesoría.</div>
+                            <div className="text-sm text-blue-100 mt-1">Oportunidades publicadas por tu asesorÃ­a.</div>
                         </a>
                     </div>
                 </div>
@@ -2081,7 +2082,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                 <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm flex items-end gap-4">
                     <div className="flex-1">
                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Portal Entidad por cliente</label>
-                        <p className="text-[10px] text-slate-500 mb-2">Selecciona una entidad para revisar la información publicada.</p>
+                        <p className="text-[10px] text-slate-500 mb-2">Selecciona una entidad para revisar la informaciÃ³n publicada.</p>
                         <select value={clientId} onChange={e => setClientId(e.target.value)} className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-blue-500">
                             <option value="" disabled>Selecciona un cliente</option>
                             {validClients.map(c => (
@@ -2108,9 +2109,9 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     <div className="bg-blue-500/10 p-5 rounded-full mb-6 border border-blue-500/20 shadow-inner">
                         <svg className="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                     </div>
-                    <h2 className="font-bold text-slate-200 text-2xl mb-3">Tu asesoría está revisando tus obligaciones y oportunidades</h2>
-                    <p className="text-base font-medium max-w-lg leading-relaxed mb-4">Cuando tu asesoría valide la información aplicable a tu empresa, verás aquí tus obligaciones principales, ayudas disponibles y alertas relevantes.</p>
-                    <p className="text-sm text-slate-500 font-medium">Esta vista solo muestra información revisada y publicada por tu asesoría.</p>
+                    <h2 className="font-bold text-slate-200 text-2xl mb-3">Tu asesorÃ­a estÃ¡ revisando tus obligaciones y oportunidades</h2>
+                    <p className="text-base font-medium max-w-lg leading-relaxed mb-4">Cuando tu asesorÃ­a valide la informaciÃ³n aplicable a tu empresa, verÃ¡s aquÃ­ tus obligaciones principales, ayudas disponibles y alertas relevantes.</p>
+                    <p className="text-sm text-slate-500 font-medium">Esta vista solo muestra informaciÃ³n revisada y publicada por tu asesorÃ­a.</p>
                 </div>
             )}
 
@@ -2163,7 +2164,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                 <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-3">Obligaciones para implantar o revisar</div>
                                 {obligationsForImplementation.length === 0 ? (
                                     <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-400">
-                                        No hay obligaciones pendientes de implantación publicadas por tu asesoría.
+                                        No hay obligaciones pendientes de implantaciÃ³n publicadas por tu asesorÃ­a.
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
@@ -2178,11 +2179,11 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                 <div className="text-xs font-bold uppercase tracking-widest text-rose-300 mb-3">Alertas relevantes</div>
                                 {relevantAlertsCount > 0 ? (
                                     <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
-                                        Tu asesoría ha publicado {relevantAlertsCount} alerta(s) relevante(s) asociada(s) a tu entidad. Revisa la información publicada y contacta con tu asesoría si necesitas aclaración.
+                                        Tu asesorÃ­a ha publicado {relevantAlertsCount} alerta(s) relevante(s) asociada(s) a tu entidad. Revisa la informaciÃ³n publicada y contacta con tu asesorÃ­a si necesitas aclaraciÃ³n.
                                     </div>
                                 ) : (
                                     <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-400">
-                                        No hay alertas relevantes publicadas por tu asesoría en este momento.
+                                        No hay alertas relevantes publicadas por tu asesorÃ­a en este momento.
                                     </div>
                                 )}
                             </div>
@@ -2198,12 +2199,12 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                     <div key={aid.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
                                         <h4 className="font-bold text-slate-200 mb-2">{aid.title}</h4>
                                         <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                                            {aid.title && aid.title.includes('Kit Digital') ? 'Programa de ayudas para impulsar la digitalización de pymes, microempresas y autónomos mediante soluciones digitales. Tu asesoría revisará si tu empresa cumple los requisitos vigentes y qué convocatoria puede aplicar.' : aid.title && aid.title.includes('formación en alternancia') ? 'Oportunidad vinculada a la contratación y formación de personas trabajadoras mediante contrato de formación en alternancia. Puede permitir bonificaciones o incentivos asociados, siempre sujetos a requisitos vigentes y validación por la asesoría.' : aid.summary}
+                                            {aid.title && aid.title.includes('Kit Digital') ? 'Programa de ayudas para impulsar la digitalizaciÃ³n de pymes, microempresas y autÃ³nomos mediante soluciones digitales. Tu asesorÃ­a revisarÃ¡ si tu empresa cumple los requisitos vigentes y quÃ© convocatoria puede aplicar.' : aid.title && aid.title.includes('formaciÃ³n en alternancia') ? 'Oportunidad vinculada a la contrataciÃ³n y formaciÃ³n de personas trabajadoras mediante contrato de formaciÃ³n en alternancia. Puede permitir bonificaciones o incentivos asociados, siempre sujetos a requisitos vigentes y validaciÃ³n por la asesorÃ­a.' : aid.summary}
                                         </p>
                                         
                                         <OfficialReferenceBlock item={aid} compact />
                                         <div className="bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-lg text-xs text-indigo-300 font-semibold flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4">
-                                            <span>{aid.deadline_label?.toLowerCase().includes('pendiente') || aid.deadline_label?.toLowerCase().includes('revisión') ? 'Consulta con tu asesoría las condiciones vigentes de tramitación.' : aid.deadline_label}</span>
+                                            <span>{aid.deadline_label?.toLowerCase().includes('pendiente') || aid.deadline_label?.toLowerCase().includes('revisiÃ³n') ? 'Consulta con tu asesorÃ­a las condiciones vigentes de tramitaciÃ³n.' : aid.deadline_label}</span>
                                             
                                             <div className="flex flex-col items-end gap-1 min-w-[170px]">
                                                 <button
@@ -2216,7 +2217,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                                         ? 'Enviando...'
                                                         : interestFeedback[aid.id]?.sent
                                                             ? 'Solicitud enviada'
-                                                            : 'Consultar con mi asesoría'}
+                                                            : 'Consultar con mi asesorÃ­a'}
                                                 </button>
                                                 {interestFeedback[aid.id]?.message && (
                                                     <span className={`text-[10px] font-semibold max-w-[260px] text-right ${interestFeedback[aid.id]?.type === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
@@ -2340,7 +2341,7 @@ function CommercialDashboardPanel() {
         if (!text) return false;
 
         const technicalPatterns = [
-            'validación automática',
+            'validaciÃ³n automÃ¡tica',
             'validacion automatica',
             'cambio a handled',
             'cambio a contacted',
@@ -2663,11 +2664,11 @@ function CommercialDashboardPanel() {
 
                                 <div className="mt-4 space-y-3 text-sm">
                                     <div>
-                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Última actualización</div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Ãšltima actualizaciÃ³n</div>
                                         <div className="mt-1 text-slate-300">{formatDateTime(client.last_request_update)}</div>
                                     </div>
                                     <div>
-                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Próxima acción</div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">PrÃ³xima acciÃ³n</div>
                                         <div className="mt-1 font-semibold text-slate-200">{client.next_action_recommended}</div>
                                     </div>
                                 </div>
@@ -2687,8 +2688,8 @@ function CommercialDashboardPanel() {
                                 <th className="py-3 pr-4 font-bold">Solicitudes</th>
                                 <th className="py-3 pr-4 font-bold">Pendientes</th>
                                 <th className="py-3 pr-4 font-bold">Gestionadas</th>
-                                <th className="py-3 pr-4 font-bold">Última actualización</th>
-                                <th className="py-3 font-bold">Próxima acción</th>
+                                <th className="py-3 pr-4 font-bold">Ãšltima actualizaciÃ³n</th>
+                                <th className="py-3 font-bold">PrÃ³xima acciÃ³n</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/80">
@@ -2738,7 +2739,7 @@ function CommercialDashboardPanel() {
                                     <div className="space-y-4 text-sm">
                                         <div>
                                             <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Oportunidad</div>
-                                            <div className="mt-1 font-semibold text-slate-100">{textFromValue(req.title, 'Sin título')}</div>
+                                            <div className="mt-1 font-semibold text-slate-100">{textFromValue(req.title, 'Sin tÃ­tulo')}</div>
                                             {req.message && !isTechnicalInternalText(req.message) && <div className="text-xs text-slate-500 mt-2">{displayClientVisibleRequestMessage(req.message)}</div>}
                                         </div>
 
@@ -2766,7 +2767,7 @@ function CommercialDashboardPanel() {
                                         </div>
 
                                         <div>
-                                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Próxima acción</div>
+                                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">PrÃ³xima acciÃ³n</div>
                                             <div className="mt-1 font-semibold text-slate-200">{req.next_action_recommended}</div>
                                         </div>
 
@@ -2794,7 +2795,7 @@ function CommercialDashboardPanel() {
                                         <th className="py-3 pr-4 font-bold">Estado</th>
                                         <th className="py-3 pr-4 font-bold">Prioridad</th>
                                         <th className="py-3 pr-4 font-bold">Fecha</th>
-                                        <th className="py-3 pr-4 font-bold">Próxima acción</th>
+                                        <th className="py-3 pr-4 font-bold">PrÃ³xima acciÃ³n</th>
                                         <th className="py-3 pr-4 font-bold">Nota interna</th>
                                         <th className="py-3 font-bold">Acciones</th>
                                     </tr>
@@ -2804,7 +2805,7 @@ function CommercialDashboardPanel() {
                                         <tr key={req.id} className="text-slate-300 align-top">
                                             <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{textFromValue(req.client_name ?? req.client_id, 'Cliente sin nombre')}</td>
                                             <td className="py-4 pr-4 min-w-[280px]">
-                                                <div className="font-semibold text-slate-100">{textFromValue(req.title, 'Sin título')}</div>
+                                                <div className="font-semibold text-slate-100">{textFromValue(req.title, 'Sin tÃ­tulo')}</div>
                                                 {req.message && !isTechnicalInternalText(req.message) && <div className="text-xs text-slate-500 mt-1">{displayClientVisibleRequestMessage(req.message)}</div>}
                                             </td>
                                             <td className="py-4 pr-4 whitespace-nowrap">{labelFromKey(req.request_type)}</td>
@@ -2838,22 +2839,7 @@ function CommercialDashboardPanel() {
 
 
 function formatPortalClientDisplayName(clientId) {
-    const value = String(clientId || '').trim();
-
-    const knownNames = {
-        transportes_levante: 'Transportes Levante',
-        clinica_dental: 'Clínica Dental',
-        inmobiliaria_turia: 'Inmobiliaria Turia',
-        industrias_metalurgicas_turia: 'Industrias Metalúrgicas Turia'
-    };
-
-    if (knownNames[value]) {
-        return knownNames[value];
-    }
-
-    return value
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, char => char.toUpperCase());
+    return formatConfiguredClientName(clientId);
 }
 
 function ClientPortalAuthGate({ clientId, onAuthenticated }) {
@@ -2912,7 +2898,7 @@ function ClientPortalAuthGate({ clientId, onAuthenticated }) {
         resetMessages();
 
         if (!phone.trim()) {
-            setError('Introduce el teléfono autorizado.');
+            setError('Introduce el telÃ©fono autorizado.');
             return;
         }
 
@@ -2967,7 +2953,7 @@ function ClientPortalAuthGate({ clientId, onAuthenticated }) {
                 <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-300">Acceso seguro</p>
                 <h2 className="mt-2 text-2xl font-black text-white">Portal Entidad</h2>
                 <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                    Accede con tu clave o créala usando el teléfono autorizado por tu asesoría.
+                    Accede con tu clave o crÃ©ala usando el telÃ©fono autorizado por tu asesorÃ­a.
                 </p>
             </div>
 
@@ -3013,17 +2999,17 @@ function ClientPortalAuthGate({ clientId, onAuthenticated }) {
             ) : (
                 <form onSubmit={handleSetup} className="space-y-4">
                     <div>
-                        <label className="mb-2 block text-sm font-semibold text-slate-300">Teléfono autorizado</label>
+                        <label className="mb-2 block text-sm font-semibold text-slate-300">TelÃ©fono autorizado</label>
                         <input
                             type="tel"
                             value={phone}
                             onChange={event => setPhone(event.target.value)}
                             autoComplete="tel"
                             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition-colors focus:border-emerald-500"
-                            placeholder="Introduce el teléfono autorizado"
+                            placeholder="Introduce el telÃ©fono autorizado"
                         />
                         <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                            El teléfono solo verifica que puedes crear o regenerar la clave. No se usa como contraseña.
+                            El telÃ©fono solo verifica que puedes crear o regenerar la clave. No se usa como contraseÃ±a.
                         </p>
                     </div>
 
@@ -3035,7 +3021,7 @@ function ClientPortalAuthGate({ clientId, onAuthenticated }) {
                             onChange={event => setAccessKey(event.target.value)}
                             autoComplete="new-password"
                             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition-colors focus:border-emerald-500"
-                            placeholder="Mínimo 6 caracteres"
+                            placeholder="MÃ­nimo 6 caracteres"
                         />
                     </div>
 
@@ -3074,7 +3060,7 @@ function ClientPortalAuthGate({ clientId, onAuthenticated }) {
             )}
 
             <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
-                Si no reconoces este acceso, contacta con tu asesoría.
+                Si no reconoces este acceso, contacta con tu asesorÃ­a.
             </p>
         </section>
     );
@@ -3098,7 +3084,7 @@ function ManagerLoginGate({ onLogin, loading, error, onOpenPortal }) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
                     </div>
-                    <h1 className="text-2xl font-bold">Radar Gestión Valencia</h1>
+                    <h1 className="text-2xl font-bold">{BRAND_CONFIG.appName}</h1>
                     <p className="text-slate-400 mt-2">Acceso al Entorno Gestor</p>
                 </div>
 
@@ -3277,7 +3263,7 @@ useEffect(() => {
 
             if (response.status === 401 && isProtectedApiUrl(args[0])) {
                 setManagerAuthenticated(false);
-                setAuthError('Sesión caducada. Vuelve a introducir el PIN.');
+                setAuthError('SesiÃ³n caducada. Vuelve a introducir el PIN.');
             }
 
             return response;
@@ -3312,7 +3298,7 @@ useEffect(() => {
             setAuthError('');
         } catch {
             setManagerAuthenticated(false);
-            setAuthError('No se ha podido conectar con el servidor de autenticación.');
+            setAuthError('No se ha podido conectar con el servidor de autenticaciÃ³n.');
         } finally {
             setAuthSubmitting(false);
         }
@@ -3345,8 +3331,8 @@ useEffect(() => {
 
 
     useEffect(() => {
-        // Forzamos explícitamente la vista a 'radar' al montar el componente.
-        // Esto previene que Vite mantenga en caché el estado de sesiones anteriores
+        // Forzamos explÃ­citamente la vista a 'radar' al montar el componente.
+        // Esto previene que Vite mantenga en cachÃ© el estado de sesiones anteriores
         // (Hot Module Replacement) o que quede guardado en la memoria del navegador.
         setView(isClientExclusivePortal ? 'portal' : 'radar');
     }, [isClientExclusivePortal]);
@@ -3357,7 +3343,7 @@ useEffect(() => {
             <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
                 <div className="text-center">
                     <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-slate-300">Comprobando sesión de gestor...</p>
+                    <p className="text-slate-300">Comprobando sesiÃ³n de gestor...</p>
                 </div>
             </div>
         );
@@ -3379,9 +3365,9 @@ useEffect(() => {
                     <header className="mb-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-300">Radar Gestión Valencia</p>
-                                <h1 className="mt-2 text-2xl font-black text-white">Portal Entidad</h1>
-                                <p className="mt-1 text-sm text-slate-400">Acceso privado a normativas, ayudas y oportunidades publicadas por tu asesoría.</p>
+                                <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-300">{BRAND_CONFIG.appName}</p>
+                                <h1 className="mt-2 text-2xl font-black text-white">{BRAND_CONFIG.clientPortalTitle}</h1>
+                                <p className="mt-1 text-sm text-slate-400">{BRAND_CONFIG.clientPortalSubtitle}</p>
                             </div>
                             <div className="flex flex-col gap-2 sm:items-end">
                                 <div className="rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-xs font-semibold text-slate-400">
@@ -3395,7 +3381,7 @@ useEffect(() => {
                                         onClick={handleClientPortalLogout}
                                         className="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-xs font-bold text-slate-300 transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
                                     >
-                                        Cerrar sesión
+                                        Cerrar sesiÃ³n
                                     </button>
                                 )}
                             </div>
@@ -3432,9 +3418,9 @@ useEffect(() => {
                         </div>
                         <div>
                             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                                Radar Gestión Valencia
+                                {BRAND_CONFIG.appName}
                             </h1>
-                            <p className="text-indigo-400 font-semibold text-sm mt-0.5 tracking-wide">Inteligencia normativa para asesorías</p>
+                            <p className="text-indigo-400 font-semibold text-sm mt-0.5 tracking-wide">{BRAND_CONFIG.tagline}</p>
                         </div>
                     </div>
                     <div className="flex flex-col sm:items-end gap-2">
@@ -3452,14 +3438,14 @@ useEffect(() => {
                         </span>
                         <span className="text-slate-400 text-xs font-medium flex items-center gap-1.5">
                             <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                            Los hallazgos requieren revisión humana antes de ser visibles para clientes.
+                            Los hallazgos requieren revisiÃ³n humana antes de ser visibles para clientes.
                         </span>
                     </div>
                 </div>
             </header>
 
             <main className="max-w-[1400px] mx-auto px-6 py-8">
-                {/* Navegación Superior */}
+                {/* NavegaciÃ³n Superior */}
                                                 <div className="lg:hidden mb-6 rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
                         Secciones del gestor
@@ -3490,13 +3476,13 @@ useEffect(() => {
                     </div>
 
                     <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-                        Todas las secciones importantes están visibles en móvil. No necesitas hacer scroll lateral para encontrar una opción.
+                        Todas las secciones importantes estÃ¡n visibles en mÃ³vil. No necesitas hacer scroll lateral para encontrar una opciÃ³n.
                     </p>
                 </div>
 
 <div className="md:hidden mb-6 rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4">
                     <label htmlFor="mobile-manager-section" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
-                        Sección del gestor
+                        SecciÃ³n del gestor
                     </label>
                     <select
                         id="mobile-manager-section"
@@ -3513,7 +3499,7 @@ useEffect(() => {
                         <option value="portal">Portal Entidad</option>
                     </select>
                     <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                        En móvil puedes cambiar de sección desde este selector sin depender de desplazamiento lateral.
+                        En mÃ³vil puedes cambiar de secciÃ³n desde este selector sin depender de desplazamiento lateral.
                     </p>
                 </div>
 
@@ -3592,6 +3578,7 @@ function NavTab({ active, onClick, label, icon, disabled }) {
         </button>
     );
 }
+
 
 
 

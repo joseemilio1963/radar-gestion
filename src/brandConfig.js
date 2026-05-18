@@ -2,6 +2,7 @@ export const BRAND_CONFIG = {
     appName: 'Radar Gestión Valencia',
     shortName: 'Radar Gestión',
     tagline: 'Inteligencia normativa para asesorías',
+    description: 'Portal profesional de gestión normativa, ayudas y oportunidades para asesorías y clientes.',
     clientPortalTitle: 'Portal Entidad',
     clientPortalSubtitle: 'Acceso privado a normativas, ayudas y oportunidades publicadas por tu asesoría.',
     managerBadge: 'Demo interna',

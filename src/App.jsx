@@ -2836,6 +2836,26 @@ function CommercialDashboardPanel() {
 
 
 
+
+function formatPortalClientDisplayName(clientId) {
+    const value = String(clientId || '').trim();
+
+    const knownNames = {
+        transportes_levante: 'Transportes Levante',
+        clinica_dental: 'Clínica Dental',
+        inmobiliaria_turia: 'Inmobiliaria Turia',
+        industrias_metalurgicas_turia: 'Industrias Metalúrgicas Turia'
+    };
+
+    if (knownNames[value]) {
+        return knownNames[value];
+    }
+
+    return value
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
+
 function ClientPortalAuthGate({ clientId, onAuthenticated }) {
     const [mode, setMode] = useState('login');
     const [phone, setPhone] = useState('');
@@ -3311,6 +3331,19 @@ useEffect(() => {
         setView('radar');
     };
 
+    // CLIENT_PORTAL_LOGOUT_HANDLER_V1
+    const handleClientPortalLogout = async () => {
+        try {
+            await fetch('/api/client-portal/auth/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+        } catch {}
+
+        setClientPortalAuthenticated(false);
+    };
+
+
     useEffect(() => {
         // Forzamos explícitamente la vista a 'radar' al montar el componente.
         // Esto previene que Vite mantenga en caché el estado de sesiones anteriores
@@ -3350,8 +3383,21 @@ useEffect(() => {
                                 <h1 className="mt-2 text-2xl font-black text-white">Portal Entidad</h1>
                                 <p className="mt-1 text-sm text-slate-400">Acceso privado a normativas, ayudas y oportunidades publicadas por tu asesoría.</p>
                             </div>
-                            <div className="rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-xs font-semibold text-slate-400">
-                                Cliente: <span className="text-slate-100">{effectivePortalClient}</span>
+                            <div className="flex flex-col gap-2 sm:items-end">
+                                <div className="rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-xs font-semibold text-slate-400">
+                                    Cliente: <span className="text-slate-100">{formatPortalClientDisplayName(effectivePortalClient)}</span>
+                                </div>
+
+                                {/* CLIENT_PORTAL_LOGOUT_BUTTON_V1 */}
+                                {clientPortalAuthenticated && (
+                                    <button
+                                        type="button"
+                                        onClick={handleClientPortalLogout}
+                                        className="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-xs font-bold text-slate-300 transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+                                    >
+                                        Cerrar sesión
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </header>

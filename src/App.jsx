@@ -950,7 +950,7 @@ function ClientsPanel() {
                             <div className="flex justify-between items-start mb-6">
                                 <div>
                                     <h2 className="text-2xl font-bold text-white mb-1">{selectedClient.name}</h2>
-                                    <p className="text-slate-400 text-sm font-medium">{selectedClient.sector} â€¢ {selectedClient.employees} empleados</p>
+                                    <p className="text-slate-400 text-sm font-medium">{selectedClient.sector} · {selectedClient.employees} empleados</p>
                                 </div>
                                 <div className={`px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-widest shadow-sm flex items-center gap-2 ${selectedClient.globalStatus === 'green' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : selectedClient.globalStatus === 'yellow' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : selectedClient.globalStatus === 'red' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-slate-500/10 text-slate-400 border-slate-500/30'}`}>
                                     <span className={`w-2 h-2 rounded-full ${selectedClient.globalStatus === 'green' ? 'bg-emerald-500' : selectedClient.globalStatus === 'yellow' ? 'bg-amber-500 animate-pulse' : selectedClient.globalStatus === 'red' ? 'bg-rose-500 animate-pulse' : 'bg-slate-500'}`}></span>
@@ -1058,7 +1058,6 @@ function formatHumanLabel(value) {
         compliance_obligation: 'Normativa',
         BONIFICACION_INCENTIVO_CONTRATACION: 'Bonificación / incentivo de contratación',
         INCENTIVO_FORMACION_CONTRATACION: 'Incentivo para formación y contratación',
-        'INCENTIVO_FORMACIÃ“N_CONTRATACION': 'Incentivo para formación y contratación',
         TRAMITACION_AYUDA_SUBVENCION: 'Tramitación de ayuda o subvención'
     };
 
@@ -1638,7 +1637,7 @@ function ClientPackagesPanel() {
                     <div className="flex justify-between items-start mb-6">
                         <div>
                             <h3 className="text-lg font-bold text-white mb-1">Resumen del Paquete</h3>
-                            <p className="text-slate-400 text-sm">Cliente: <span className="font-semibold text-slate-200">{packageData.package.client_name}</span> â€¢ Sector: <span className="font-semibold text-slate-200">{formatHumanLabel(packageData.package.sector_key)}</span></p>
+                            <p className="text-slate-400 text-sm">Cliente: <span className="font-semibold text-slate-200">{packageData.package.client_name}</span> · Sector: <span className="font-semibold text-slate-200">{formatHumanLabel(packageData.package.sector_key)}</span></p>
                         </div>
                         <div className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg text-xs uppercase font-bold tracking-widest flex items-center gap-2">
                             {packageData.package.package_status === 'published' ? 'Publicado' : 'Pendiente de revisión'}
@@ -2684,7 +2683,7 @@ function CommercialDashboardPanel() {
 
                                 <div className="mt-4 space-y-3 text-sm">
                                     <div>
-                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Ãšltima actualización</div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Última actualización</div>
                                         <div className="mt-1 text-slate-300">{formatDateTime(client.last_request_update)}</div>
                                     </div>
                                     <div>
@@ -2708,7 +2707,7 @@ function CommercialDashboardPanel() {
                                 <th className="py-3 pr-4 font-bold">Solicitudes</th>
                                 <th className="py-3 pr-4 font-bold">Pendientes</th>
                                 <th className="py-3 pr-4 font-bold">Gestionadas</th>
-                                <th className="py-3 pr-4 font-bold">Ãšltima actualización</th>
+                                <th className="py-3 pr-4 font-bold">Última actualización</th>
                                 <th className="py-3 font-bold">Próxima acción</th>
                             </tr>
                         </thead>

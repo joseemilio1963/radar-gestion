@@ -2616,9 +2616,13 @@ function CommercialDashboardPanel() {
                             className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-indigo-500"
                         >
                             <option value="all">Todos los tipos</option>
-                            {filterRequestTypeOptions.map(type => (
-                                <option key={textFromValue(type)} value={textFromValue(type)}>{labelFromKey(type)}</option>
-                            ))}
+                            {filterRequestTypeOptions.map(type => {
+                                const typeValue = requestTextFromValue(type?.value ?? type?.key ?? type?.request_type ?? type, '');
+                                const typeLabel = requestTextFromValue(type?.label ?? type?.name ?? type?.title ?? type?.value ?? type?.key ?? type?.request_type ?? type, typeValue);
+                                return (
+                                    <option key={typeValue} value={typeValue}>{labelFromKey(typeLabel)}</option>
+                                );
+                            })}
                         </select>
                     </div>
 
@@ -2655,7 +2659,7 @@ function CommercialDashboardPanel() {
                                 <div className="flex items-start justify-between gap-3 mb-4">
                                     <div>
                                         <h4 className="font-bold text-slate-100">{textFromValue(client.client_name ?? client.client_id, 'Cliente sin nombre')}</h4>
-                                        <p className="text-xs font-semibold text-slate-500 mt-1">{labelFromKey(client.sector_key || 'Sin sector')}</p>
+                                        <p className="text-xs font-semibold text-slate-500 mt-1">{labelFromKey(client.sector_key || client.sector_name || client.sector || 'Sin sector')}</p>
                                     </div>
                                     <span className="rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-1 text-xs font-bold text-slate-300">
                                         {client.packages_published} publicados
@@ -2715,7 +2719,7 @@ function CommercialDashboardPanel() {
                             {filteredClients.map(client => (
                                 <tr key={client.client_id} className="text-slate-300">
                                     <td className="py-4 pr-4 font-bold text-slate-100 whitespace-nowrap">{textFromValue(client.client_name ?? client.client_id, 'Cliente sin nombre')}</td>
-                                    <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{labelFromKey(client.sector_key || 'Sin sector')}</td>
+                                    <td className="py-4 pr-4 text-slate-400 whitespace-nowrap">{labelFromKey(client.sector_key || client.sector_name || client.sector || 'Sin sector')}</td>
                                     <td className="py-4 pr-4 font-semibold">{client.packages_published}</td>
                                     <td className="py-4 pr-4">{client.total_package_items}</td>
                                     <td className="py-4 pr-4">{client.interest_requests_total}</td>

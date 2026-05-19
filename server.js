@@ -1233,7 +1233,7 @@ function emptyReadServicesCommercialClient(clientId, clientName = null) {
     };
 }
 
-function ensureReadServicesCommercialClient(clientMap, clientId, clientName = null) {
+function ensureReadServicesCommercialClient(clientMap, clientId, clientName = null, extra = {}) {
     const normalizedClientId = String(clientId || '');
 
     if (!normalizedClientId) return null;
@@ -1248,6 +1248,10 @@ function ensureReadServicesCommercialClient(clientMap, clientId, clientName = nu
         client.client_name = clientName;
     }
 
+    if (!client.sector_key && (extra.sector_key || extra.sector || extra.sector_name)) {
+        client.sector_key = extra.sector_key || extra.sector || extra.sector_name;
+    }
+
     return client;
 }
 
@@ -1255,6 +1259,7 @@ function normalizeReadServicesCommercialClient(client) {
     const normalized = {
         client_id: String(client.client_id || ''),
         client_name: client.client_name || null,
+        sector_key: client.sector_key || client.sector || client.sector_name || null,
         packages_total: toReadServicesNumber(client.packages_total),
         packages_published: toReadServicesNumber(client.packages_published),
         total_package_items: toReadServicesNumber(client.total_package_items),
@@ -1316,7 +1321,7 @@ function buildReadServicesCommercialDashboardFromRows({ clientsCatalog = [], pac
         const clientId = String(pkg.client_id || '');
         if (!clientId) continue;
 
-        const client = ensureReadServicesCommercialClient(clientMap, clientId, pkg.client_name || clientId);
+        const client = ensureReadServicesCommercialClient(clientMap, clientId, pkg.client_name || clientId, { sector_key: pkg.sector_key });
         if (!client) continue;
 
         client.packages_total += 1;
@@ -1334,7 +1339,7 @@ function buildReadServicesCommercialDashboardFromRows({ clientsCatalog = [], pac
 
     for (const request of requests || []) {
         const clientId = String(request.client_id || '');
-        const client = ensureReadServicesCommercialClient(clientMap, clientId, request.client_name || clientId);
+        const client = ensureReadServicesCommercialClient(clientMap, clientId, request.client_name || clientId, { sector_key: request.sector_key });
 
         if (client) {
             client.interest_requests_total += 1;
@@ -6021,7 +6026,8 @@ const server = http.createServer(async (req, res) => {
         const searchParams = new URLSearchParams(queryString);
         const clientId = String(searchParams.get('client_id') || '').trim();
 
-        if (!clientId || !isClientPortalAuthenticatedForClient(req, clientId)) {
+        // CLIENT_PORTAL_MANAGER_PREVIEW_BYPASS_V1
+        if (!clientId || (!isManagerAuthenticated(req) && !isClientPortalAuthenticatedForClient(req, clientId))) {
             requireClientPortalAuth(res, clientId);
             return;
         }

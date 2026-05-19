@@ -2125,6 +2125,16 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div id="portal-normativas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
+                            {/* PORTAL_BACK_TO_TOP_BUTTON_V2: portal-normativas */}
+                            <div className="mb-4">
+                                <button
+                                    type="button"
+                                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
+                                >
+                                    ← Volver arriba
+                                </button>
+                            </div>
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                 <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 Normativas y obligaciones de tu empresa
@@ -2190,6 +2200,16 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                         </div>
 
                         <div id="portal-ayudas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
+                            {/* PORTAL_BACK_TO_TOP_BUTTON_V2: portal-ayudas */}
+                            <div className="mb-4">
+                                <button
+                                    type="button"
+                                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
+                                >
+                                    ← Volver arriba
+                                </button>
+                            </div>
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                 <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 Ayudas y subvenciones disponibles

@@ -426,3 +426,105 @@ Criterio actualizado del proyecto:
 Siguiente bloque recomendado:
 
 - Auditoría profesional funcional y visual V1.
+
+
+---
+
+# ACTUALIZACION_20260519_COMERCIAL_UX
+
+## Estado general
+
+Radar Gestion Valencia queda en estado demo-ready, con version white-label operativa, material comercial preparado y correcciones visuales UX desplegadas en produccion.
+
+Produccion:
+https://radar.aulagentia.eu
+
+Rama:
+main
+
+## Bloque comercial incorporado
+
+Documentos comerciales y operativos anadidos al repositorio:
+
+- GUION_VENTA_RADAR_ASESORIAS.md
+- PRESENTACION_1P_Y_SPEECH_RADAR_ASESORIAS.md
+- SECTORES_OBJETIVO_RADAR_ASESORIAS.md
+- DEMO_COMERCIAL_CHECKLIST.md
+- WHITE_LABEL_REPLICATION_CHECKLIST.md
+- CHECKPOINT_PRODUCTO_DEMO_READY_20260519.md
+
+Commits principales:
+
+- 1320643 Add sales script for Radar advisory demo
+- d646dd2 Add one-page sales presentation and call speech
+- a372da9 Add target sectors list for Radar advisory sales
+- 62e8bf3 Add commercial demo checklist D1
+- 4ca2be7 Add white-label replication checklist P1C
+- 6a3b45a Document product demo-ready checkpoint D3
+
+Criterio comercial:
+
+- No prometer integraciones no implementadas.
+- Separar disponible hoy, replica white-label operativa y modulos futuros bajo validacion tecnica, legal y operativa.
+- Presentar ingresos recurrentes como oportunidad, no como garantia.
+- DEHU, Sistema RED, WhatsApp, firma electronica, AEAT, VERI FACTU y factura electronica se tratan como posibles modulos futuros bajo estudio.
+
+## Bloque white-label
+
+Estado validado:
+
+- Marca centralizada en src/brandConfig.js.
+- index.html y public/manifest.json sincronizables mediante scripts/sync-brand-static-assets.cjs.
+- Iconos PWA sustituibles en public/icon-192x192.png y public/icon-512x512.png.
+- Checklist de replica disponible en WHITE_LABEL_REPLICATION_CHECKLIST.md.
+- Replica white-label operativa como plantilla/configuracion estatica.
+
+## Bloque UX y visual
+
+Se corrigieron mojibakes visibles en App.jsx y se anadieron botones de retorno para mejorar navegacion:
+
+- f7ac5e2 Fix UI mojibake and add manager back button
+- ed14d15 Add portal back-to-top buttons
+
+Correcciones:
+
+- Textos visibles corregidos: sesion, informacion, asesoria, implantacion, atencion y otros textos afectados.
+- Boton gestor: volver al panel principal en vistas secundarias del Entorno Gestor.
+- Botones Portal Entidad: volver arriba en portal-normativas y portal-ayudas.
+
+Validacion tecnica local:
+
+- node --check server.js OK.
+- node --check api/index.js OK.
+- npm run build OK.
+- Asset local final: index-eQulsy1C.js.
+
+Validacion produccion:
+
+- Home 200.
+- Asset produccion: /assets/index-eQulsy1C.js.
+- URL cliente transportes_levante 200.
+- API portal sin sesion 401 CLIENT_PORTAL_AUTH_REQUIRED.
+
+## Estado final
+
+Repo limpio y sincronizado antes de esta actualizacion documental:
+
+- main
+- origin/main
+- ultimo commit validado: ed14d15 Add portal back-to-top buttons
+
+No se tocaron:
+
+- Supabase.
+- Datos de negocio.
+- Feature flags.
+- Endpoints de escritura.
+- vercel --prod manual.
+
+Siguiente paso recomendado:
+
+- Revision visual manual final en navegador.
+- Preparar primera ronda de prospeccion con 30 contactos.
+- Intentar conseguir 5 reuniones discovery.
+- No abrir nuevos desarrollos salvo bug real o peticion validada por asesorias piloto.

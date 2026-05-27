@@ -867,6 +867,36 @@ function ClientsPanel() {
 
     const selectedClient = clientsData.find(c => c.id === selectedClientId);
 
+    // CLIENTS_ENTITIES_DETAIL_SCROLL_V2
+    const scrollToClientsEntitiesDetail = () => {
+        window.setTimeout(() => {
+            const target = document.getElementById('clients-entities-detail-panel');
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 120);
+    };
+
+    const scrollToClientsEntitiesSelector = () => {
+        window.setTimeout(() => {
+            const target = document.getElementById('clients-entities-top-selector');
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 80);
+    };
+
+    const handleClientsEntitiesSelectClient = (clientId) => {
+        const nextClientId = clientId || null;
+        setSelectedClientId(nextClientId);
+
+        if (nextClientId) {
+            scrollToClientsEntitiesDetail();
+        } else {
+            scrollToClientsEntitiesSelector();
+        }
+    };
+
     if (loading) return (
         <div className="flex items-center justify-center py-24 text-slate-400">
             <div className="animate-pulse flex flex-col items-center gap-6">
@@ -882,14 +912,14 @@ function ClientsPanel() {
                 <h2 className="text-xl font-bold text-white mb-2">Clientes y entidades asesoradas</h2>
 
                 {/* CLIENTS_ENTITIES_TOP_SELECTOR_V1 */}
-                <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <div id="clients-entities-top-selector" className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                     <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                             Seleccionar empresa / cliente
                         </label>
                         <select
                             value={selectedClientId || ''}
-                            onChange={(event) => setSelectedClientId(event.target.value || null)}
+                            onChange={(event) => handleClientsEntitiesSelectClient(event.target.value)}
                             className="w-full bg-slate-900/70 border border-slate-700 rounded-xl px-3 py-3 text-slate-100 text-sm font-semibold focus:outline-none focus:border-blue-500"
                         >
                             <option value="">Selecciona una empresa</option>
@@ -926,7 +956,7 @@ function ClientsPanel() {
 
                     <div className="space-y-4">
                         {clientsData.map(client => (
-                            <div key={client.id} className={`group relative bg-slate-800/60 backdrop-blur-sm p-5 rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer ${selectedClientId === client.id ? 'border-blue-500/50 bg-slate-800/90 ring-1 ring-blue-500/20 translate-x-1' : 'border-slate-700/60 hover:border-slate-600 hover:bg-slate-800/80'}`} onClick={() => setSelectedClientId(client.id)}>
+                            <div key={client.id} className={`group relative bg-slate-800/60 backdrop-blur-sm p-5 rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer ${selectedClientId === client.id ? 'border-blue-500/50 bg-slate-800/90 ring-1 ring-blue-500/20 translate-x-1' : 'border-slate-700/60 hover:border-slate-600 hover:bg-slate-800/80'}`} onClick={() => handleClientsEntitiesSelectClient(client.id)}>
                                 {selectedClientId === client.id && (
                                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-2xl"></div>
                                 )}
@@ -952,9 +982,18 @@ function ClientsPanel() {
                     </div>
                 </div>
 
-                <div className="lg:col-span-7 xl:col-span-8 lg:sticky lg:top-8">
+                <div id="clients-entities-detail-panel" className="lg:col-span-7 xl:col-span-8 lg:sticky lg:top-8 scroll-mt-28">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-5">
                         <h2 className="text-lg font-bold text-slate-200">Ficha del Cliente</h2>
+                        {selectedClient && (
+                            <button
+                                type="button"
+                                onClick={() => handleClientsEntitiesSelectClient('')}
+                                className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-300 hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-200"
+                            >
+                                ← Volver al selector de empresas
+                            </button>
+                        )}
                     </div>
 
                     {!selectedClient ? (

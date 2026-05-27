@@ -1873,6 +1873,448 @@ function PortalObligationCard({ obligation }) {
   );
 }
 
+
+// CLIENT_ASSISTANT_FAQ_V1
+const CLIENT_ASSISTANT_FAQ_DEFAULTS = [
+    {
+        id: 'documentacion_trimestral',
+        title: 'Documentación trimestral',
+        keywords: ['documentacion', 'documentos', 'trimestre', 'trimestral', 'facturas', 'iva', 'modelo', 'contabilidad'],
+        answer: 'Para la documentación trimestral, normalmente la asesoría puede necesitar facturas emitidas, facturas recibidas, justificantes bancarios y documentación relacionada con ingresos o gastos del periodo. Si tienes empleados, también puede requerirse documentación laboral. Para confirmar el caso concreto de tu empresa, la consulta debe revisarla tu asesoría.'
+    },
+    {
+        id: 'portal_cliente',
+        title: 'Uso del portal',
+        keywords: ['portal', 'entrar', 'acceder', 'clave', 'contraseña', 'ver informacion', 'donde veo'],
+        answer: 'En el portal puedes consultar la información que tu asesoría ha publicado para tu empresa: normativas, obligaciones, ayudas, avisos y oportunidades. Si necesitas revisión de un caso concreto, puedes solicitar que la asesoría contacte contigo.'
+    },
+    {
+        id: 'ayudas_subvenciones',
+        title: 'Ayudas y subvenciones',
+        keywords: ['ayuda', 'ayudas', 'subvencion', 'subvenciones', 'kit digital', 'bono', 'incentivo'],
+        answer: 'Las ayudas y subvenciones publicadas son oportunidades que tu asesoría considera relevantes para revisar. La aplicación final depende de requisitos vigentes, plazos y documentación. Si te interesa una ayuda, lo recomendable es pedir revisión a tu asesoría.'
+    },
+    {
+        id: 'normativas_obligaciones',
+        title: 'Normativas y obligaciones',
+        keywords: ['normativa', 'obligacion', 'obligaciones', 'implantar', 'cumplimiento', 'appcc', 'rgpd', 'prl', 'prevencion'],
+        answer: 'Las normativas y obligaciones del portal son avisos publicados por tu asesoría para que tengas una visión ordenada de temas que pueden afectar a tu empresa. Si una obligación aparece pendiente de revisar o implantar, conviene solicitar revisión profesional antes de tomar decisiones.'
+    },
+    {
+        id: 'formacion_bonificada',
+        title: 'Formación bonificada',
+        keywords: ['formacion', 'bonificada', 'curso', 'cursos', 'fundae', 'credito formativo', 'trabajadores'],
+        answer: 'La formación bonificada puede permitir a empresas con trabajadores aprovechar crédito formativo, siempre que se cumplan los requisitos aplicables. Si quieres revisar opciones para tu empresa, la asesoría debe valorar tu caso concreto.'
+    },
+    {
+        id: 'contacto_asesoria',
+        title: 'Contacto con la asesoría',
+        keywords: ['contactar', 'llamar', 'asesor', 'asesoria', 'consulta', 'hablar', 'cita'],
+        answer: 'Si necesitas que la asesoría revise un caso concreto, lo mejor es dejar registrada la consulta o contactar directamente con el despacho por sus canales habituales. Las consultas fiscales, laborales, legales o contables concretas deben revisarse por un profesional.'
+    }
+];
+
+const CLIENT_ASSISTANT_SENSITIVE_PATTERNS = [
+    'despedir',
+    'despido',
+    'baja laboral',
+    'trabajador de baja',
+    'sancion',
+    'inspeccion',
+    'hacienda',
+    'aeat',
+    'agencia tributaria',
+    'demanda',
+    'denuncia',
+    'juicio',
+    'cuanto tengo que pagar',
+    'que impuesto pago',
+    'puedo aplicar',
+    'puedo desgravar',
+    'puedo desgrabar',
+    'desgravar',
+    'desgrabar',
+    'deducir',
+    'deducirme',
+    'deduccion',
+    'deducciones',
+    'deducible',
+    'gasto medico',
+    'gastos medicos',
+    'seguridad social',
+    'declaracion de la renta',
+    'renta',
+    'irpf',
+    'iva',
+    'modelo 130',
+    'modelo 303',
+    'modelo 390',
+    'declarar',
+    'declaracion',
+    'autonomo',
+    'autonomos',
+    'contrato debo',
+    'legalmente',
+    'multa',
+    'embargo'
+];
+
+function normalizeAssistantText(value = '') {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9ñ\s]/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getClientAssistantFaqResponse(question) {
+    const normalized = normalizeAssistantText(question);
+
+    if (!normalized) {
+        return {
+            type: 'info',
+            title: 'Escribe o dicta tu consulta',
+            text: 'Puedes preguntar por documentación, ayudas publicadas, normativas, uso del portal o cómo solicitar revisión a tu asesoría.',
+            shouldDerive: false
+        };
+    }
+
+    const hasSensitivePattern = CLIENT_ASSISTANT_SENSITIVE_PATTERNS.some(pattern =>
+        normalized.includes(normalizeAssistantText(pattern))
+    );
+
+    const hasFiscalDecision =
+        (
+            normalized.includes('puedo') ||
+            normalized.includes('podria') ||
+            normalized.includes('me puedo') ||
+            normalized.includes('tengo derecho') ||
+            normalized.includes('me corresponde')
+        ) &&
+        (
+            normalized.includes('desgravar') ||
+            normalized.includes('desgrabar') ||
+            normalized.includes('deducir') ||
+            normalized.includes('deduccion') ||
+            normalized.includes('deducciones') ||
+            normalized.includes('gasto medico') ||
+            normalized.includes('gastos medicos') ||
+            normalized.includes('seguridad social') ||
+            normalized.includes('renta') ||
+            normalized.includes('irpf') ||
+            normalized.includes('iva') ||
+            normalized.includes('impuesto') ||
+            normalized.includes('hacienda') ||
+            normalized.includes('aeat')
+        );
+
+    const isSensitive = hasSensitivePattern || hasFiscalDecision;
+
+    if (isSensitive) {
+        return {
+            type: 'derivation',
+            title: 'Consulta para revisión profesional',
+            text: 'Esta consulta puede tener implicaciones fiscales, laborales, legales o contables y debe revisarla directamente tu asesoría. El asistente puede ayudarte a dejarla preparada para que el despacho la valore.',
+            shouldDerive: true
+        };
+    }
+
+    const scoredFaqs = CLIENT_ASSISTANT_FAQ_DEFAULTS
+        .map(item => {
+            let score = 0;
+
+            item.keywords.forEach(keyword => {
+                const normalizedKeyword = normalizeAssistantText(keyword);
+                if (normalizedKeyword && normalized.includes(normalizedKeyword)) {
+                    score += Math.max(5, normalizedKeyword.length);
+                }
+            });
+
+            const talksAboutNormative =
+                normalized.includes('normativa') ||
+                normalized.includes('normativas') ||
+                normalized.includes('obligacion') ||
+                normalized.includes('obligaciones') ||
+                normalized.includes('cumplimiento') ||
+                normalized.includes('implantar') ||
+                normalized.includes('implantacion') ||
+                normalized.includes('aparece pendiente');
+
+            if (item.id === 'normativas_obligaciones' && talksAboutNormative) {
+                score += 50;
+            }
+
+            if (item.id === 'normativas_obligaciones' && normalized.includes('pendiente')) {
+                score += 25;
+            }
+
+            if (item.id === 'documentacion_trimestral' && (
+                normalized.includes('documentacion trimestral') ||
+                normalized.includes('facturas emitidas') ||
+                normalized.includes('facturas recibidas') ||
+                normalized.includes('trimestre')
+            )) {
+                score += 35;
+            }
+
+            if (item.id === 'ayudas_subvenciones' && (
+                normalized.includes('ayuda') ||
+                normalized.includes('subvencion') ||
+                normalized.includes('kit digital')
+            )) {
+                score += 35;
+            }
+
+            return { item, score };
+        })
+        .filter(entry => entry.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+    const found = scoredFaqs[0]?.item || null;
+
+    if (found) {
+        return {
+            type: 'answer',
+            title: found.title,
+            text: found.answer,
+            shouldDerive: false
+        };
+    }
+
+    return {
+        type: 'derivation',
+        title: 'No tengo una respuesta aprobada para esta consulta',
+        text: 'Para evitar darte una información incorrecta, esta consulta debería revisarla tu asesoría. El asistente solo responde preguntas frecuentes y contenidos generales aprobados por el despacho.',
+        shouldDerive: true
+    };
+}
+
+function ClientAssistantFaqPanel({ clientName = 'tu empresa' }) {
+    const [question, setQuestion] = useState('');
+    const [answer, setAnswer] = useState(null);
+    const [listening, setListening] = useState(false);
+    const [voiceNotice, setVoiceNotice] = useState('');
+    const [derivationNotice, setDerivationNotice] = useState('');
+
+    const canUseSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    const canUseSpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+    const speakText = (text) => {
+        if (!canUseSpeechSynthesis || !text) {
+            setVoiceNotice('La lectura por voz no está disponible en este navegador.');
+            return;
+        }
+
+        try {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            utterance.rate = 0.95;
+            window.speechSynthesis.speak(utterance);
+        } catch (err) {
+            setVoiceNotice('No se ha podido reproducir la respuesta por voz.');
+        }
+    };
+
+    const handleAnswer = (forcedQuestion = null) => {
+        const finalQuestion = forcedQuestion ?? question;
+        const result = getClientAssistantFaqResponse(finalQuestion);
+        setAnswer(result);
+        setDerivationNotice('');
+
+        if (result?.text) {
+            speakText(result.text);
+        }
+    };
+
+    const handleVoiceInput = () => {
+        setVoiceNotice('');
+        setDerivationNotice('');
+
+        if (!canUseSpeechRecognition) {
+            setVoiceNotice('El dictado por voz no está disponible en este navegador. Puedes escribir la consulta.');
+            return;
+        }
+
+        try {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+
+            recognition.lang = 'es-ES';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                setListening(true);
+                setVoiceNotice('Escuchando tu consulta...');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event?.results?.[0]?.[0]?.transcript || '';
+                setQuestion(transcript);
+                setVoiceNotice('Consulta recibida por voz.');
+                handleAnswer(transcript);
+            };
+
+            recognition.onerror = () => {
+                setVoiceNotice('No se ha podido capturar la voz. Puedes escribir la consulta.');
+            };
+
+            recognition.onend = () => {
+                setListening(false);
+            };
+
+            recognition.start();
+        } catch (err) {
+            setListening(false);
+            setVoiceNotice('No se ha podido iniciar el micrófono. Revisa permisos del navegador.');
+        }
+    };
+
+    const handleDerivationDemo = () => {
+        setDerivationNotice('Consulta preparada para derivar a la asesoría. En la versión conectada, esta acción quedaría registrada en el entorno gestor para seguimiento.');
+        speakText('Consulta preparada para derivar a la asesoría. En la versión conectada, esta acción quedaría registrada en el entorno gestor.');
+    };
+
+    const quickQuestions = [
+        '¿Qué documentación tengo que enviar este trimestre?',
+        '¿Cómo consulto las ayudas disponibles?',
+        '¿Qué hago si una normativa aparece pendiente?',
+        'Quiero hablar con mi asesoría'
+    ];
+
+    const answerTitleClass = answer?.type === 'derivation'
+        ? 'font-bold mb-2 text-amber-300'
+        : 'font-bold mb-2 text-cyan-200';
+
+    return (
+        <div id="portal-asistente-faq" className="bg-slate-800/80 p-6 rounded-2xl border border-cyan-500/20 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
+                <div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-cyan-300 mb-2">Asistente de la asesoría</div>
+                    <h3 className="text-xl font-extrabold text-white">Pregunta rápida sobre tu portal</h3>
+                    <p className="text-sm text-slate-400 mt-2 max-w-3xl">
+                        Este asistente ayuda a resolver dudas frecuentes de {clientName}. Responde información general aprobada y deriva a la asesoría las consultas que requieran revisión profesional.
+                    </p>
+                </div>
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-100 font-semibold max-w-sm">
+                    No sustituye al asesor. Las cuestiones fiscales, laborales, legales o contables concretas se derivan al despacho.
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
+                <div className="space-y-4">
+                    <textarea
+                        value={question}
+                        onChange={e => setQuestion(e.target.value)}
+                        placeholder="Ejemplo: ¿Qué documentación tengo que enviar este trimestre?"
+                        className="w-full min-h-[110px] bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
+                    />
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                            type="button"
+                            onClick={() => handleAnswer()}
+                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm shadow-cyan-500/20 transition-colors"
+                        >
+                            Responder consulta
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleVoiceInput}
+                            disabled={listening}
+                            className="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-100 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-60 transition-colors"
+                        >
+                            {listening ? 'Escuchando...' : 'Hablar con el asistente'}
+                        </button>
+
+                        {answer?.text && (
+                            <button
+                                type="button"
+                                onClick={() => speakText(answer.text)}
+                                className="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-100 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                            >
+                                Leer respuesta
+                            </button>
+                        )}
+                    </div>
+
+                    {voiceNotice && (
+                        <div className="rounded-xl border border-slate-700/70 bg-slate-900/50 p-3 text-xs text-slate-300">
+                            {voiceNotice}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {quickQuestions.map(item => (
+                            <button
+                                key={item}
+                                type="button"
+                                onClick={() => {
+                                    setQuestion(item);
+                                    handleAnswer(item);
+                                }}
+                                className="text-left rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300 hover:border-cyan-500/50 hover:text-cyan-100 transition-colors"
+                            >
+                                {item}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-700/70 bg-slate-900/50 p-5">
+                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Respuesta del asistente</div>
+
+                    {!answer ? (
+                        <div className="text-sm text-slate-400 leading-relaxed">
+                            Escribe una pregunta o usa el botón de voz. El asistente responderá solo sobre preguntas frecuentes y contenidos generales.
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className={answerTitleClass}>
+                                    {answer.title}
+                                </h4>
+                                <p className="text-sm text-slate-300 leading-relaxed">
+                                    {answer.text}
+                                </p>
+                            </div>
+
+                            {answer.shouldDerive && (
+                                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+                                    <p className="text-xs text-amber-100 leading-relaxed mb-3">
+                                        Esta consulta no debe resolverse automáticamente. Debe revisarla la asesoría.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={handleDerivationDemo}
+                                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-colors"
+                                    >
+                                        Preparar derivación
+                                    </button>
+                                </div>
+                            )}
+
+                            {derivationNotice && (
+                                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-200 font-semibold">
+                                    {derivationNotice}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-slate-700/70 bg-slate-900/30 p-4 text-xs text-slate-400 leading-relaxed">
+                Módulo personalizable por asesoría: cada despacho podrá definir preguntas frecuentes, respuestas aprobadas, temas que siempre deben derivarse y tono de atención.
+            </div>
+        </div>
+    );
+}
+
 function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false } = {}) {
     const [interestLoadingId, setInterestLoadingId] = useState(null);
     const [interestFeedback, setInterestFeedback] = useState({});
@@ -2121,6 +2563,9 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                         <MetricCard title="Ayudas disponibles" value={summary.total_aid_items} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
                         <MetricCard title="Alertas relevantes" value={summary.total_radar_items} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
                     </div>
+
+                    {/* CLIENT_ASSISTANT_FAQ_PORTAL_INSERT_V1 */}
+                    <ClientAssistantFaqPanel clientName={selectedPortalClient?.name || clientId || 'tu empresa'} />
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div id="portal-normativas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">

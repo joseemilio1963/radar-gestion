@@ -3744,6 +3744,166 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+
+    // API Route: POST /api/portal/assistant-requests
+    // CLIENT_ASSISTANT_DERIVATION_REQUEST_V1
+    if (req.url === '/api/portal/assistant-requests') {
+        if (req.method !== 'POST') {
+            return sendJson(res, 405, { error: 'method_not_allowed' });
+        }
+
+        let chunks = [];
+        req.on('data', chunk => { chunks.push(chunk); });
+        req.on('end', async () => {
+            const body = Buffer.concat(chunks).toString('utf8');
+            const payload = parseJsonSafe(body);
+
+            if (!payload || !payload.client_id || !payload.question || !payload.answer_text) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_ASSISTANT_REQUEST_PAYLOAD',
+                    message: 'client_id, question y answer_text son obligatorios.'
+                });
+            }
+
+            const client_id = String(payload.client_id || '').trim();
+            const question = String(payload.question || '').trim();
+            const answerTitle = String(payload.answer_title || 'Consulta del asistente').trim();
+            const answerText = String(payload.answer_text || '').trim();
+
+            if (!isClientPortalAuthenticatedForClient(req, client_id) && !isManagerAuthenticated(req)) {
+                return requireClientPortalAuth(res, client_id);
+            }
+
+            const client = getClientCatalog().find(c => c.id === client_id || c.client_id === client_id || c.client_key === client_id);
+            if (!client) {
+                return sendJson(res, 403, {
+                    status: 'error',
+                    error_code: 'CLIENT_NOT_FOUND',
+                    message: 'Cliente no encontrado.'
+                });
+            }
+
+            const writeSource = getRadarWriteSource();
+            const shouldUseSqlite = writeSource === RADAR_WRITE_SOURCE_SQLITE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+            const shouldUseSupabase = writeSource === RADAR_WRITE_SOURCE_SUPABASE || writeSource === RADAR_WRITE_SOURCE_DUAL_WRITE;
+
+            const now = new Date().toISOString();
+            const normalizedQuestion = question.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+            const sourceId = 'assistant_faq_' + sha256Hex(normalizedQuestion).slice(0, 16);
+
+            const request = {
+                id: 'asst_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12),
+                tenant_id: 'default',
+                client_id: client.id,
+                client_name: client.name || client.nombre || client.id,
+                package_id: null,
+                package_item_id: null,
+                source_type: 'assistant_faq',
+                source_id: sourceId,
+                title: 'Consulta derivada desde asistente FAQ',
+                request_type: 'CONSULTA_ASISTENTE_FAQ',
+                request_status: 'pending_contact',
+                priority: 'high',
+                message: 'Pregunta del cliente: ' + question + '\n\nRespuesta mostrada por el asistente: ' + answerText,
+                created_at: now,
+                updated_at: now,
+                handled_at: null,
+                handled_by: null,
+                internal_notes: 'Origen: Asistente FAQ Portal Entidad. Título detectado: ' + answerTitle + '. Requiere revisión profesional por la asesoría.'
+            };
+
+            let db = null;
+            let sqliteRequest = null;
+            let supabaseRequest = null;
+
+            try {
+                if (shouldUseSqlite) {
+                    db = new DatabaseSync(DB_PATH);
+
+                    const existingStmt = db.prepare('SELECT * FROM client_interest_requests WHERE client_id = ? AND source_type = ? AND source_id = ? AND request_status = ?');
+                    const existing = existingStmt.get(request.client_id, request.source_type, request.source_id, 'pending_contact');
+
+                    if (existing) {
+                        return sendJson(res, 200, {
+                            status: 'ok',
+                            action: 'existing_pending_assistant_request_found',
+                            message: 'Ya existe una consulta pendiente para esta pregunta.',
+                            request: existing,
+                            write_source: writeSource,
+                            sqlite_action: 'existing_pending_assistant_request_found',
+                            supabase_action: shouldUseSupabase ? 'not_attempted_existing_sqlite' : 'not_used'
+                        });
+                    }
+                }
+
+                if (shouldUseSupabase) {
+                    const supabaseResult = await createSupabasePortalInterestRequest(request);
+
+                    if (!supabaseResult.ok) {
+                        return sendJson(res, supabaseResult.http_status || 503, {
+                            status: 'error',
+                            error_code: supabaseResult.error_code || 'SUPABASE_ASSISTANT_REQUEST_INSERT_FAILED',
+                            message: supabaseResult.message || 'No se ha podido registrar la consulta en Supabase.',
+                            write_source: writeSource,
+                            sqlite_action: shouldUseSqlite ? 'not_attempted_supabase_failed' : 'not_used',
+                            supabase_action: 'failed'
+                        });
+                    }
+
+                    supabaseRequest = supabaseResult.request;
+                }
+
+                if (shouldUseSqlite) {
+                    const insertStmt = db.prepare('INSERT INTO client_interest_requests (id, tenant_id, client_id, client_name, package_id, package_item_id, source_type, source_id, title, request_type, request_status, priority, message, created_at, updated_at, handled_at, handled_by, internal_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, ?)');
+                    insertStmt.run(
+                        request.id,
+                        request.tenant_id,
+                        request.client_id,
+                        request.client_name,
+                        request.package_id,
+                        request.package_item_id,
+                        request.source_type,
+                        request.source_id,
+                        request.title,
+                        request.request_type,
+                        request.request_status,
+                        request.priority,
+                        request.message,
+                        request.created_at,
+                        request.updated_at,
+                        request.internal_notes
+                    );
+
+                    sqliteRequest = db.prepare('SELECT * FROM client_interest_requests WHERE id = ?').get(request.id);
+                }
+
+                return sendJson(res, 200, {
+                    status: 'ok',
+                    action: 'assistant_request_created',
+                    message: 'Consulta registrada correctamente. Tu asesoría la revisará.',
+                    request: sqliteRequest || supabaseRequest || request,
+                    write_source: writeSource,
+                    sqlite_action: shouldUseSqlite ? 'created' : 'not_used',
+                    supabase_action: shouldUseSupabase ? 'created' : 'not_used'
+                });
+            } catch (err) {
+                console.error('Assistant Request Error:', err);
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'ASSISTANT_REQUEST_INTERNAL_ERROR',
+                    message: err.message,
+                    write_source: writeSource
+                });
+            } finally {
+                if (db) {
+                    try { db.close(); } catch {}
+                }
+            }
+        });
+        return;
+    }
+
     // API Route: POST /api/portal/interest-requests
     // write_switch_v1_portal_interest
     if (req.url === '/api/portal/interest-requests') {

@@ -2091,12 +2091,13 @@ function getClientAssistantFaqResponse(question) {
     };
 }
 
-function ClientAssistantFaqPanel({ clientName = 'tu empresa' }) {
+function ClientAssistantFaqPanel({ clientName = 'tu empresa', clientId = '' }) {
     const [question, setQuestion] = useState('');
     const [answer, setAnswer] = useState(null);
     const [listening, setListening] = useState(false);
     const [voiceNotice, setVoiceNotice] = useState('');
     const [derivationNotice, setDerivationNotice] = useState('');
+    const [derivationLoading, setDerivationLoading] = useState(false);
 
     const canUseSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window;
     const canUseSpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -2173,9 +2174,57 @@ function ClientAssistantFaqPanel({ clientName = 'tu empresa' }) {
         }
     };
 
-    const handleDerivationDemo = () => {
-        setDerivationNotice('Consulta preparada para derivar a la asesoría. En la versión conectada, esta acción quedaría registrada en el entorno gestor para seguimiento.');
-        speakText('Consulta preparada para derivar a la asesoría. En la versión conectada, esta acción quedaría registrada en el entorno gestor.');
+    const handleDerivationDemo = async () => {
+        if (!clientId) {
+            const msg = 'No se ha podido identificar el cliente del portal. Contacta con tu asesoría.';
+            setDerivationNotice(msg);
+            speakText(msg);
+            return;
+        }
+
+        if (!answer?.shouldDerive) {
+            const msg = 'Esta consulta no requiere derivación automática.';
+            setDerivationNotice(msg);
+            speakText(msg);
+            return;
+        }
+
+        setDerivationLoading(true);
+        setDerivationNotice('');
+
+        try {
+            const res = await fetch('/api/portal/assistant-requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client_id: clientId,
+                    question: question,
+                    answer_title: answer.title,
+                    answer_text: answer.text,
+                    sensitive: true
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.status === 'ok') {
+                const msg = data.action === 'existing_pending_assistant_request_found'
+                    ? 'Ya existe una consulta pendiente para esta pregunta. Tu asesoría la revisará.'
+                    : 'Consulta registrada correctamente. Tu asesoría la revisará.';
+                setDerivationNotice(msg);
+                speakText(msg);
+            } else {
+                const msg = data.message || 'No se ha podido registrar la consulta. Contacta con tu asesoría.';
+                setDerivationNotice(msg);
+                speakText(msg);
+            }
+        } catch (err) {
+            const msg = 'Error de conexión al registrar la consulta. Contacta con tu asesoría.';
+            setDerivationNotice(msg);
+            speakText(msg);
+        } finally {
+            setDerivationLoading(false);
+        }
     };
 
     const quickQuestions = [
@@ -2291,9 +2340,10 @@ function ClientAssistantFaqPanel({ clientName = 'tu empresa' }) {
                                     <button
                                         type="button"
                                         onClick={handleDerivationDemo}
-                                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-colors"
+                                        disabled={derivationLoading}
+                                        className="bg-amber-500 hover:bg-amber-400 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-colors"
                                     >
-                                        Preparar derivación
+                                        {derivationLoading ? 'Registrando...' : 'Preparar derivación'}
                                     </button>
                                 </div>
                             )}
@@ -2565,7 +2615,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     </div>
 
                     {/* CLIENT_ASSISTANT_FAQ_PORTAL_INSERT_V1 */}
-                    <ClientAssistantFaqPanel clientName={selectedPortalClient?.name || clientId || 'tu empresa'} />
+                    <ClientAssistantFaqPanel clientName={selectedPortalClient?.name || clientId || 'tu empresa'} clientId={clientId} />
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div id="portal-normativas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">

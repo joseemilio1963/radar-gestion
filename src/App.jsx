@@ -880,6 +880,28 @@ function ClientsPanel() {
         <div className="space-y-8 animate-in fade-in duration-500">
             <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
                 <h2 className="text-xl font-bold text-white mb-2">Clientes y entidades asesoradas</h2>
+
+                {/* CLIENTS_ENTITIES_TOP_SELECTOR_V1 */}
+                <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                            Seleccionar empresa / cliente
+                        </label>
+                        <select
+                            value={selectedClientId || ''}
+                            onChange={(event) => setSelectedClientId(event.target.value || null)}
+                            className="w-full bg-slate-900/70 border border-slate-700 rounded-xl px-3 py-3 text-slate-100 text-sm font-semibold focus:outline-none focus:border-blue-500"
+                        >
+                            <option value="">Selecciona una empresa</option>
+                            {clientsData.map(client => (
+                                <option key={client.id} value={client.id}>{client.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs font-semibold text-slate-400 md:text-right">
+                        {selectedClient ? 'Ficha activa: ' + selectedClient.name : 'Elige un cliente para ver su ficha'}
+                    </div>
+                </div>
                 <div className="flex items-center gap-2.5 text-blue-400 bg-blue-950/30 p-3 rounded-xl border border-blue-500/20">
                     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <div>

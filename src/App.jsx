@@ -3687,19 +3687,6 @@ export default function App() {
     const isClientExclusivePortal = Boolean(effectivePortalClient);
     const [view, setView] = useState(() => isClientExclusivePortal ? 'portal' : 'radar');
 
-    // MANAGER_MOBILE_VIEW_SCROLL_V1
-    useEffect(() => {
-        if (isClientExclusivePortal || !managerAuthenticated) return;
-
-        const timer = window.setTimeout(() => {
-            const target = document.getElementById('manager-content-start');
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }, 120);
-
-        return () => window.clearTimeout(timer);
-    }, [view, isClientExclusivePortal, managerAuthenticated]);
 
     useEffect(() => {
         if (!portalClientFromUrl) {
@@ -3723,6 +3710,20 @@ export default function App() {
         } catch {}
     }, [portalClientFromUrl, storedPortalClient]);
     const [managerAuthenticated, setManagerAuthenticated] = useState(false);
+
+    // MANAGER_MOBILE_VIEW_SCROLL_V1_SAFE_AFTER_AUTH
+    useEffect(() => {
+        if (isClientExclusivePortal || !managerAuthenticated) return;
+
+        const timer = window.setTimeout(() => {
+            const target = document.getElementById('manager-content-start');
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 120);
+
+        return () => window.clearTimeout(timer);
+    }, [view, isClientExclusivePortal, managerAuthenticated]);
     const [authLoading, setAuthLoading] = useState(true);
     const [authSubmitting, setAuthSubmitting] = useState(false);
     const [authError, setAuthError] = useState('');

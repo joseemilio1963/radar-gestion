@@ -840,6 +840,18 @@ function AidsPanel() {
     );
 }
 
+
+
+function RadarLegalNotice({ compact = false }) {
+    return (
+        <div className={`${compact ? 'mt-4 text-[11px]' : 'mt-5 text-xs'} rounded-xl border border-slate-700/70 bg-slate-950/50 px-4 py-3 text-slate-400 leading-relaxed`}>
+            {/* RADAR_VISIBLE_IP_NOTICE_V2 */}
+            <span className="font-bold text-slate-300">© Aulagentia / Radar Gestión.</span>
+            {' '}Software, diseño funcional, estructura, documentación y contenidos protegidos. Uso autorizado exclusivamente bajo licencia. Prohibida la copia, cesión, sublicencia, reproducción, explotación no autorizada o ingeniería inversa.
+        </div>
+    );
+}
+
 function ClientsPanel() {
     const [selectedClientId, setSelectedClientId] = useState(null);
     const [clientsData, setClientsData] = useState([]);
@@ -3534,6 +3546,9 @@ function ClientPortalAuthGate({ clientId, onAuthenticated }) {
                 <p className="mt-2 text-sm leading-relaxed text-slate-400">
                     Accede con tu clave o créala usando el teléfono autorizado por tu asesoría.
                 </p>
+
+                {/* RADAR_CLIENT_AUTH_VISIBLE_IP_NOTICE_V2 */}
+                <RadarLegalNotice compact />
             </div>
 
             <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-950/70 p-1">
@@ -3667,7 +3682,10 @@ function ManagerLoginGate({ onLogin, loading, error, onOpenPortal }) {
                     <p className="text-slate-400 mt-2">Acceso al Entorno Gestor</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                {/* RADAR_MANAGER_LOGIN_VISIBLE_IP_NOTICE_V2 */}
+            <RadarLegalNotice compact />
+
+            <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
                         <label htmlFor="manager-pin" className="block text-sm font-medium text-slate-300 mb-2">PIN de acceso</label>
                         <input
@@ -4170,6 +4188,9 @@ useEffect(() => {
                             </button>
                         </div>
                     )}
+
+                    {/* RADAR_MANAGER_VISIBLE_IP_NOTICE_V2 */}
+                    {!isClientExclusivePortal && <RadarLegalNotice compact />}
 
                     {view === 'radar' && <RadarPanel />}
                 {view === 'normativas' && <CompliancePanel />}

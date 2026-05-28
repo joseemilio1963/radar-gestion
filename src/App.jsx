@@ -2631,6 +2631,9 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     <p className="text-sm text-slate-400 mt-2">
                         Información publicada por tu asesoría para esta entidad.
                     </p>
+                    {/* RADAR_CLIENT_PORTAL_TOP_VISIBLE_IP_NOTICE_V2 */}
+                    <RadarLegalNotice compact />
+
                     <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <a href="#portal-normativas" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 hover:bg-emerald-500/20 transition-colors">
                             <div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Normativas</div>
@@ -2689,11 +2692,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
 
                     {/* CLIENT_ASSISTANT_FAQ_PORTAL_INSERT_V1 */}
                     <ClientAssistantFaqPanel clientName={selectedPortalClient?.name || clientId || 'tu empresa'} clientId={clientId} />
-
-                    {/* RADAR_CLIENT_PORTAL_INSIDE_VISIBLE_IP_NOTICE_V2 */}
-                    <RadarLegalNotice compact />
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div id="portal-normativas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
                             {/* PORTAL_BACK_TO_TOP_BUTTON_V2: portal-normativas */}
                             <div className="mb-4">

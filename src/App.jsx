@@ -2690,6 +2690,9 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                     {/* CLIENT_ASSISTANT_FAQ_PORTAL_INSERT_V1 */}
                     <ClientAssistantFaqPanel clientName={selectedPortalClient?.name || clientId || 'tu empresa'} clientId={clientId} />
 
+                    {/* RADAR_CLIENT_PORTAL_INSIDE_VISIBLE_IP_NOTICE_V2 */}
+                    <RadarLegalNotice compact />
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div id="portal-normativas" className="scroll-mt-28 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm">
                             {/* PORTAL_BACK_TO_TOP_BUTTON_V2: portal-normativas */}

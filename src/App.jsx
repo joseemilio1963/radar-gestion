@@ -4176,18 +4176,6 @@ useEffect(() => {
                 {/* MANAGER_MOBILE_VIEW_SCROLL_TARGET_V1 */}
                     <div id="manager-content-start" className="scroll-mt-28" />
 
-                    {/* MANAGER_MOBILE_BACK_TO_MAIN_V1 */}
-                    {view !== 'radar' && !isClientExclusivePortal && (
-                        <div className="mb-4">
-                            <button
-                                type="button"
-                                onClick={() => setView('radar')}
-                                className="w-full sm:w-auto rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-left text-sm font-black text-slate-200 hover:border-indigo-500/50 hover:bg-indigo-500/10 hover:text-indigo-200"
-                            >
-                                ← Volver al panel principal
-                            </button>
-                        </div>
-                    )}
 
                     {/* RADAR_MANAGER_VISIBLE_IP_NOTICE_V2 */}
                     {!isClientExclusivePortal && <RadarLegalNotice compact />}

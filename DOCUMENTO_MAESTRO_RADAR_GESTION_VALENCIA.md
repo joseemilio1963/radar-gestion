@@ -528,3 +528,76 @@ Siguiente paso recomendado:
 - Preparar primera ronda de prospeccion con 30 contactos.
 - Intentar conseguir 5 reuniones discovery.
 - No abrir nuevos desarrollos salvo bug real o peticion validada por asesorias piloto.
+
+---
+
+## ACTUALIZACION_20260527_ASISTENTE_FAQ_DERIVACION_REAL_UX_MOVIL_PROTECCION_BASE
+
+**Fecha:** 2026-05-27  
+**Producción:** https://radar.aulagentia.eu  
+**Commit final validado:** `9277421 Scroll to selected client detail on mobile`
+
+### Resumen
+
+Se incorpora a Radar Gestión Valencia una primera versión funcional del asistente FAQ para Portal Entidad, con soporte de voz, respuestas predefinidas, filtro de consultas sensibles y derivación real al entorno gestor.
+
+También se incorporan mejoras UX móvil en el entorno gestor y se define la base estratégica de protección de propiedad intelectual y explotación bajo licencia.
+
+### Commits incluidos
+
+- `b5b80d4 Add client portal FAQ assistant V1`
+- `80281ac Connect client FAQ assistant derivation requests`
+- `60202c8 Add top client selector to clients entities view`
+- `7bdaa16 Improve mobile manager section navigation`
+- `3f28ae4 Fix mobile manager navigation runtime blank`
+- `9277421 Scroll to selected client detail on mobile`
+
+### Funcionalidad incorporada
+
+- Asistente FAQ visible en Portal Entidad.
+- Entrada por texto y voz.
+- Lectura de respuesta por voz.
+- Filtro de consultas sensibles fiscales, laborales, legales y contables.
+- Derivación real mediante `POST /api/portal/assistant-requests`.
+- Registro en `client_interest_requests`.
+- Visualización en Paquetes para cliente y Vista Comercial.
+- Endpoint protegido por sesión cliente o gestor.
+- Sin sesión devuelve `CLIENT_PORTAL_AUTH_REQUIRED`.
+
+### Accesos demo móvil
+
+- Transportes Levante SL: `12345678T`
+- Clínica Dental Sonrisas: `12345678C`
+- Inmobiliaria Turia: `12345678I`
+- Industrias Metalúrgicas Turia: `12345678M`
+
+Teléfono demo: `600000000`.
+
+### Mejoras UX móvil
+
+- Selector superior en Clientes / Entidades.
+- Scroll automático a Ficha del Cliente.
+- Botón “← Volver al selector de empresas”.
+- Scroll automático al cambiar de sección del gestor.
+- Botón “← Volver al panel principal”.
+- Corrección de pantalla blanca en Preview.
+
+### Protección IP / explotación
+
+Se acuerda iniciar capa de protección comercial, legal y técnica:
+
+- Radar debe explotarse como licencia de uso, no como venta de código.
+- Aulagentia conserva propiedad intelectual, prompts, estructura funcional, documentación, know-how y backend.
+- Se recomienda añadir avisos legales en la app, footer de titularidad y base futura de control de licencia por asesoría.
+- Cualquier cesión de código fuente o explotación exclusiva debe tratarse como venta de activo tecnológico de alto valor.
+
+### Pendientes derivados
+
+- Implementar aviso legal visible en app.
+- Hacer clicables las métricas del Portal Entidad con botón “Volver al inicio”.
+- Corregir falso positivo del asistente FAQ en consultas sobre SL, montar empresa o sociedad limitada.
+- Completar auditoría de botones accionables.
+
+### Documento relacionado
+
+`checkpoint_asistente_faq_derivacion_real_mejoras_mobile_20260527.md`

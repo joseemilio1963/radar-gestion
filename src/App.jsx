@@ -3312,7 +3312,7 @@ function CommercialDashboardPanel() {
                 <button
                     type="button"
                     onClick={() => {
-                        setFilters(current => ({ ...current, client_id: 'all' })); document.getElementById('comercial-filtros')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        setFilters(current => ({ ...current, client_id: 'all', status: 'all', request_type: 'all', priority: 'all' })); setTimeout(() => document.getElementById('comercial-clientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
                     }}
                     className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
                     title="Ver clientes"
@@ -3323,7 +3323,7 @@ function CommercialDashboardPanel() {
                 <button
                     type="button"
                     onClick={() => {
-                        document.getElementById('comercial-filtros')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        setFilters(current => ({ ...current, client_id: 'all', status: 'all', request_type: 'all', priority: 'all' })); setTimeout(() => document.getElementById('comercial-clientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
                     }}
                     className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
                     title="Ver paquetes publicados"
@@ -3431,7 +3431,9 @@ function CommercialDashboardPanel() {
 
             <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
                 <div className="flex items-center justify-between gap-4 mb-5">
-                    <h3 className="text-lg font-bold text-white">Clientes</h3>
+                    {/* COMMERCIAL_TOP_METRIC_TARGET_CLIENTS_V1 */}
+            <div id="comercial-clientes" className="scroll-mt-28" />
+            <h3 className="text-lg font-bold text-white">Clientes</h3>
                     <span className="text-sm text-slate-500 font-medium">{filteredClients.length} resultados</span>
                 </div>
 

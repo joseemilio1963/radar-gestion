@@ -2623,7 +2623,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
     const relevantAlertsCount = Number(summary?.total_radar_items || 0);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div id="portal-cliente-inicio" className="space-y-8 animate-in fade-in duration-500">
             {exclusiveClientPortal ? (
                 <div className="bg-slate-800/80 p-5 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Portal Entidad</div>
@@ -2685,9 +2685,16 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
             {!loading && summary && summary.total_published_packages > 0 && (
                 <div className="space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                        <MetricCard title="Obligaciones validadas" value={summary.total_compliance_items} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
-                        <MetricCard title="Ayudas disponibles" value={summary.total_aid_items} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
-                        <MetricCard title="Alertas relevantes" value={summary.total_radar_items} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+                        {/* PORTAL_METRICS_CLICK_NAV_V2 */}
+                        <a href="#portal-obligaciones-validadas" className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-400/60">
+                            <MetricCard title="Obligaciones validadas" value={summary.total_compliance_items} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
+                        </a>
+                        <a href="#portal-ayudas" className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-400/60">
+                            <MetricCard title="Ayudas disponibles" value={summary.total_aid_items} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                        </a>
+                        <a href="#portal-alertas-relevantes" className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-400/60">
+                            <MetricCard title="Alertas relevantes" value={summary.total_radar_items} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+                        </a>
                     </div>
 
                     {/* CLIENT_ASSISTANT_FAQ_PORTAL_INSERT_V1 */}
@@ -2698,10 +2705,10 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                             <div className="mb-4">
                                 <button
                                     type="button"
-                                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                    onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                     className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
                                 >
-                                    ← Volver arriba
+                                    ← Volver al inicio
                                 </button>
                             </div>
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -2725,6 +2732,16 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                             </div>
 
                             <div id="portal-obligaciones-validadas" className="scroll-mt-28 mb-6">
+                                {/* PORTAL_BACK_TO_START_OBLIGATIONS_V2 */}
+                                <div className="mb-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
+                                    >
+                                        ← Volver al inicio
+                                    </button>
+                                </div>
                                 <div className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Obligaciones validadas</div>
                                 {validatedObligations.length === 0 ? (
                                     <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-400">
@@ -2755,6 +2772,16 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                             </div>
 
                             <div id="portal-alertas-relevantes" className="scroll-mt-28">
+                                {/* PORTAL_BACK_TO_START_ALERTS_V2 */}
+                                <div className="mb-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
+                                    >
+                                        ← Volver al inicio
+                                    </button>
+                                </div>
                                 <div className="text-xs font-bold uppercase tracking-widest text-rose-300 mb-3">Alertas relevantes</div>
                                 {relevantAlertsCount > 0 ? (
                                     <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
@@ -2773,10 +2800,10 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                             <div className="mb-4">
                                 <button
                                     type="button"
-                                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                    onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                     className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
                                 >
-                                    ← Volver arriba
+                                    ← Volver al inicio
                                 </button>
                             </div>
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">

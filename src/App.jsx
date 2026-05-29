@@ -2250,8 +2250,8 @@ function getClientAssistantPriorityIntent(normalized) {
   if (asksCompanyCreation) {
     return {
       type: 'derivation',
-      title: 'Consulta de constitución de empresa',
-      text: 'La creación de una SL o la constitución de una empresa no es una consulta de documentación trimestral. Es una operación societaria y fiscal que debe revisar directamente la asesoría. De forma orientativa, normalmente pueden intervenir datos de socios, administrador, actividad, domicilio, capital social, denominación social, estatutos, alta censal y obligaciones fiscales/laborales iniciales, pero la documentación exacta depende del caso. Lo correcto es derivar esta consulta al despacho para que te indiquen el procedimiento y la documentación concreta.',
+      title: 'Constitución de SL o empresa',
+      text: 'Para constituir una SL o iniciar una actividad empresarial, la documentación puede variar según el caso concreto: socios, administrador, actividad, domicilio, capital social, denominación social, estatutos, alta censal y posibles obligaciones fiscales o laborales iniciales. De forma orientativa, la asesoría suele revisar datos de socios y administrador, actividad prevista, domicilio, forma de inicio y documentación necesaria para preparar el alta y los trámites correspondientes. Como depende de tu situación concreta, lo adecuado es derivar esta consulta al despacho para que te indiquen el procedimiento exacto y la documentación que debes aportar.',
       shouldDerive: true
     };
   }

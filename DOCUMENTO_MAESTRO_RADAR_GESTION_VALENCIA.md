@@ -601,3 +601,39 @@ Se acuerda iniciar capa de protección comercial, legal y técnica:
 ### Documento relacionado
 
 `checkpoint_asistente_faq_derivacion_real_mejoras_mobile_20260527.md`
+
+---
+
+## CHECKPOINT_ASISTENTE_FAQ_INTENCIONES_PRIORITARIAS_PRODUCCION_VALIDADO_20260529
+
+### Checkpoint — Asistente FAQ con intenciones prioritarias validado en producción
+
+**Fecha:** 2026-05-29  
+**Producción:** https://radar.aulagentia.eu  
+**Commit validado:** `3e41698 Improve client assistant SL response tone`  
+**Asset producción validado:** `/assets/index-d60uI9kJ.js`
+
+Se valida en producción el ajuste del asistente FAQ del Portal Entidad para corregir respuestas ante preguntas de cliente sobre:
+
+- Constitución de SL o creación de empresa.
+- Plazos de entrega de documentación trimestral.
+- Derivación a la asesoría cuando la consulta requiere revisión profesional.
+
+Resultados validados:
+
+- La pregunta sobre montar una empresa / documentación para una SL responde como **Constitución de SL o empresa**.
+- La respuesta ya no menciona documentación trimestral.
+- La pregunta sobre fecha de entrega de documentación trimestral responde como **Plazo para documentación trimestral**.
+- Ambas consultas derivan correctamente a la asesoría.
+- Producción validada con `PRODUCTION_ASSISTANT_FAQ_INTENTS_V1_OK=True`.
+- Sin mojibakes.
+- Sin textos internos visibles como `V2 accionable` o `Exportaciones MARC`.
+
+Checkpoint técnico asociado:
+
+`checkpoint_asistente_faq_intenciones_prioritarias_produccion_validado_20260529.md`
+
+Estado:
+
+`VALIDADO_EN_PRODUCCION`
+

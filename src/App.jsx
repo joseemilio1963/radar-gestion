@@ -101,9 +101,16 @@ function RadarPanel() {
                     type="button"
                     onClick={() => document.getElementById('radar-lista-hallazgos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                     className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
-                    title="Ver exportaciones"
+                    title="Ver resultados preparados"
                 >
-                    <MetricCard title="Exportaciones generadas" value={metrics.exports} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                    <MetricCard
+                        title="Resultados preparados"
+                        value={metrics.exports}
+                        description="Resultados detectados por Radar y preparados para su revisión antes de actuar o publicar al cliente."
+                        color="text-emerald-400"
+                        border="border-emerald-500/20"
+                        bg="bg-emerald-950/20"
+                    />
                 </button>
                 {/* RADAR_TOP_CARD_UNPUBLISHED_CLICK_V1 */}
                 <button
@@ -1198,10 +1205,12 @@ function ClientsPanel() {
     );
 }
 
-function MetricCard({ title, value, color, border, bg }) {
+function MetricCard({ title, value, description, color, border, bg }) {
     return (
         <div className={`${bg} p-6 rounded-2xl border ${border} shadow-sm backdrop-blur-sm transition-transform hover:-translate-y-1 duration-300`}>
             <div className="text-slate-400 text-[11px] uppercase tracking-widest mb-2 font-bold">{title}</div>
+            {/* RESULTADOS_PREPARADOS_DESCRIPTION_RENDER_V1 */}
+            {description ? <p className="mb-3 -mt-1 text-xs leading-snug text-slate-400/90 normal-case font-normal tracking-normal">{description}</p> : null}
             <div className={`text-3xl font-extrabold ${color}`}>{value}</div>
         </div>
     );
@@ -4529,10 +4538,3 @@ function NavTab({ active, onClick, label, icon, disabled }) {
         </button>
     );
 }
-
-
-
-
-
-
-

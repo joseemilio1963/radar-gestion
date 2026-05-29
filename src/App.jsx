@@ -78,10 +78,42 @@ function RadarPanel() {
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Bloque de métricas */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <MetricCard title="Hallazgos pendientes" value={metrics.pending} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
-                <MetricCard title="Normativas detectadas" value={metrics.normativas} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
-                <MetricCard title="Exportaciones MARC" value={metrics.exports} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
-                <MetricCard title="No publicados al cliente" value={metrics.notPublished} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
+                {/* RADAR_TOP_CARD_PENDING_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('radar-lista-hallazgos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver lista de hallazgos"
+                >
+                    <MetricCard title="Hallazgos pendientes" value={metrics.pending} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
+                </button>
+                {/* RADAR_TOP_CARD_NORMATIVAS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('radar-lista-hallazgos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver normativas detectadas"
+                >
+                    <MetricCard title="Normativas detectadas" value={metrics.normativas} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
+                </button>
+                {/* RADAR_TOP_CARD_EXPORTS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('radar-lista-hallazgos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver exportaciones"
+                >
+                    <MetricCard title="Exportaciones MARC" value={metrics.exports} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                </button>
+                {/* RADAR_TOP_CARD_UNPUBLISHED_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('radar-lista-hallazgos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver no publicados al cliente"
+                >
+                    <MetricCard title="No publicados al cliente" value={metrics.notPublished} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
+                </button>
             </div>
 
             {/* Layout principal */}
@@ -89,7 +121,9 @@ function RadarPanel() {
                 {/* Columna izquierda: Lista */}
                 <div className="lg:col-span-7 xl:col-span-7 space-y-5">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <h2 className="text-lg font-bold text-slate-200">Lista de Hallazgos</h2>
+                        {/* RADAR_TOP_METRIC_TARGET_LIST_V1 */}
+                    <div id="radar-lista-hallazgos" className="scroll-mt-28" />
+                    <h2 className="text-lg font-bold text-slate-200">Lista de Hallazgos</h2>
                         <span className="text-sm text-slate-500 font-medium">{items.length} resultados</span>
                     </div>
 
@@ -314,7 +348,9 @@ function CompliancePanel() {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
+            {/* COMMERCIAL_TOP_METRIC_TARGET_FILTERS_V1 */}
+                    <div id="comercial-filtros" className="scroll-mt-28" />
+                    <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
                 <h2 className="text-xl font-bold text-white mb-2">Normativas base de obligado cumplimiento</h2>
                 <div className="flex items-center gap-2.5 text-amber-400 bg-amber-950/30 p-3 rounded-xl border border-amber-500/20">
                     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
@@ -659,16 +695,50 @@ function AidsPanel() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <MetricCard title="Ayudas pendientes" value={metrics.pending} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
-                <MetricCard title="Bonificaciones" value={metrics.bonificaciones} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
-                <MetricCard title="Incentivos" value={metrics.incentivos} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
-                <MetricCard title="No publicadas al cliente" value={metrics.notPublished} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+                {/* AIDS_TOP_CARD_PENDING_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('ayudas-lista-pendientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver ayudas pendientes"
+                >
+                    <MetricCard title="Ayudas pendientes" value={metrics.pending} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                </button>
+                {/* AIDS_TOP_CARD_BONIFICACIONES_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('ayudas-lista-pendientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver bonificaciones"
+                >
+                    <MetricCard title="Bonificaciones" value={metrics.bonificaciones} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
+                </button>
+                {/* AIDS_TOP_CARD_INCENTIVOS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('ayudas-lista-pendientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver incentivos"
+                >
+                    <MetricCard title="Incentivos" value={metrics.incentivos} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
+                </button>
+                {/* AIDS_TOP_CARD_UNPUBLISHED_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('ayudas-lista-pendientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver no publicadas al cliente"
+                >
+                    <MetricCard title="No publicadas al cliente" value={metrics.notPublished} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-7 xl:col-span-7 space-y-5">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <h2 className="text-lg font-bold text-slate-200">Lista de Ayudas pendientes</h2>
+                        {/* AIDS_TOP_METRIC_TARGET_LIST_V1 */}
+                    <div id="ayudas-lista-pendientes" className="scroll-mt-28" />
+                    <h2 className="text-lg font-bold text-slate-200">Lista de Ayudas pendientes</h2>
                         <span className="text-sm text-slate-500 font-medium">{items.length} resultados</span>
                     </div>
 
@@ -954,16 +1024,50 @@ function ClientsPanel() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <MetricCard title="Clientes activos" value={metrics.activeClients} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
-                <MetricCard title="Alertas rojas" value={metrics.redAlerts} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
-                <MetricCard title="Obligaciones sin evaluar" value={metrics.unevaluated} color="text-slate-400" border="border-slate-500/20" bg="bg-slate-900/40" />
-                <MetricCard title="Ayudas abiertas" value={metrics.openAids} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                {/* CLIENTS_TOP_CARD_ACTIVE_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('clientes-entidades-directorio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver directorio de clientes"
+                >
+                    <MetricCard title="Clientes activos" value={metrics.activeClients} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
+                </button>
+                {/* CLIENTS_TOP_CARD_RED_ALERTS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('clientes-entidades-ficha')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver ficha del cliente"
+                >
+                    <MetricCard title="Alertas rojas" value={metrics.redAlerts} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+                </button>
+                {/* CLIENTS_TOP_CARD_UNEVALUATED_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('clientes-entidades-ficha')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver obligaciones en ficha"
+                >
+                    <MetricCard title="Obligaciones sin evaluar" value={metrics.unevaluated} color="text-slate-400" border="border-slate-500/20" bg="bg-slate-900/40" />
+                </button>
+                {/* CLIENTS_TOP_CARD_OPEN_AIDS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('clientes-entidades-ficha')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver ayudas en ficha"
+                >
+                    <MetricCard title="Ayudas abiertas" value={metrics.openAids} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <h2 className="text-lg font-bold text-slate-200">Directorio</h2>
+                        {/* CLIENTS_TOP_METRIC_TARGET_DIRECTORIO_V1 */}
+                    <div id="clientes-entidades-directorio" className="scroll-mt-28" />
+                    <h2 className="text-lg font-bold text-slate-200">Directorio</h2>
                     </div>
 
                     <div className="space-y-4">
@@ -996,7 +1100,9 @@ function ClientsPanel() {
 
                 <div id="clients-entities-detail-panel" className="lg:col-span-7 xl:col-span-8 lg:sticky lg:top-8 scroll-mt-28">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-5">
-                        <h2 className="text-lg font-bold text-slate-200">Ficha del Cliente</h2>
+                        {/* CLIENTS_TOP_METRIC_TARGET_FICHA_V1 */}
+                    <div id="clientes-entidades-ficha" className="scroll-mt-28" />
+                    <h2 className="text-lg font-bold text-slate-200">Ficha del Cliente</h2>
                         {selectedClient && (
                             <button
                                 type="button"
@@ -1718,16 +1824,50 @@ function ClientPackagesPanel() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                        <MetricCard title="Total Items" value={packageData.counts.total_items} color="text-white" border="border-slate-700/60" bg="bg-slate-900/40" />
-                        <MetricCard title="Normativas" value={packageData.counts.total_compliance_items} color="text-blue-400" border="border-blue-500/20" bg="bg-blue-950/20" />
-                        <MetricCard title="Ayudas" value={packageData.counts.total_aid_items} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
-                        <MetricCard title="Hallazgos" value={packageData.counts.total_radar_items} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+                        {/* PACKAGES_TOP_CARD_TOTAL_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('paquetes-items-incluidos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver items incluidos"
+                >
+                    <MetricCard title="Total Items" value={packageData.counts.total_items} color="text-white" border="border-slate-700/60" bg="bg-slate-900/40" />
+                </button>
+                        {/* PACKAGES_TOP_CARD_NORMATIVAS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('paquetes-items-incluidos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver normativas incluidas"
+                >
+                    <MetricCard title="Normativas" value={packageData.counts.total_compliance_items} color="text-blue-400" border="border-blue-500/20" bg="bg-blue-950/20" />
+                </button>
+                        {/* PACKAGES_TOP_CARD_AIDS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('paquetes-items-incluidos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver ayudas incluidas"
+                >
+                    <MetricCard title="Ayudas" value={packageData.counts.total_aid_items} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                </button>
+                        {/* PACKAGES_TOP_CARD_RADAR_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => document.getElementById('paquetes-items-incluidos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver hallazgos incluidos"
+                >
+                    <MetricCard title="Hallazgos" value={packageData.counts.total_radar_items} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+                </button>
                     </div>
 
                     <div className="mb-8">
                         <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
-                                <h4 className="text-sm font-bold text-slate-200 uppercase tracking-widest">
+                                {/* PACKAGES_TOP_METRIC_TARGET_ITEMS_V1 */}
+                    <div id="paquetes-items-incluidos" className="scroll-mt-28" />
+                    <h4 className="text-sm font-bold text-slate-200 uppercase tracking-widest">
                                     Items incluidos para revisión humana
                                 </h4>
                                 <p className="text-xs text-slate-500 mt-1">
@@ -3155,8 +3295,8 @@ function CommercialDashboardPanel() {
         <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-extrabold text-white">Vista Comercial V2 accionable</h2>
-                    <p className="text-slate-400 text-sm mt-1">Seguimiento comercial accionable, Nota interna y referencias oficiales.</p>
+                    <h2 className="text-2xl font-extrabold text-white">Seguimiento Comercial</h2>
+                    <p className="text-slate-400 text-sm mt-1">Seguimiento comercial de clientes, solicitudes y oportunidades.</p>
                 </div>
                 <button
                     type="button"
@@ -3168,11 +3308,61 @@ function CommercialDashboardPanel() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-5">
-                <MetricCard title="Clientes" value={counts.clients_total ?? 0} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
-                <MetricCard title="Paquetes publicados" value={counts.packages_published ?? 0} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
-                <MetricCard title="Solicitudes totales" value={counts.interest_requests_total ?? 0} color="text-blue-400" border="border-blue-500/20" bg="bg-blue-950/20" />
-                <MetricCard title="Pendientes" value={counts.pending_contact ?? 0} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
-                <MetricCard title="Gestionadas" value={counts.handled ?? 0} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                {/* COMMERCIAL_TOP_CARD_CLIENTS_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setFilters(current => ({ ...current, client_id: 'all' })); document.getElementById('comercial-filtros')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver clientes"
+                >
+                    <MetricCard title="Clientes" value={counts.clients_total ?? 0} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
+                </button>
+                {/* COMMERCIAL_TOP_CARD_PACKAGES_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        document.getElementById('comercial-filtros')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver paquetes publicados"
+                >
+                    <MetricCard title="Paquetes publicados" value={counts.packages_published ?? 0} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
+                </button>
+                {/* COMMERCIAL_TOP_CARD_REQUESTS_TOTAL_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setFilters(current => ({ ...current, status: 'all' })); document.getElementById('comercial-solicitudes')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver solicitudes totales"
+                >
+                    <MetricCard title="Solicitudes totales" value={counts.interest_requests_total ?? 0} color="text-blue-400" border="border-blue-500/20" bg="bg-blue-950/20" />
+                </button>
+                {/* COMMERCIAL_TOP_CARD_PENDING_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setFilters(current => ({ ...current, status: 'pending_contact' })); document.getElementById('comercial-solicitudes')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver solicitudes pendientes"
+                >
+                    <MetricCard title="Pendientes" value={counts.pending_contact ?? 0} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
+                </button>
+                {/* COMMERCIAL_TOP_CARD_HANDLED_CLICK_V1 */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setFilters(current => ({ ...current, status: 'handled' })); document.getElementById('comercial-solicitudes')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="block w-full text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+                    title="Ver solicitudes gestionadas"
+                >
+                    <MetricCard title="Gestionadas" value={counts.handled ?? 0} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                </button>
             </div>
 
             <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
@@ -3333,6 +3523,8 @@ function CommercialDashboardPanel() {
 
             <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
                 <div className="flex items-center justify-between gap-4 mb-5">
+                    {/* COMMERCIAL_TOP_METRIC_TARGET_REQUESTS_V1 */}
+                    <div id="comercial-solicitudes" className="scroll-mt-28" />
                     <h3 className="text-lg font-bold text-white">Solicitudes comerciales</h3>
                     <span className="text-sm text-slate-500 font-medium">{filteredRequests.length} resultados</span>
                 </div>

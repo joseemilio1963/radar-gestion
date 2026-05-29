@@ -637,3 +637,50 @@ Estado:
 
 `VALIDADO_EN_PRODUCCION`
 
+
+---
+
+## Actualización 2026-05-29 — Microcheckpoint producción: “Resultados preparados”
+
+Se documenta el microcheckpoint de mejora UX/comercial validado en producción para sustituir la etiqueta visible:
+
+`Exportaciones generadas`
+
+por:
+
+`Resultados preparados`
+
+Commit funcional validado:
+
+`41e5ae7 Rename exports metric to prepared results`
+
+Asset producción validado:
+
+`/assets/index-FKzgs-zf.js`
+
+Validación producción:
+
+- `HOME_HTTP=200`
+- `ASSET_HTTP=200`
+- `HAS_RESULTADOS_PREPARADOS=true`
+- `HAS_DESCRIPTION=true`
+- `HAS_NEW_TOOLTIP=true`
+- `HAS_OLD_EXPORTACIONES_GENERADAS=false`
+- `HAS_OLD_EXPORTACIONES_MARC=false`
+- `HAS_OLD_TOOLTIP_VER_EXPORTACIONES=false`
+- `HAS_KNOWN_BROKEN_REVISION=false`
+- `PRODUCTION_RESULTADOS_PREPARADOS_V1_OK=true`
+
+Descripción visible añadida:
+
+`Resultados detectados por Radar y preparados para su revisión antes de actuar o publicar al cliente.`
+
+Checkpoint asociado:
+
+`checkpoint_resultados_preparados_produccion_validado_20260529_190644.md`
+
+Estado:
+
+`VALIDADO_EN_PRODUCCION`
+
+No se tocaron Supabase, datos de negocio, feature flags, endpoints backend ni escrituras productivas.

@@ -2182,8 +2182,105 @@ function normalizeAssistantText(value = '') {
         .trim();
 }
 
+// CLIENT_ASSISTANT_PRIORITY_INTENTS_V2
+const CLIENT_ASSISTANT_COMPANY_CREATION_PATTERNS = [
+  'crear una sl',
+  'crear sl',
+  'montar una sl',
+  'montar sl',
+  'constituir una sl',
+  'constituir sl',
+  'sociedad limitada',
+  'abrir una sociedad',
+  'crear una sociedad',
+  'crear sociedad',
+  'montar una empresa',
+  'montar empresa',
+  'crear una empresa',
+  'crear empresa',
+  'alta de empresa',
+  'alta empresa',
+  'documentacion para una sl',
+  'documentos para una sl',
+  'documentacion necesito para una sl',
+  'que documentacion necesito para una sl',
+  'que documentacion necesito para crear una sl'
+];
+
+const CLIENT_ASSISTANT_QUARTER_DEADLINE_PATTERNS = [
+  'fecha',
+  'plazo',
+  'cuando',
+  'hasta cuando',
+  'ultimo dia',
+  'ultimo plazo',
+  'dia limite',
+  'limite',
+  'entregar la documentacion',
+  'entregar documentacion',
+  'enviar la documentacion',
+  'enviar documentacion',
+  'mandar la documentacion',
+  'mandar documentacion',
+  'llevar la documentacion',
+  'llevar documentacion'
+];
+
+const CLIENT_ASSISTANT_QUARTER_CONTEXT_PATTERNS = [
+  'trimestre',
+  'trimestral',
+  'declaracion trimestral',
+  'liquidacion trimestral',
+  'modelo 303',
+  'modelo 130',
+  'modelo 131',
+  'modelo 111',
+  'modelo 115',
+  'iva',
+  'irpf'
+];
+
+function assistantTextIncludesAny(normalizedText, patterns) {
+  return patterns.some(pattern => normalizedText.includes(normalizeAssistantText(pattern)));
+}
+
+function getClientAssistantPriorityIntent(normalized) {
+  const asksCompanyCreation = assistantTextIncludesAny(normalized, CLIENT_ASSISTANT_COMPANY_CREATION_PATTERNS);
+
+  if (asksCompanyCreation) {
+    return {
+      type: 'derivation',
+      title: 'Consulta de constitución de empresa',
+      text: 'La creación de una SL o la constitución de una empresa no es una consulta de documentación trimestral. Es una operación societaria y fiscal que debe revisar directamente la asesoría. De forma orientativa, normalmente pueden intervenir datos de socios, administrador, actividad, domicilio, capital social, denominación social, estatutos, alta censal y obligaciones fiscales/laborales iniciales, pero la documentación exacta depende del caso. Lo correcto es derivar esta consulta al despacho para que te indiquen el procedimiento y la documentación concreta.',
+      shouldDerive: true
+    };
+  }
+
+  const asksQuarterDeadline =
+    assistantTextIncludesAny(normalized, CLIENT_ASSISTANT_QUARTER_DEADLINE_PATTERNS) &&
+    assistantTextIncludesAny(normalized, CLIENT_ASSISTANT_QUARTER_CONTEXT_PATTERNS);
+
+  if (asksQuarterDeadline) {
+    return {
+      type: 'derivation',
+      title: 'Plazo para documentación trimestral',
+      text: 'Para la documentación trimestral, lo importante no es solo qué documentos aportar, sino la fecha límite interna que marque tu asesoría para poder revisar, contabilizar y presentar los modelos a tiempo. Como orientación, conviene enviar la documentación con varios días de margen antes del cierre de presentación del trimestre, pero la fecha exacta depende del calendario fiscal, del tipo de modelos que presente tu empresa y de la organización del despacho. Te recomiendo derivar esta consulta a la asesoría para que confirme el plazo concreto aplicable a tu empresa.',
+      shouldDerive: true
+    };
+  }
+
+  return null;
+}
+
 function getClientAssistantFaqResponse(question) {
     const normalized = normalizeAssistantText(question);
+
+// CLIENT_ASSISTANT_PRIORITY_INTENTS_CALL_V2
+const priorityIntent = getClientAssistantPriorityIntent(normalized);
+
+if (priorityIntent) {
+return priorityIntent;
+}
 
     if (!normalized) {
         return {
@@ -2441,7 +2538,7 @@ function ClientAssistantFaqPanel({ clientName = 'tu empresa', clientId = '' }) {
     };
 
     const quickQuestions = [
-        '¿Qué documentación tengo que enviar este trimestre?',
+        '¿Qué plazo tengo para enviar la documentación trimestral?',
         '¿Cómo consulto las ayudas disponibles?',
         '¿Qué hago si una normativa aparece pendiente?',
         'Quiero hablar con mi asesoría'
@@ -2471,7 +2568,7 @@ function ClientAssistantFaqPanel({ clientName = 'tu empresa', clientId = '' }) {
                     <textarea
                         value={question}
                         onChange={e => setQuestion(e.target.value)}
-                        placeholder="Ejemplo: ¿Qué documentación tengo que enviar este trimestre?"
+                        placeholder="Ejemplo: ¿Qué plazo tengo para enviar la documentación trimestral?"
                         className="w-full min-h-[110px] bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
                     />
 

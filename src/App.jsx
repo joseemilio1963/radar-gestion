@@ -916,7 +916,7 @@ function RadarLegalNotice({ compact = false }) {
     return (
         <div className={`${compact ? 'mt-4 text-[11px]' : 'mt-5 text-xs'} rounded-xl border border-slate-700/70 bg-slate-950/50 px-4 py-3 text-slate-400 leading-relaxed`}>
             {/* RADAR_VISIBLE_IP_NOTICE_V2 */}
-            <span className="font-bold text-slate-300">Â© Aulagentia / Radar Gestión.</span>
+            <span className="font-bold text-slate-300">© Aulagentia / Radar Gestión.</span>
             {' '}Software, diseño funcional, estructura, documentación y contenidos protegidos. Uso autorizado exclusivamente bajo licencia. Prohibida la copia, cesión, sublicencia, reproducción, explotación no autorizada o ingeniería inversa.
         </div>
     );

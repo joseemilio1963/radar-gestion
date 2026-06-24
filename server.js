@@ -34,6 +34,11 @@ const SUPABASE_READONLY_TABLES = [
 ];
 
 let supabaseReadonlyClient = null;
+let supabaseStorageClient = null;
+
+function getClientDocumentsStorageBucket() {
+    return String(process.env.RADAR_CLIENT_DOCUMENTS_BUCKET || 'radar-client-documents').trim() || 'radar-client-documents';
+}
 
 function isSupabaseReadonlyEnabled() {
     return String(process.env.SUPABASE_READONLY_ENABLED || '').toLowerCase() === 'true';
@@ -89,6 +94,52 @@ function getSupabaseReadonlyClient() {
     return {
         ok: true,
         client: supabaseReadonlyClient,
+        env_status: envStatus
+    };
+}
+
+function getSupabaseStorageEnvStatus() {
+    const urlPresent = Boolean(process.env.SUPABASE_URL);
+    const keyPresent = Boolean(process.env.SUPABASE_SERVER_KEY);
+
+    return {
+        configured: urlPresent && keyPresent,
+        url_present: urlPresent,
+        key_present: keyPresent,
+        key_is_server_side_only: true,
+        bucket: getClientDocumentsStorageBucket()
+    };
+}
+
+function getSupabaseStorageClient() {
+    const envStatus = getSupabaseStorageEnvStatus();
+
+    if (!envStatus.configured) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_STORAGE_ENV_MISSING',
+            message: 'Supabase Storage no está configurado. Configura SUPABASE_URL y SUPABASE_SERVER_KEY en el backend.',
+            env_status: envStatus
+        };
+    }
+
+    if (!supabaseStorageClient) {
+        supabaseStorageClient = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVER_KEY,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                }
+            }
+        );
+    }
+
+    return {
+        ok: true,
+        client: supabaseStorageClient,
         env_status: envStatus
     };
 }
@@ -548,6 +599,102 @@ function initClientPortalAccessTables() {
 }
 initClientPortalAccessTables();
 
+function initClientProcedureTables() {
+    const db = new DatabaseSync(DB_PATH);
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS client_procedure_requests (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            procedure_type TEXT NOT NULL,
+            entity_type TEXT,
+            title TEXT NOT NULL,
+            description TEXT,
+            employee_name TEXT,
+            priority TEXT DEFAULT 'normal',
+            status TEXT DEFAULT 'open',
+            due_date TEXT,
+            period_type TEXT,
+            period_value TEXT,
+            fiscal_year TEXT,
+            procedure_subtype TEXT,
+            reference_label TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS client_required_documents (
+            id TEXT PRIMARY KEY,
+            procedure_id TEXT NOT NULL,
+            document_key TEXT NOT NULL,
+            document_label TEXT NOT NULL,
+            required INTEGER DEFAULT 1,
+            status TEXT DEFAULT 'pending',
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS client_uploaded_documents (
+            id TEXT PRIMARY KEY,
+            procedure_id TEXT NOT NULL,
+            required_document_id TEXT,
+            client_id TEXT NOT NULL,
+            original_filename TEXT NOT NULL,
+            safe_filename TEXT NOT NULL,
+            storage_bucket TEXT NOT NULL,
+            storage_path TEXT NOT NULL,
+            mime_type TEXT,
+            file_size INTEGER,
+            uploaded_by TEXT,
+            status TEXT DEFAULT 'received',
+            notes TEXT,
+            deleted_at TEXT,
+            deleted_reason TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS client_document_review_logs (
+            id TEXT PRIMARY KEY,
+            procedure_id TEXT NOT NULL,
+            required_document_id TEXT,
+            uploaded_document_id TEXT,
+            action TEXT NOT NULL,
+            actor TEXT,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    const procedureRequestColumns = db.prepare('PRAGMA table_info(client_procedure_requests)').all();
+    const procedureRequestColumnNames = new Set(procedureRequestColumns.map(column => column.name));
+    const ensureClientProcedureColumn = (columnName, definition) => {
+        if (!procedureRequestColumnNames.has(columnName)) {
+            db.exec(`ALTER TABLE client_procedure_requests ADD COLUMN ${columnName} ${definition}`);
+            procedureRequestColumnNames.add(columnName);
+        }
+    };
+
+    ensureClientProcedureColumn('entity_type', 'TEXT');
+    ensureClientProcedureColumn('period_type', 'TEXT');
+    ensureClientProcedureColumn('period_value', 'TEXT');
+    ensureClientProcedureColumn('fiscal_year', 'TEXT');
+    ensureClientProcedureColumn('procedure_subtype', 'TEXT');
+    ensureClientProcedureColumn('reference_label', 'TEXT');
+
+    const uploadedDocumentColumns = db.prepare('PRAGMA table_info(client_uploaded_documents)').all();
+    const hasDeletedAt = uploadedDocumentColumns.some(column => column.name === 'deleted_at');
+    const hasDeletedReason = uploadedDocumentColumns.some(column => column.name === 'deleted_reason');
+
+    if (!hasDeletedAt) {
+        db.exec('ALTER TABLE client_uploaded_documents ADD COLUMN deleted_at TEXT');
+    }
+
+    if (!hasDeletedReason) {
+        db.exec('ALTER TABLE client_uploaded_documents ADD COLUMN deleted_reason TEXT');
+    }
+
+    db.close();
+}
+initClientProcedureTables();
+
 const MIME_TYPES = {
     '.html': 'text/html',
     '.css': 'text/css',
@@ -717,6 +864,254 @@ function getClientCatalog() {
         console.error('getClientCatalog fallback to DEMO_CLIENTS:', error.message);
         return DEMO_CLIENTS;
     }
+}
+
+const CLIENT_PROCEDURE_STATUSES = new Set(['open', 'in_progress', 'completed', 'cancelled']);
+const CLIENT_REQUIRED_DOCUMENT_STATUSES = new Set(['pending', 'received', 'in_review', 'accepted', 'rejected', 'not_applicable']);
+const CLIENT_UPLOADED_DOCUMENT_STATUSES = new Set(['received', 'in_review', 'accepted', 'rejected']);
+
+function sanitizeStoragePathSegment(value) {
+    const normalized = String(value || 'unknown')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 80);
+
+    return normalized || 'unknown';
+}
+
+function sanitizeClientDocumentFilename(filename) {
+    const rawName = String(filename || 'documento').split(/[\\/]/).pop() || 'documento';
+    const safeName = rawName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^\.+/g, '')
+        .slice(0, 140);
+
+    return safeName || 'documento';
+}
+
+function normalizeProcedureDocumentKey(label, index = 0) {
+    const key = sanitizeStoragePathSegment(label).toLowerCase();
+    return key || `documento-${index + 1}`;
+}
+
+function normalizeClientProcedureRequiredDocuments(requiredDocuments) {
+    if (!Array.isArray(requiredDocuments)) return [];
+
+    return requiredDocuments
+        .map((doc, index) => {
+            if (typeof doc === 'string') {
+                const label = doc.trim();
+                if (!label) return null;
+
+                return {
+                    id: generateId(),
+                    document_key: normalizeProcedureDocumentKey(label, index),
+                    document_label: label,
+                    required: 1,
+                    status: 'pending',
+                    notes: null
+                };
+            }
+
+            const label = String(doc?.document_label || doc?.label || doc?.name || '').trim();
+            if (!label) return null;
+
+            return {
+                id: String(doc.id || generateId()),
+                document_key: String(doc.document_key || normalizeProcedureDocumentKey(label, index)).trim(),
+                document_label: label,
+                required: doc.required === false || doc.required === 0 ? 0 : 1,
+                status: CLIENT_REQUIRED_DOCUMENT_STATUSES.has(doc.status) ? doc.status : 'pending',
+                notes: doc.notes ? String(doc.notes) : null
+            };
+        })
+        .filter(Boolean);
+}
+
+function buildClientProcedureStoragePath({ clientId, procedureId, requiredDocumentId, uploadedDocumentId, safeFilename }) {
+    return [
+        'client-procedures',
+        sanitizeStoragePathSegment(clientId),
+        sanitizeStoragePathSegment(procedureId),
+        sanitizeStoragePathSegment(requiredDocumentId),
+        `${sanitizeStoragePathSegment(uploadedDocumentId)}-${sanitizeClientDocumentFilename(safeFilename)}`
+    ].join('/');
+}
+
+function getClientProcedureExpectedStoragePrefix({ clientId, procedureId, requiredDocumentId, uploadedDocumentId }) {
+    return [
+        'client-procedures',
+        sanitizeStoragePathSegment(clientId),
+        sanitizeStoragePathSegment(procedureId),
+        sanitizeStoragePathSegment(requiredDocumentId),
+        `${sanitizeStoragePathSegment(uploadedDocumentId)}-`
+    ].join('/');
+}
+
+function getClientProcedureById(db, procedureId) {
+    return db.prepare('SELECT * FROM client_procedure_requests WHERE id = ?').get(procedureId);
+}
+
+function getClientRequiredDocumentById(db, procedureId, requiredDocumentId) {
+    return db.prepare('SELECT * FROM client_required_documents WHERE id = ? AND procedure_id = ?').get(requiredDocumentId, procedureId);
+}
+
+function getClientUploadedDocumentById(db, procedureId, uploadedDocumentId) {
+    return db.prepare('SELECT * FROM client_uploaded_documents WHERE id = ? AND procedure_id = ? AND deleted_at IS NULL').get(uploadedDocumentId, procedureId);
+}
+
+function isSupabaseStorageMissingObjectError(error) {
+    const message = String(error?.message || error?.error_description || '').toLowerCase();
+    const status = String(error?.statusCode || error?.status || '').trim();
+
+    return status === '404' ||
+        message.includes('not found') ||
+        message.includes('does not exist') ||
+        message.includes('object not found') ||
+        message.includes('no such file');
+}
+
+function hydrateClientProcedures(db, procedures) {
+    if (!procedures.length) return [];
+
+    const procedureIds = procedures.map(procedure => procedure.id);
+    const placeholders = procedureIds.map(() => '?').join(',');
+    const requiredDocuments = db.prepare(`
+        SELECT * FROM client_required_documents
+        WHERE procedure_id IN (${placeholders})
+        ORDER BY created_at ASC
+    `).all(...procedureIds);
+    const uploadedDocuments = db.prepare(`
+        SELECT * FROM client_uploaded_documents
+        WHERE procedure_id IN (${placeholders})
+          AND deleted_at IS NULL
+        ORDER BY created_at DESC
+    `).all(...procedureIds);
+    const logs = db.prepare(`
+        SELECT * FROM client_document_review_logs
+        WHERE procedure_id IN (${placeholders})
+        ORDER BY created_at DESC
+    `).all(...procedureIds);
+
+    const clientsById = new Map(getClientCatalog().map(client => [client.id, client]));
+    const requiredByProcedure = new Map();
+    const uploadsByProcedure = new Map();
+    const uploadsByRequired = new Map();
+    const requiredProcedureById = new Map();
+    const logsByProcedure = new Map();
+    const logsByRequired = new Map();
+
+    for (const doc of requiredDocuments) {
+        if (!requiredByProcedure.has(doc.procedure_id)) requiredByProcedure.set(doc.procedure_id, []);
+        requiredByProcedure.get(doc.procedure_id).push(doc);
+        requiredProcedureById.set(doc.id, doc.procedure_id);
+    }
+
+    for (const upload of uploadedDocuments) {
+        if (!upload.required_document_id || requiredProcedureById.get(upload.required_document_id) !== upload.procedure_id) {
+            continue;
+        }
+
+        if (!uploadsByProcedure.has(upload.procedure_id)) uploadsByProcedure.set(upload.procedure_id, []);
+        uploadsByProcedure.get(upload.procedure_id).push(upload);
+
+        const requiredKey = `${upload.procedure_id}:${upload.required_document_id}`;
+        if (!uploadsByRequired.has(requiredKey)) uploadsByRequired.set(requiredKey, []);
+        uploadsByRequired.get(requiredKey).push(upload);
+    }
+
+    for (const log of logs) {
+        if (!logsByProcedure.has(log.procedure_id)) logsByProcedure.set(log.procedure_id, []);
+        logsByProcedure.get(log.procedure_id).push(log);
+
+        if (log.required_document_id && requiredProcedureById.get(log.required_document_id) === log.procedure_id) {
+            const requiredKey = `${log.procedure_id}:${log.required_document_id}`;
+            if (!logsByRequired.has(requiredKey)) logsByRequired.set(requiredKey, []);
+            logsByRequired.get(requiredKey).push(log);
+        }
+    }
+
+    return procedures.map(procedure => {
+        const client = clientsById.get(procedure.client_id) || {
+            id: procedure.client_id,
+            name: procedure.client_id
+        };
+
+        const documents = (requiredByProcedure.get(procedure.id) || []).map(doc => {
+            const requiredKey = `${doc.procedure_id}:${doc.id}`;
+
+            return {
+                ...doc,
+                uploaded_documents: uploadsByRequired.get(requiredKey) || [],
+                logs: logsByRequired.get(requiredKey) || []
+            };
+        });
+
+        return {
+            ...procedure,
+            client,
+            required_documents: documents,
+            uploaded_documents: uploadsByProcedure.get(procedure.id) || [],
+            logs: logsByProcedure.get(procedure.id) || []
+        };
+    });
+}
+
+async function verifySupabaseStorageObject(bucket, storagePath) {
+    const storageResult = getSupabaseStorageClient();
+
+    if (!storageResult.ok) {
+        return storageResult;
+    }
+
+    const cleanPath = String(storagePath || '').replace(/^\/+/, '');
+    const parts = cleanPath.split('/').filter(Boolean);
+    const objectName = parts.pop();
+    const folder = parts.join('/');
+
+    if (!objectName || !folder) {
+        return {
+            ok: false,
+            error_code: 'INVALID_STORAGE_PATH',
+            message: 'Ruta de almacenamiento no válida.'
+        };
+    }
+
+    const { data, error } = await storageResult.client
+        .storage
+        .from(bucket)
+        .list(folder, { limit: 100, search: objectName });
+
+    if (error) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_STORAGE_LIST_ERROR',
+            message: error.message,
+            env_status: storageResult.env_status
+        };
+    }
+
+    const found = Array.isArray(data) && data.some(item => item.name === objectName);
+
+    if (!found) {
+        return {
+            ok: false,
+            error_code: 'SUPABASE_STORAGE_OBJECT_NOT_FOUND',
+            message: 'El archivo no aparece en Supabase Storage. No se registran metadatos hasta confirmar la subida real.',
+            env_status: storageResult.env_status
+        };
+    }
+
+    return {
+        ok: true,
+        env_status: storageResult.env_status
+    };
 }
 
 // --- Supabase Read Services V2: clients compare ---
@@ -3418,6 +3813,779 @@ const server = http.createServer(async (req, res) => {
                 supabase_error_code: result.supabase_error_code
             });
         });
+    }
+
+    // API Route: GET /api/manager/client-procedures
+    if (pathname === '/api/manager/client-procedures' && req.method === 'GET') {
+        try {
+            const queryString = req.url.split('?')[1] || '';
+            const searchParams = new URLSearchParams(queryString);
+            const clientId = String(searchParams.get('client_id') || '').trim();
+            const status = String(searchParams.get('status') || '').trim();
+            const procedureType = String(searchParams.get('procedure_type') || '').trim();
+            const entityType = String(searchParams.get('entity_type') || '').trim();
+            let limit = parseInt(searchParams.get('limit'), 10);
+
+            if (Number.isNaN(limit) || limit <= 0) limit = 100;
+            if (limit > 200) limit = 200;
+
+            const clauses = [];
+            const params = [];
+
+            if (clientId) {
+                clauses.push('client_id = ?');
+                params.push(clientId);
+            }
+
+            if (status) {
+                clauses.push('status = ?');
+                params.push(status);
+            }
+
+            if (procedureType) {
+                clauses.push('procedure_type = ?');
+                params.push(procedureType);
+            }
+
+            if (entityType) {
+                clauses.push('entity_type = ?');
+                params.push(entityType);
+            }
+
+            const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+            const db = new DatabaseSync(DB_PATH);
+            const procedures = db.prepare(`
+                SELECT *
+                FROM client_procedure_requests
+                ${where}
+                ORDER BY updated_at DESC, created_at DESC
+                LIMIT ?
+            `).all(...params, limit);
+            const hydrated = hydrateClientProcedures(db, procedures);
+            db.close();
+
+            const summary = hydrated.reduce((acc, procedure) => {
+                if (procedure.status === 'open' || procedure.status === 'in_progress') acc.open_procedures += 1;
+
+                for (const doc of procedure.required_documents || []) {
+                    if (doc.status === 'pending') acc.pending_documents += 1;
+                    if (doc.status === 'received' || doc.status === 'in_review') acc.received_or_review_documents += 1;
+                    if (doc.status === 'accepted') acc.accepted_documents += 1;
+                    if (doc.status === 'rejected') acc.rejected_documents += 1;
+                }
+
+                return acc;
+            }, {
+                open_procedures: 0,
+                pending_documents: 0,
+                received_or_review_documents: 0,
+                accepted_documents: 0,
+                rejected_documents: 0
+            });
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                count: hydrated.length,
+                summary,
+                procedures: hydrated
+            });
+        } catch (err) {
+            console.error('client procedures list error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'INTERNAL_ERROR', message: 'No se pudieron cargar los trámites.' });
+        }
+    }
+
+    // API Route: POST /api/manager/client-procedures
+    if (pathname === '/api/manager/client-procedures' && req.method === 'POST') {
+        return readRequestJson(req, async payload => {
+            const clientId = String(payload.client_id || '').trim();
+            const procedureType = String(payload.procedure_type || '').trim();
+            const entityType = String(payload.entity_type || '').trim();
+            const title = String(payload.title || '').trim();
+            const description = String(payload.description || '').trim();
+            const employeeName = String(payload.employee_name || '').trim();
+            const periodType = String(payload.period_type || '').trim();
+            const periodValue = String(payload.period_value || '').trim();
+            const fiscalYear = String(payload.fiscal_year || '').trim();
+            const procedureSubtype = String(payload.procedure_subtype || '').trim();
+            const referenceLabel = String(payload.reference_label || '').trim();
+            const priority = ['low', 'normal', 'high', 'urgent'].includes(payload.priority) ? payload.priority : 'normal';
+            const dueDate = String(payload.due_date || '').trim();
+            const validClient = getClientCatalog().find(client => client.id === clientId);
+            const requiredDocuments = normalizeClientProcedureRequiredDocuments(payload.required_documents);
+
+            if (!validClient) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_CLIENT_ID',
+                    message: 'Cliente no válido.'
+                });
+            }
+
+            if (!procedureType || !title) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_PROCEDURE_PAYLOAD',
+                    message: 'Tipo de trámite y título son obligatorios.'
+                });
+            }
+
+            if (!requiredDocuments.length) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'REQUIRED_DOCUMENTS_EMPTY',
+                    message: 'El trámite debe tener al menos un documento requerido.'
+                });
+            }
+
+            const procedureId = generateId();
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                db.exec('BEGIN');
+                db.prepare(`
+                    INSERT INTO client_procedure_requests
+                    (id, client_id, procedure_type, entity_type, title, description, employee_name, priority, status, due_date, period_type, period_value, fiscal_year, procedure_subtype, reference_label)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)
+                `).run(
+                    procedureId,
+                    clientId,
+                    procedureType,
+                    entityType || null,
+                    title,
+                    description || null,
+                    employeeName || null,
+                    priority,
+                    dueDate || null,
+                    periodType || null,
+                    periodValue || null,
+                    fiscalYear || null,
+                    procedureSubtype || null,
+                    referenceLabel || null
+                );
+
+                const docStmt = db.prepare(`
+                    INSERT INTO client_required_documents
+                    (id, procedure_id, document_key, document_label, required, status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                for (const doc of requiredDocuments) {
+                    docStmt.run(
+                        doc.id,
+                        procedureId,
+                        doc.document_key,
+                        doc.document_label,
+                        doc.required,
+                        doc.status,
+                        doc.notes
+                    );
+                }
+
+                db.prepare(`
+                    INSERT INTO client_document_review_logs
+                    (id, procedure_id, required_document_id, uploaded_document_id, action, actor, notes)
+                    VALUES (?, ?, null, null, ?, ?, ?)
+                `).run(
+                    generateId(),
+                    procedureId,
+                    'procedure_created',
+                    'manager',
+                    `Trámite creado para ${validClient.name}.`
+                );
+
+                db.exec('COMMIT');
+
+                const procedure = hydrateClientProcedures(
+                    db,
+                    [db.prepare('SELECT * FROM client_procedure_requests WHERE id = ?').get(procedureId)]
+                )[0];
+                db.close();
+
+                return sendJson(res, 201, {
+                    status: 'ok',
+                    procedure
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('client procedure create error:', err);
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'CLIENT_PROCEDURE_CREATE_FAILED',
+                    message: 'No se pudo crear el trámite.'
+                });
+            }
+        });
+    }
+
+    // API Route: PATCH /api/manager/client-procedures/:id/status
+    const clientProcedureStatusMatch = pathname.match(/^\/api\/manager\/client-procedures\/([^/]+)\/status$/);
+    if (clientProcedureStatusMatch && req.method === 'PATCH') {
+        const procedureId = decodeURIComponent(clientProcedureStatusMatch[1]);
+
+        return readRequestJson(req, async payload => {
+            const nextStatus = String(payload.status || '').trim();
+            const notes = String(payload.notes || '').trim();
+
+            if (!CLIENT_PROCEDURE_STATUSES.has(nextStatus)) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_PROCEDURE_STATUS',
+                    message: 'Estado de trámite no válido.'
+                });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                const procedure = getClientProcedureById(db, procedureId);
+
+                if (!procedure) {
+                    db.close();
+                    return sendJson(res, 404, {
+                        status: 'error',
+                        error_code: 'CLIENT_PROCEDURE_NOT_FOUND',
+                        message: 'Trámite no encontrado.'
+                    });
+                }
+
+                db.exec('BEGIN');
+                db.prepare(`
+                    UPDATE client_procedure_requests
+                    SET status = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(nextStatus, procedureId);
+                db.prepare(`
+                    INSERT INTO client_document_review_logs
+                    (id, procedure_id, required_document_id, uploaded_document_id, action, actor, notes)
+                    VALUES (?, ?, null, null, ?, ?, ?)
+                `).run(
+                    generateId(),
+                    procedureId,
+                    `procedure_status_${nextStatus}`,
+                    'manager',
+                    notes || `Estado del trámite actualizado a ${nextStatus}.`
+                );
+                db.exec('COMMIT');
+
+                const updated = hydrateClientProcedures(
+                    db,
+                    [db.prepare('SELECT * FROM client_procedure_requests WHERE id = ?').get(procedureId)]
+                )[0];
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'ok',
+                    procedure: updated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('client procedure status update error:', err);
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'CLIENT_PROCEDURE_STATUS_UPDATE_FAILED',
+                    message: 'No se pudo actualizar el estado del trámite.'
+                });
+            }
+        });
+    }
+
+    // API Route: PATCH /api/manager/client-procedures/:id/documents/:documentId/status
+    const clientRequiredDocumentStatusMatch = pathname.match(/^\/api\/manager\/client-procedures\/([^/]+)\/documents\/([^/]+)\/status$/);
+    if (clientRequiredDocumentStatusMatch && req.method === 'PATCH') {
+        const procedureId = decodeURIComponent(clientRequiredDocumentStatusMatch[1]);
+        const requiredDocumentId = decodeURIComponent(clientRequiredDocumentStatusMatch[2]);
+
+        return readRequestJson(req, async payload => {
+            const nextStatus = String(payload.status || '').trim();
+            const notes = String(payload.notes || '').trim();
+
+            if (!CLIENT_REQUIRED_DOCUMENT_STATUSES.has(nextStatus)) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_REQUIRED_DOCUMENT_STATUS',
+                    message: 'Estado documental no válido.'
+                });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                const procedure = getClientProcedureById(db, procedureId);
+                const requiredDocument = getClientRequiredDocumentById(db, procedureId, requiredDocumentId);
+
+                if (!procedure || !requiredDocument) {
+                    db.close();
+                    return sendJson(res, 404, {
+                        status: 'error',
+                        error_code: 'CLIENT_REQUIRED_DOCUMENT_NOT_FOUND',
+                        message: 'Documento requerido no encontrado.'
+                    });
+                }
+
+                if (nextStatus === 'received') {
+                    const activeUploadCount = db.prepare(`
+                        SELECT COUNT(*) AS total
+                        FROM client_uploaded_documents
+                        WHERE procedure_id = ?
+                          AND required_document_id = ?
+                          AND deleted_at IS NULL
+                    `).get(procedureId, requiredDocumentId);
+
+                    if (Number(activeUploadCount?.total || 0) === 0) {
+                        db.close();
+                        return sendJson(res, 409, {
+                            status: 'error',
+                            error_code: 'RECEIVED_STATUS_REQUIRES_UPLOAD',
+                            message: 'Sube un archivo antes de marcar el documento como recibido.'
+                        });
+                    }
+                }
+
+                const normalizedCurrentNotes = String(requiredDocument.notes || '').trim();
+                const logAction = nextStatus === requiredDocument.status && notes !== normalizedCurrentNotes
+                    ? 'document_note_updated'
+                    : `required_document_status_${nextStatus}`;
+                const logNotes = logAction === 'document_note_updated'
+                    ? 'Nota documental actualizada'
+                    : (notes || `Estado documental actualizado a ${nextStatus}.`);
+
+                db.exec('BEGIN');
+                db.prepare(`
+                    UPDATE client_required_documents
+                    SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND procedure_id = ?
+                `).run(nextStatus, notes || null, requiredDocumentId, procedureId);
+                db.prepare(`
+                    INSERT INTO client_document_review_logs
+                    (id, procedure_id, required_document_id, uploaded_document_id, action, actor, notes)
+                    VALUES (?, ?, ?, null, ?, ?, ?)
+                `).run(
+                    generateId(),
+                    procedureId,
+                    requiredDocumentId,
+                    logAction,
+                    'manager',
+                    logNotes
+                );
+                db.exec('COMMIT');
+
+                const updated = hydrateClientProcedures(
+                    db,
+                    [db.prepare('SELECT * FROM client_procedure_requests WHERE id = ?').get(procedureId)]
+                )[0];
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'ok',
+                    procedure: updated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('client required document status update error:', err);
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'CLIENT_REQUIRED_DOCUMENT_STATUS_UPDATE_FAILED',
+                    message: 'No se pudo actualizar el estado documental.'
+                });
+            }
+        });
+    }
+
+    // API Route: POST /api/manager/client-procedures/:id/documents/:requiredDocumentId/upload-url
+    const clientDocumentUploadUrlMatch = pathname.match(/^\/api\/manager\/client-procedures\/([^/]+)\/documents\/([^/]+)\/upload-url$/);
+    if (clientDocumentUploadUrlMatch && req.method === 'POST') {
+        const procedureId = decodeURIComponent(clientDocumentUploadUrlMatch[1]);
+        const requiredDocumentId = decodeURIComponent(clientDocumentUploadUrlMatch[2]);
+
+        return readRequestJson(req, async payload => {
+            const originalFilename = String(payload.original_filename || '').trim();
+            const mimeType = String(payload.mime_type || '').trim();
+            const fileSize = Number(payload.file_size || 0);
+
+            if (!originalFilename) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'ORIGINAL_FILENAME_REQUIRED',
+                    message: 'Nombre de archivo requerido.'
+                });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+            const procedure = getClientProcedureById(db, procedureId);
+            const requiredDocument = getClientRequiredDocumentById(db, procedureId, requiredDocumentId);
+            db.close();
+
+            if (!procedure || !requiredDocument) {
+                return sendJson(res, 404, {
+                    status: 'error',
+                    error_code: 'CLIENT_REQUIRED_DOCUMENT_NOT_FOUND',
+                    message: 'Trámite o documento requerido no encontrado.'
+                });
+            }
+
+            const storageResult = getSupabaseStorageClient();
+
+            if (!storageResult.ok) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    error_code: storageResult.error_code,
+                    message: storageResult.message,
+                    storage: storageResult.env_status
+                });
+            }
+
+            const uploadedDocumentId = generateId();
+            const safeFilename = sanitizeClientDocumentFilename(originalFilename);
+            const storageBucket = getClientDocumentsStorageBucket();
+            const storagePath = buildClientProcedureStoragePath({
+                clientId: procedure.client_id,
+                procedureId,
+                requiredDocumentId,
+                uploadedDocumentId,
+                safeFilename
+            });
+
+            const { data, error } = await storageResult.client
+                .storage
+                .from(storageBucket)
+                .createSignedUploadUrl(storagePath, { upsert: false });
+
+            if (error) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    error_code: 'SUPABASE_SIGNED_UPLOAD_URL_FAILED',
+                    message: `No se pudo generar URL firmada. Confirma que existe el bucket privado ${storageBucket} y que el backend tiene permisos de Storage.`,
+                    detail: error.message,
+                    storage: storageResult.env_status
+                });
+            }
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                uploaded_document_id: uploadedDocumentId,
+                original_filename: originalFilename,
+                safe_filename: safeFilename,
+                storage_bucket: storageBucket,
+                storage_path: storagePath,
+                signed_url: data.signedUrl,
+                token: data.token,
+                mime_type: mimeType || null,
+                file_size: Number.isFinite(fileSize) && fileSize > 0 ? fileSize : null,
+                upload_method: 'PUT_FORM_DATA',
+                upload_file_field: '',
+                expires_in_seconds: 7200
+            });
+        });
+    }
+
+    // API Route: POST /api/manager/client-procedures/:id/documents/:requiredDocumentId/complete-upload
+    const clientDocumentCompleteUploadMatch = pathname.match(/^\/api\/manager\/client-procedures\/([^/]+)\/documents\/([^/]+)\/complete-upload$/);
+    if (clientDocumentCompleteUploadMatch && req.method === 'POST') {
+        const procedureId = decodeURIComponent(clientDocumentCompleteUploadMatch[1]);
+        const requiredDocumentId = decodeURIComponent(clientDocumentCompleteUploadMatch[2]);
+
+        return readRequestJson(req, async payload => {
+            const uploadedDocumentId = String(payload.uploaded_document_id || '').trim();
+            const originalFilename = String(payload.original_filename || '').trim();
+            const safeFilename = sanitizeClientDocumentFilename(payload.safe_filename || payload.original_filename);
+            const storageBucket = String(payload.storage_bucket || getClientDocumentsStorageBucket()).trim();
+            const storagePath = String(payload.storage_path || '').trim().replace(/^\/+/, '');
+            const mimeType = String(payload.mime_type || '').trim();
+            const fileSize = Number(payload.file_size || 0);
+            const uploadedBy = String(payload.uploaded_by || 'manager').trim();
+            const uploadStatus = CLIENT_UPLOADED_DOCUMENT_STATUSES.has(payload.status) ? payload.status : 'received';
+            const requiredDocumentStatus = CLIENT_REQUIRED_DOCUMENT_STATUSES.has(payload.required_document_status)
+                ? payload.required_document_status
+                : 'received';
+            const notes = String(payload.notes || '').trim();
+
+            if (!uploadedDocumentId || !originalFilename || !storagePath) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_COMPLETE_UPLOAD_PAYLOAD',
+                    message: 'Faltan metadatos de confirmación de subida.'
+                });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+            const procedure = getClientProcedureById(db, procedureId);
+            const requiredDocument = getClientRequiredDocumentById(db, procedureId, requiredDocumentId);
+            const existingUpload = getClientUploadedDocumentById(db, procedureId, uploadedDocumentId);
+
+            if (!procedure || !requiredDocument) {
+                db.close();
+                return sendJson(res, 404, {
+                    status: 'error',
+                    error_code: 'CLIENT_REQUIRED_DOCUMENT_NOT_FOUND',
+                    message: 'Trámite o documento requerido no encontrado.'
+                });
+            }
+
+            if (existingUpload) {
+                db.close();
+                return sendJson(res, 409, {
+                    status: 'error',
+                    error_code: 'UPLOADED_DOCUMENT_ALREADY_REGISTERED',
+                    message: 'El documento subido ya está registrado.'
+                });
+            }
+
+            const expectedPrefix = getClientProcedureExpectedStoragePrefix({
+                clientId: procedure.client_id,
+                procedureId,
+                requiredDocumentId,
+                uploadedDocumentId
+            });
+
+            if (storageBucket !== getClientDocumentsStorageBucket() || !storagePath.startsWith(expectedPrefix)) {
+                db.close();
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_STORAGE_PATH',
+                    message: 'La ruta de almacenamiento no corresponde al trámite y documento requeridos.'
+                });
+            }
+
+            const storageCheck = await verifySupabaseStorageObject(storageBucket, storagePath);
+
+            if (!storageCheck.ok) {
+                db.close();
+                return sendJson(res, 409, {
+                    status: 'error',
+                    error_code: storageCheck.error_code || 'SUPABASE_STORAGE_OBJECT_CHECK_FAILED',
+                    message: storageCheck.message || 'No se pudo confirmar la existencia del archivo en Supabase Storage.',
+                    storage: storageCheck.env_status || null
+                });
+            }
+
+            try {
+                db.exec('BEGIN');
+                db.prepare(`
+                    INSERT INTO client_uploaded_documents
+                    (id, procedure_id, required_document_id, client_id, original_filename, safe_filename, storage_bucket, storage_path, mime_type, file_size, uploaded_by, status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                    uploadedDocumentId,
+                    procedureId,
+                    requiredDocumentId,
+                    procedure.client_id,
+                    originalFilename,
+                    safeFilename,
+                    storageBucket,
+                    storagePath,
+                    mimeType || null,
+                    Number.isFinite(fileSize) && fileSize > 0 ? fileSize : null,
+                    uploadedBy || 'manager',
+                    uploadStatus,
+                    notes || null
+                );
+                db.prepare(`
+                    UPDATE client_required_documents
+                    SET status = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND procedure_id = ?
+                `).run(requiredDocumentStatus, requiredDocumentId, procedureId);
+                db.prepare(`
+                    INSERT INTO client_document_review_logs
+                    (id, procedure_id, required_document_id, uploaded_document_id, action, actor, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                    generateId(),
+                    procedureId,
+                    requiredDocumentId,
+                    uploadedDocumentId,
+                    'document_uploaded',
+                    uploadedBy || 'manager',
+                    notes || `Documento subido correctamente: ${originalFilename}`
+                );
+                db.exec('COMMIT');
+
+                const updated = hydrateClientProcedures(
+                    db,
+                    [db.prepare('SELECT * FROM client_procedure_requests WHERE id = ?').get(procedureId)]
+                )[0];
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'ok',
+                    procedure: updated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('client document complete upload error:', err);
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'CLIENT_DOCUMENT_COMPLETE_UPLOAD_FAILED',
+                    message: 'No se pudieron registrar los metadatos del documento.'
+                });
+            }
+        });
+    }
+
+    // API Route: DELETE /api/manager/client-procedures/:id/documents/:uploadedDocumentId
+    const clientDocumentDeleteMatch = pathname.match(/^\/api\/manager\/client-procedures\/([^/]+)\/documents\/([^/]+)$/);
+    if (clientDocumentDeleteMatch && req.method === 'DELETE') {
+        const procedureId = decodeURIComponent(clientDocumentDeleteMatch[1]);
+        const uploadedDocumentId = decodeURIComponent(clientDocumentDeleteMatch[2]);
+
+        try {
+            const db = new DatabaseSync(DB_PATH);
+            const procedure = getClientProcedureById(db, procedureId);
+            const uploadedDocument = getClientUploadedDocumentById(db, procedureId, uploadedDocumentId);
+
+            if (!procedure || !uploadedDocument) {
+                db.close();
+                return sendJson(res, 404, { status: 'error', error_code: 'UPLOADED_DOCUMENT_NOT_FOUND', message: 'Documento subido no encontrado.' });
+            }
+
+            const requiredDocument = getClientRequiredDocumentById(db, procedureId, uploadedDocument.required_document_id);
+
+            if (!requiredDocument) {
+                db.close();
+                return sendJson(res, 409, { status: 'error', error_code: 'UPLOADED_DOCUMENT_PROCEDURE_MISMATCH', message: 'El documento subido no pertenece al documento requerido de este trámite.' });
+            }
+
+            const storageBucket = String(uploadedDocument.storage_bucket || getClientDocumentsStorageBucket()).trim();
+            const storagePath = String(uploadedDocument.storage_path || '').trim().replace(/^\/+/, '');
+
+            if (!storageBucket || !storagePath) {
+                db.close();
+                return sendJson(res, 409, { status: 'error', error_code: 'UPLOADED_DOCUMENT_STORAGE_PATH_MISSING', message: 'No se puede eliminar el archivo porque faltan metadatos de almacenamiento.' });
+            }
+
+            const storageResult = getSupabaseStorageClient();
+
+            if (!storageResult.ok) {
+                db.close();
+                return sendJson(res, 503, { status: 'error', error_code: storageResult.error_code, message: storageResult.message, storage: storageResult.env_status });
+            }
+
+            const { error } = await storageResult.client.storage.from(storageBucket).remove([storagePath]);
+            const storageDeleteWarning = error ? String(error.message || 'El archivo no estaba disponible en Storage.') : '';
+
+            if (error && !isSupabaseStorageMissingObjectError(error)) {
+                db.close();
+                return sendJson(res, 503, { status: 'error', error_code: 'SUPABASE_STORAGE_DELETE_FAILED', message: 'No se pudo eliminar el archivo de Supabase Storage.', detail: error.message, storage: storageResult.env_status });
+            }
+
+            try {
+                db.exec('BEGIN');
+                db.prepare(`
+                    UPDATE client_uploaded_documents
+                    SET deleted_at = CURRENT_TIMESTAMP,
+                        deleted_reason = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND procedure_id = ? AND deleted_at IS NULL
+                `).run('Eliminado por gestor', uploadedDocumentId, procedureId);
+
+                const remainingUploads = db.prepare(`
+                    SELECT COUNT(*) AS total
+                    FROM client_uploaded_documents
+                    WHERE procedure_id = ?
+                      AND required_document_id = ?
+                      AND deleted_at IS NULL
+                `).get(procedureId, requiredDocument.id);
+
+                if (Number(remainingUploads?.total || 0) === 0 && requiredDocument.status !== 'not_applicable') {
+                    db.prepare(`
+                        UPDATE client_required_documents
+                        SET status = 'pending', updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ? AND procedure_id = ?
+                    `).run(requiredDocument.id, procedureId);
+                }
+
+                db.prepare(`
+                    INSERT INTO client_document_review_logs
+                    (id, procedure_id, required_document_id, uploaded_document_id, action, actor, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).run(generateId(), procedureId, requiredDocument.id, uploadedDocumentId, 'document_deleted', 'manager', `Documento eliminado: ${uploadedDocument.original_filename}`);
+                db.exec('COMMIT');
+
+                const updated = hydrateClientProcedures(db, [db.prepare('SELECT * FROM client_procedure_requests WHERE id = ?').get(procedureId)])[0];
+                db.close();
+
+                return sendJson(res, 200, {
+                    ok: true,
+                    status: 'ok',
+                    deleted: true,
+                    warning: storageDeleteWarning || null,
+                    message: 'Documento eliminado correctamente.',
+                    procedure: updated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('client document delete metadata error:', err);
+                return sendJson(res, 500, { status: 'error', error_code: 'CLIENT_DOCUMENT_DELETE_METADATA_FAILED', message: 'El archivo se eliminó, pero no se pudo actualizar el registro documental.' });
+            }
+        } catch (err) {
+            console.error('client document delete error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'CLIENT_DOCUMENT_DELETE_FAILED', message: 'No se pudo eliminar el documento.' });
+        }
+    }
+    // API Route: GET /api/manager/client-procedures/:id/documents/:uploadedDocumentId/download-url
+    const clientDocumentDownloadUrlMatch = pathname.match(/^\/api\/manager\/client-procedures\/([^/]+)\/documents\/([^/]+)\/download-url$/);
+    if (clientDocumentDownloadUrlMatch && req.method === 'GET') {
+        const procedureId = decodeURIComponent(clientDocumentDownloadUrlMatch[1]);
+        const uploadedDocumentId = decodeURIComponent(clientDocumentDownloadUrlMatch[2]);
+
+        try {
+            const db = new DatabaseSync(DB_PATH);
+            const uploadedDocument = getClientUploadedDocumentById(db, procedureId, uploadedDocumentId);
+            db.close();
+
+            if (!uploadedDocument) {
+                return sendJson(res, 404, {
+                    status: 'error',
+                    error_code: 'UPLOADED_DOCUMENT_NOT_FOUND',
+                    message: 'Documento subido no encontrado.'
+                });
+            }
+
+            const storageResult = getSupabaseStorageClient();
+
+            if (!storageResult.ok) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    error_code: storageResult.error_code,
+                    message: storageResult.message,
+                    storage: storageResult.env_status
+                });
+            }
+
+            const { data, error } = await storageResult.client
+                .storage
+                .from(uploadedDocument.storage_bucket)
+                .createSignedUrl(uploadedDocument.storage_path, 300);
+
+            if (error) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    error_code: 'SUPABASE_SIGNED_DOWNLOAD_URL_FAILED',
+                    message: 'No se pudo generar URL firmada de descarga.',
+                    detail: error.message,
+                    storage: storageResult.env_status
+                });
+            }
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                signed_url: data.signedUrl,
+                expires_in_seconds: 300,
+                document: uploadedDocument
+            });
+        } catch (err) {
+            console.error('client document download url error:', err);
+            return sendJson(res, 500, {
+                status: 'error',
+                error_code: 'CLIENT_DOCUMENT_DOWNLOAD_URL_FAILED',
+                message: 'No se pudo preparar la descarga del documento.'
+            });
+        }
     }
 
 

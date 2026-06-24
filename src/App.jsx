@@ -1,5 +1,6 @@
 ﻿import { BRAND_CONFIG, formatConfiguredClientName } from './brandConfig';
 import React, { useState, useEffect } from 'react';
+import { CheckCircle2, Download, FileText, Plus, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
 
 function RadarPanel() {
     const [items, setItems] = useState([]);
@@ -1296,6 +1297,1348 @@ function OfficialReferenceBlock({ item, compact = false }) {
             {!hasLegal && !hasUrl && (
                 <div className="font-semibold text-amber-300">
                     Referencia oficial pendiente de revisión
+                </div>
+            )}
+        </div>
+    );
+}
+
+const CLIENT_PROCEDURE_TYPES = [
+    { value: 'alta_empleado', label: 'Alta de empleado' },
+    { value: 'baja_empleado', label: 'Baja de empleado' },
+    { value: 'baja_medica_it', label: 'Baja médica / IT' },
+    { value: 'contrato_laboral', label: 'Contrato laboral' },
+    { value: 'nomina', label: 'Nómina' },
+    { value: 'finiquito', label: 'Finiquito' },
+    { value: 'trimestre_fiscal', label: 'Trimestre fiscal' },
+    { value: 'declaracion_renta', label: 'Declaración de la renta' },
+    { value: 'impuesto_sociedades', label: 'Impuesto sobre Sociedades' },
+    { value: 'censal_actividad', label: 'Censal / actividad' },
+    { value: 'documentacion_general_empresa', label: 'Documentación general de empresa' },
+    { value: 'tickets_gastos', label: 'Tickets / gastos' },
+    { value: 'otro_tramite', label: 'Otro trámite' }
+];
+
+const CLIENT_PROCEDURE_ENTITY_TYPES = [
+    { value: 'autonomo_persona_fisica', label: 'Autónomo / persona física' },
+    { value: 'sl', label: 'SL' },
+    { value: 'sa', label: 'SA' },
+    { value: 'comunidad_bienes', label: 'Comunidad de bienes' },
+    { value: 'asociacion_entidad_sin_animo_lucro', label: 'Asociación / entidad sin ánimo de lucro' },
+    { value: 'otro_tipo_entidad', label: 'Otro tipo de entidad' }
+];
+
+const CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS = {
+    alta_empleado: ['DNI/NIE', 'Número Seguridad Social', 'Datos bancarios', 'Categoría profesional', 'Fecha de alta', 'Tipo de contrato/jornada'],
+    baja_empleado: ['Datos del empleado', 'Fecha de baja', 'Motivo de baja', 'Documentación asociada'],
+    baja_medica_it: ['Parte de baja', 'Parte de confirmación si procede', 'Parte de alta si procede'],
+    contrato_laboral: ['Datos empleado', 'Categoría profesional', 'Jornada', 'Fecha inicio', 'Condiciones principales'],
+    nomina: ['Periodo', 'Variables/incidencias', 'Ausencias', 'Complementos si procede'],
+    finiquito: ['Fecha de baja', 'Vacaciones pendientes', 'Pagas pendientes', 'Conceptos a liquidar'],
+    trimestre_fiscal: ['Facturas emitidas', 'Facturas recibidas', 'Tickets y gastos', 'Extractos bancarios', 'Nóminas y seguros sociales si procede', 'Alquileres con retención si procede', 'Retenciones profesionales si procede', 'Operaciones intracomunitarias si procede', 'Otros justificantes del trimestre'],
+    declaracion_renta: ['Datos fiscales AEAT', 'Certificados de retenciones', 'Rendimientos del trabajo', 'Rendimientos bancarios', 'Alquileres si procede', 'Hipoteca vivienda habitual si procede', 'Donativos si procede', 'Gastos deducibles de actividad si procede', 'Ganancias o pérdidas patrimoniales si procede', 'Deducciones autonómicas si procede'],
+    impuesto_sociedades: ['Balance de sumas y saldos', 'Cuenta de pérdidas y ganancias', 'Libro mayor', 'Amortizaciones', 'Préstamos y leasing si procede', 'Retenciones y pagos a cuenta si procede', 'Pagos fraccionados si procede', 'Documentación de cierre'],
+    censal_actividad: ['DNI/NIE o CIF', 'Escritura de constitución si procede', 'Modelo censal o datos de alta/modificación', 'Epígrafe IAE', 'Domicilio fiscal', 'Domicilio de actividad si procede', 'Representante legal si procede', 'Actividad económica', 'Fecha de inicio/modificación/baja', 'Obligaciones fiscales previstas', 'Cuenta bancaria si procede'],
+    documentacion_general_empresa: ['CIF/NIF', 'Escrituras', 'Poderes o representación', 'Certificado digital', 'Contratos principales', 'Alquiler del local', 'Licencias o permisos', 'Seguros', 'Documentación bancaria', 'Documentación de proveedores relevantes'],
+    tickets_gastos: ['Ticket o factura', 'Fecha', 'Importe', 'Concepto', 'Forma de pago', 'Justificante bancario si procede', 'Categoría de gasto'],
+    otro_tramite: ['Documentación asociada']
+};
+
+const CLIENT_LABOR_PROCEDURE_TYPES = new Set([
+    'alta_empleado',
+    'baja_empleado',
+    'baja_medica_it',
+    'contrato_laboral',
+    'nomina',
+    'finiquito'
+]);
+
+function isClientLaborProcedureType(value) {
+    return CLIENT_LABOR_PROCEDURE_TYPES.has(value);
+}
+
+const CLIENT_QUARTER_OPTIONS = [
+    { value: 'q1', label: '1er trimestre' },
+    { value: 'q2', label: '2º trimestre' },
+    { value: 'q3', label: '3er trimestre' },
+    { value: 'q4', label: '4º trimestre' }
+];
+
+const CLIENT_RENTA_TYPE_OPTIONS = [
+    { value: 'persona_fisica', label: 'Persona física' },
+    { value: 'autonomo_actividad', label: 'Autónomo con actividad' },
+    { value: 'renta_alquileres', label: 'Renta con alquileres' },
+    { value: 'ganancias_patrimoniales', label: 'Renta con ganancias patrimoniales' },
+    { value: 'otro_caso', label: 'Otro caso' }
+];
+
+const CLIENT_SOCIETIES_CLOSING_OPTIONS = [
+    { value: 'cierre_anual', label: 'Cierre anual' },
+    { value: 'pago_fraccionado', label: 'Pago fraccionado' },
+    { value: 'documentacion_complementaria', label: 'Documentación complementaria' }
+];
+
+const CLIENT_CENSAL_ACTION_OPTIONS = [
+    { value: 'alta', label: 'Alta' },
+    { value: 'modificacion', label: 'Modificación' },
+    { value: 'baja', label: 'Baja' }
+];
+
+const CLIENT_TICKETS_PERIOD_OPTIONS = [
+    { value: 'mes', label: 'Mes' },
+    { value: 'trimestre', label: 'Trimestre' },
+    { value: 'anio', label: 'Año' },
+    { value: 'otro_periodo', label: 'Otro periodo' }
+];
+
+function getClientProcedureOptionLabel(options, value) {
+    return options.find(option => option.value === value)?.label || value || '';
+}
+
+function getClientProcedureStructuredDetails(procedure) {
+    const details = [];
+
+    if (procedure.procedure_type === 'trimestre_fiscal') {
+        if (procedure.period_value) details.push({ label: 'Periodo', value: getClientProcedureOptionLabel(CLIENT_QUARTER_OPTIONS, procedure.period_value) });
+        if (procedure.fiscal_year) details.push({ label: 'Ejercicio', value: procedure.fiscal_year });
+    }
+
+    if (procedure.procedure_type === 'declaracion_renta') {
+        if (procedure.fiscal_year) details.push({ label: 'Ejercicio fiscal', value: procedure.fiscal_year });
+        if (procedure.procedure_subtype) details.push({ label: 'Tipo de renta', value: getClientProcedureOptionLabel(CLIENT_RENTA_TYPE_OPTIONS, procedure.procedure_subtype) });
+    }
+
+    if (procedure.procedure_type === 'impuesto_sociedades') {
+        if (procedure.fiscal_year) details.push({ label: 'Ejercicio fiscal', value: procedure.fiscal_year });
+        if (procedure.procedure_subtype) details.push({ label: 'Tipo de cierre', value: getClientProcedureOptionLabel(CLIENT_SOCIETIES_CLOSING_OPTIONS, procedure.procedure_subtype) });
+    }
+
+    if (procedure.procedure_type === 'censal_actividad') {
+        if (procedure.procedure_subtype) details.push({ label: 'Actuación censal', value: getClientProcedureOptionLabel(CLIENT_CENSAL_ACTION_OPTIONS, procedure.procedure_subtype) });
+        if (procedure.period_value) details.push({ label: 'Fecha de efecto', value: procedure.period_value });
+    }
+
+    if (procedure.procedure_type === 'tickets_gastos') {
+        if (procedure.period_type) {
+            const periodLabel = getClientProcedureOptionLabel(CLIENT_TICKETS_PERIOD_OPTIONS, procedure.period_type);
+            details.push({ label: 'Periodo', value: procedure.period_value ? `${periodLabel}: ${procedure.period_value}` : periodLabel });
+        }
+    }
+
+    return details;
+}
+
+function getClientProcedureTypeLabel(value) {
+    return CLIENT_PROCEDURE_TYPES.find(type => type.value === value)?.label || value || 'Trámite';
+}
+
+function getClientProcedureEntityTypeLabel(value) {
+    return CLIENT_PROCEDURE_ENTITY_TYPES.find(type => type.value === value)?.label || 'Sin tipo de entidad';
+}
+
+function getClientProcedureDocumentKey(label, index) {
+    return String(label || `documento-${index + 1}`)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || `documento_${index + 1}`;
+}
+
+function buildClientProcedureDocumentDrafts(procedureType) {
+    if (!procedureType) return [];
+
+    const labels = CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS[procedureType] || CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS.otro_tramite;
+
+    return labels.map((label, index) => ({
+        id: `${procedureType}-${index}-${getClientProcedureDocumentKey(label, index)}`,
+        document_key: getClientProcedureDocumentKey(label, index),
+        document_label: label,
+        required: true,
+        enabled: true
+    }));
+}
+
+function formatClientProcedureDateTime(value) {
+    if (!value) return 'Sin fecha';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleString('es-ES', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+    });
+}
+
+function formatClientProcedureFileSize(bytes) {
+    const size = Number(bytes || 0);
+    if (!Number.isFinite(size) || size <= 0) return 'Tamaño no informado';
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getClientProcedureStatusLabel(status) {
+    const labels = {
+        open: 'Abierto',
+        in_progress: 'En curso',
+        completed: 'Completado',
+        cancelled: 'Cancelado'
+    };
+
+    return labels[status] || status || 'Sin estado';
+}
+
+function getClientDocumentStatusLabel(status) {
+    const labels = {
+        pending: 'Pendiente',
+        received: 'Recibido',
+        in_review: 'En revisión',
+        accepted: 'Aceptado',
+        rejected: 'Rechazado',
+        not_applicable: 'No aplica'
+    };
+
+    return labels[status] || status || 'Sin estado';
+}
+
+function getClientDocumentStatusClass(status) {
+    if (status === 'accepted') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    if (status === 'rejected') return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+    if (status === 'received' || status === 'in_review') return 'border-blue-500/30 bg-blue-500/10 text-blue-300';
+    if (status === 'not_applicable') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+    return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+}
+
+function formatClientDocumentLogText(log) {
+    const action = String(log?.action || '');
+    const notes = String(log?.notes || '').trim();
+
+    if (action === 'document_uploaded') {
+        if (notes.startsWith('Documento subido correctamente:')) return notes;
+        const receivedMatch = notes.match(/^Documento recibido:\s*(.+?)\.?$/i);
+        return receivedMatch ? `Documento subido correctamente: ${receivedMatch[1]}` : 'Documento subido correctamente';
+    }
+
+    if (action === 'document_deleted') {
+        return notes.startsWith('Documento eliminado:') ? notes : 'Documento eliminado';
+    }
+
+    if (action === 'document_note_updated') {
+        return 'Nota documental actualizada';
+    }
+
+    if (action.startsWith('required_document_status_')) {
+        const status = action.replace('required_document_status_', '');
+        const labels = {
+            pending: 'Documento marcado como pendiente',
+            received: 'Documento marcado como recibido',
+            in_review: 'Documento marcado como en revisión',
+            accepted: 'Documento marcado como aceptado',
+            rejected: 'Documento marcado como rechazado',
+            not_applicable: 'Documento marcado como no procede'
+        };
+        return labels[status] || 'Estado documental actualizado';
+    }
+
+    if (action.startsWith('procedure_status_')) {
+        return notes || 'Estado del trámite actualizado';
+    }
+
+    if (action === 'procedure_created') {
+        return notes || 'Trámite creado';
+    }
+
+    return notes || action || 'Movimiento documental';
+}
+
+function ClientProceduresPanel() {
+    const [clients, setClients] = useState([]);
+    const [procedures, setProcedures] = useState([]);
+    const [summary, setSummary] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
+    const [message, setMessage] = useState(null);
+    const [filters, setFilters] = useState({ client_id: '', status: '', procedure_type: '', entity_type: '' });
+    const [form, setForm] = useState({
+        client_id: '',
+        procedure_type: '',
+        entity_type: '',
+        title: '',
+        description: '',
+        employee_name: '',
+        reference_label: '',
+        period_type: '',
+        period_value: '',
+        fiscal_year: '',
+        procedure_subtype: '',
+        priority: 'normal',
+        due_date: ''
+    });
+    const [documentDrafts, setDocumentDrafts] = useState([]);
+    const [uploadFiles, setUploadFiles] = useState({});
+    const [documentUpdates, setDocumentUpdates] = useState({});
+    const [procedureUpdates, setProcedureUpdates] = useState({});
+    const [deleteDialog, setDeleteDialog] = useState(null);
+    const [deleteError, setDeleteError] = useState('');
+
+    const loadClients = async () => {
+        const response = await fetch('/api/clients/entities', { credentials: 'same-origin' });
+        const data = await response.json();
+
+        if (!response.ok || data.status !== 'ok') {
+            throw new Error(data.message || 'No se pudieron cargar los clientes.');
+        }
+
+        setClients(data.clients || []);
+    };
+
+    const loadProcedures = async (targetFilters = filters, showLoading = true, rethrow = false) => {
+        if (showLoading) setLoading(true);
+
+        try {
+            const params = new URLSearchParams();
+            params.set('limit', '100');
+
+            if (targetFilters.client_id) params.set('client_id', targetFilters.client_id);
+            if (targetFilters.status) params.set('status', targetFilters.status);
+            if (targetFilters.procedure_type) params.set('procedure_type', targetFilters.procedure_type);
+            if (targetFilters.entity_type) params.set('entity_type', targetFilters.entity_type);
+
+            const response = await fetch(`/api/manager/client-procedures?${params.toString()}`, {
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudieron cargar los trámites.');
+            }
+
+            setProcedures(data.procedures || []);
+            setSummary(data.summary || null);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+            if (rethrow) throw err;
+        } finally {
+            if (showLoading) setLoading(false);
+        }
+    };
+
+    const handleRefreshData = async () => {
+        setRefreshing(true);
+        setMessage(null);
+
+        try {
+            await Promise.all([
+                loadClients(),
+                loadProcedures(filters, false, true)
+            ]);
+
+            setMessage({ type: 'success', text: 'Datos actualizados.' });
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'No se pudieron actualizar los datos.' });
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        loadClients().catch(err => {
+            console.error('Error loading clients for procedures', err);
+        });
+    }, []);
+
+    useEffect(() => {
+        loadProcedures(filters).catch(() => {});
+    }, [filters.client_id, filters.status, filters.procedure_type, filters.entity_type]);
+
+    const handleProcedureTypeChange = (procedureType) => {
+        setForm(prev => ({
+            ...prev,
+            procedure_type: procedureType,
+            title: getClientProcedureTypeLabel(procedureType),
+            employee_name: isClientLaborProcedureType(procedureType) === isClientLaborProcedureType(prev.procedure_type)
+                ? prev.employee_name
+                : '',
+            reference_label: isClientLaborProcedureType(procedureType) ? '' : prev.reference_label,
+            period_type: procedureType === 'tickets_gastos' ? prev.period_type : '',
+            period_value: '',
+            fiscal_year: procedureType === 'trimestre_fiscal' || procedureType === 'declaracion_renta' || procedureType === 'impuesto_sociedades'
+                ? prev.fiscal_year
+                : '',
+            procedure_subtype: ''
+        }));
+        setDocumentDrafts(buildClientProcedureDocumentDrafts(procedureType));
+    };
+
+    const handleDocumentDraftToggle = (draftId, checked) => {
+        setDocumentDrafts(prev => prev.map(draft => (
+            draft.id === draftId ? { ...draft, enabled: checked } : draft
+        )));
+    };
+
+    const handleCreateProcedure = async (event) => {
+        event.preventDefault();
+        setMessage(null);
+
+        const requiredDocuments = documentDrafts
+            .filter(draft => draft.enabled)
+            .map(draft => ({
+                document_key: draft.document_key,
+                document_label: draft.document_label,
+                required: draft.required
+            }));
+
+        if (!form.client_id || !form.entity_type || !form.procedure_type || !form.title || !requiredDocuments.length) {
+            setMessage({ type: 'error', text: 'Selecciona cliente, tipo de entidad, tipo de trámite, título y al menos un documento requerido.' });
+            return;
+        }
+
+        if (form.procedure_type === 'trimestre_fiscal' && (!form.period_value || !form.fiscal_year)) {
+            setMessage({ type: 'error', text: 'Selecciona trimestre y ejercicio para el trimestre fiscal.' });
+            return;
+        }
+
+        if ((form.procedure_type === 'declaracion_renta' || form.procedure_type === 'impuesto_sociedades') && !form.fiscal_year) {
+            setMessage({ type: 'error', text: 'Indica el ejercicio fiscal.' });
+            return;
+        }
+
+        if (form.procedure_type === 'censal_actividad' && !form.procedure_subtype) {
+            setMessage({ type: 'error', text: 'Selecciona la actuación censal.' });
+            return;
+        }
+
+        if (form.procedure_type === 'tickets_gastos' && !form.period_type) {
+            setMessage({ type: 'error', text: 'Selecciona el periodo de tickets y gastos.' });
+            return;
+        }
+
+        const isLaborProcedure = isClientLaborProcedureType(form.procedure_type);
+        const procedurePayload = {
+            ...form,
+            employee_name: isLaborProcedure ? form.employee_name : '',
+            reference_label: isLaborProcedure ? '' : form.reference_label,
+            period_type: form.procedure_type === 'trimestre_fiscal' ? 'trimestre' : form.period_type,
+            required_documents: requiredDocuments
+        };
+
+        setActionLoading('create');
+
+        try {
+            const response = await fetch('/api/manager/client-procedures', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(procedurePayload)
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo crear el trámite.');
+            }
+
+            const nextFilters = { client_id: form.client_id, status: '', procedure_type: '', entity_type: form.entity_type };
+            setFilters(nextFilters);
+            setForm(prev => ({
+                ...prev,
+                procedure_type: '',
+                title: '',
+                description: '',
+                employee_name: '',
+                reference_label: '',
+                period_type: '',
+                period_value: '',
+                fiscal_year: '',
+                procedure_subtype: '',
+                priority: 'normal',
+                due_date: ''
+            }));
+            setDocumentDrafts([]);
+            setMessage({ type: 'success', text: 'Trámite creado.' });
+            await loadProcedures(nextFilters, false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+        } finally {
+            setActionLoading('');
+        }
+    };
+
+    const handleUploadDocument = async (procedure, requiredDocument) => {
+        const file = uploadFiles[requiredDocument.id];
+
+        if (!file) {
+            setMessage({ type: 'error', text: 'Selecciona un archivo antes de subir.' });
+            return;
+        }
+
+        setActionLoading(`upload-${requiredDocument.id}`);
+        setMessage(null);
+
+        try {
+            const uploadUrlResponse = await fetch(`/api/manager/client-procedures/${encodeURIComponent(procedure.id)}/documents/${encodeURIComponent(requiredDocument.id)}/upload-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    original_filename: file.name,
+                    mime_type: file.type || 'application/octet-stream',
+                    file_size: file.size
+                })
+            });
+            const uploadUrlData = await uploadUrlResponse.json();
+
+            if (!uploadUrlResponse.ok || uploadUrlData.status !== 'ok') {
+                throw new Error(uploadUrlData.message || 'No se pudo preparar la subida.');
+            }
+
+            const uploadBody = new FormData();
+            uploadBody.append('cacheControl', '3600');
+            uploadBody.append('', file);
+
+            const storageResponse = await fetch(uploadUrlData.signed_url, {
+                method: 'PUT',
+                body: uploadBody
+            });
+
+            if (!storageResponse.ok) {
+                const detail = await storageResponse.text().catch(() => '');
+                throw new Error(`Supabase Storage rechazó la subida (${storageResponse.status}). ${detail}`.trim());
+            }
+
+            const completeResponse = await fetch(`/api/manager/client-procedures/${encodeURIComponent(procedure.id)}/documents/${encodeURIComponent(requiredDocument.id)}/complete-upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    uploaded_document_id: uploadUrlData.uploaded_document_id,
+                    original_filename: file.name,
+                    safe_filename: uploadUrlData.safe_filename,
+                    storage_bucket: uploadUrlData.storage_bucket,
+                    storage_path: uploadUrlData.storage_path,
+                    mime_type: file.type || 'application/octet-stream',
+                    file_size: file.size,
+                    uploaded_by: 'manager',
+                    status: 'received',
+                    required_document_status: 'received'
+                })
+            });
+            const completeData = await completeResponse.json();
+
+            if (!completeResponse.ok || completeData.status !== 'ok') {
+                throw new Error(completeData.message || 'La subida se completó, pero no se pudieron registrar los metadatos.');
+            }
+
+            setUploadFiles(prev => ({ ...prev, [requiredDocument.id]: null }));
+            setMessage({ type: 'success', text: 'Documento subido y registrado.' });
+            await loadProcedures(filters, false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+        } finally {
+            setActionLoading('');
+        }
+    };
+
+    const handleOpenUploadedDocument = async (procedure, uploadedDocument) => {
+        setActionLoading(`download-${uploadedDocument.id}`);
+        setMessage(null);
+
+        try {
+            const response = await fetch(`/api/manager/client-procedures/${encodeURIComponent(procedure.id)}/documents/${encodeURIComponent(uploadedDocument.id)}/download-url`, {
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo generar la URL firmada.');
+            }
+
+            window.open(data.signed_url, '_blank', 'noopener,noreferrer');
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+        } finally {
+            setActionLoading('');
+        }
+    };
+
+    const openDeleteUploadedDocumentDialog = (procedure, requiredDocument, uploadedDocument) => {
+        setDeleteError('');
+        setDeleteDialog({ procedure, requiredDocument, uploadedDocument });
+    };
+
+    const closeDeleteUploadedDocumentDialog = () => {
+        if (actionLoading.startsWith('delete-')) return;
+        setDeleteError('');
+        setDeleteDialog(null);
+    };
+
+    const confirmDeleteUploadedDocument = async () => {
+        if (!deleteDialog) return;
+
+        const { procedure, requiredDocument, uploadedDocument } = deleteDialog;
+        setActionLoading(`delete-${uploadedDocument.id}`);
+        setDeleteError('');
+        setMessage(null);
+
+        try {
+            const response = await fetch(`/api/manager/client-procedures/${encodeURIComponent(procedure.id)}/documents/${encodeURIComponent(uploadedDocument.id)}`, {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (!response.ok || !(data.ok === true || data.status === 'ok') || data.deleted !== true) {
+                throw new Error(data.message || 'No se pudo eliminar el documento.');
+            }
+
+            setUploadFiles(prev => ({ ...prev, [requiredDocument.id]: null }));
+            setDeleteDialog(null);
+            setMessage({ type: 'success', text: 'Documento eliminado correctamente.' });
+            await loadProcedures(filters, false);
+        } catch (err) {
+            setDeleteError(err.message || 'No se pudo eliminar el documento.');
+            setMessage({ type: 'error', text: err.message || 'No se pudo eliminar el documento.' });
+        } finally {
+            setActionLoading('');
+        }
+    };
+    const handleUpdateDocumentStatus = async (procedure, requiredDocument) => {
+        const draft = documentUpdates[requiredDocument.id] || {
+            status: requiredDocument.status,
+            notes: requiredDocument.notes || ''
+        };
+
+        const activeUploads = (requiredDocument.uploaded_documents || []).filter(uploadedDocument => (
+            uploadedDocument.procedure_id === procedure.id &&
+            uploadedDocument.required_document_id === requiredDocument.id &&
+            !uploadedDocument.deleted_at
+        ));
+
+        if (draft.status === 'received' && activeUploads.length === 0) {
+            setMessage({ type: 'error', text: 'Sube un archivo antes de marcar el documento como recibido.' });
+            return;
+        }
+
+        setActionLoading(`doc-status-${requiredDocument.id}`);
+        setMessage(null);
+
+        try {
+            const response = await fetch(`/api/manager/client-procedures/${encodeURIComponent(procedure.id)}/documents/${encodeURIComponent(requiredDocument.id)}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(draft)
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo actualizar el documento.');
+            }
+
+            setMessage({ type: 'success', text: 'Estado documental actualizado.' });
+            await loadProcedures(filters, false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+        } finally {
+            setActionLoading('');
+        }
+    };
+
+    const handleUpdateProcedureStatus = async (procedure) => {
+        const draft = procedureUpdates[procedure.id] || {
+            status: procedure.status,
+            notes: ''
+        };
+
+        setActionLoading(`procedure-status-${procedure.id}`);
+        setMessage(null);
+
+        try {
+            const response = await fetch(`/api/manager/client-procedures/${encodeURIComponent(procedure.id)}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(draft)
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo actualizar el trámite.');
+            }
+
+            setMessage({ type: 'success', text: 'Estado del trámite actualizado.' });
+            await loadProcedures(filters, false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message });
+        } finally {
+            setActionLoading('');
+        }
+    };
+
+    const computedSummary = summary || {
+        open_procedures: procedures.filter(procedure => procedure.status === 'open' || procedure.status === 'in_progress').length,
+        pending_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'pending').length, 0),
+        received_or_review_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'received' || doc.status === 'in_review').length, 0),
+        accepted_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'accepted').length, 0),
+        rejected_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'rejected').length, 0)
+    };
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <h2 className="text-xl font-bold text-white mb-2">Documentación y trámites</h2>
+                        <p className="text-sm text-slate-400 font-medium">Gestión documental de trámites por cliente con Storage privado y URLs firmadas.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleRefreshData}
+                        disabled={refreshing}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-bold text-slate-200 hover:border-indigo-500/60 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                        {refreshing ? 'Actualizando...' : 'Actualizar datos'}
+                    </button>
+                </div>
+            </div>
+
+            {message && (
+                <div className={`rounded-xl border px-4 py-3 text-sm font-semibold ${message.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200'}`}>
+                    {message.text}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
+                <MetricCard title="Trámites abiertos" value={computedSummary.open_procedures} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
+                <MetricCard title="Pendientes" value={computedSummary.pending_documents} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
+                <MetricCard title="Recibidos / revisión" value={computedSummary.received_or_review_documents} color="text-blue-400" border="border-blue-500/20" bg="bg-blue-950/20" />
+                <MetricCard title="Aceptados" value={computedSummary.accepted_documents} color="text-emerald-400" border="border-emerald-500/20" bg="bg-emerald-950/20" />
+                <MetricCard title="Rechazados" value={computedSummary.rejected_documents} color="text-rose-400" border="border-rose-500/20" bg="bg-rose-950/20" />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+                <form onSubmit={handleCreateProcedure} className="xl:col-span-4 rounded-2xl border border-slate-700/60 bg-slate-800/80 p-6 shadow-xl shadow-black/20 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-700/60 pb-3">
+                        <Plus className="h-4 w-4 text-indigo-300" />
+                        <h3 className="text-lg font-bold text-white">Nuevo trámite</h3>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Cliente</label>
+                        <select
+                            value={form.client_id}
+                            onChange={(event) => setForm(prev => ({ ...prev, client_id: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                        >
+                            <option value="">Selecciona cliente</option>
+                            {clients.map(client => (
+                                <option key={client.id} value={client.id}>{client.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo de trámite</label>
+                        <select
+                            value={form.procedure_type}
+                            onChange={(event) => handleProcedureTypeChange(event.target.value)}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                        >
+                            <option value="">Selecciona tipo de trámite</option>
+                            {CLIENT_PROCEDURE_TYPES.map(type => (
+                                <option key={type.value} value={type.value}>{type.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo de entidad</label>
+                        <select
+                            value={form.entity_type}
+                            onChange={(event) => setForm(prev => ({ ...prev, entity_type: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                        >
+                            <option value="">Selecciona tipo de entidad</option>
+                            {CLIENT_PROCEDURE_ENTITY_TYPES.map(type => (
+                                <option key={type.value} value={type.value}>{type.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Título</label>
+                        <input
+                            value={form.title}
+                            onChange={(event) => setForm(prev => ({ ...prev, title: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">{isClientLaborProcedureType(form.procedure_type) ? 'Empleado' : 'Referencia'}</label>
+                            <input
+                                value={isClientLaborProcedureType(form.procedure_type) ? form.employee_name : form.reference_label}
+                                onChange={(event) => setForm(prev => isClientLaborProcedureType(prev.procedure_type)
+                                    ? { ...prev, employee_name: event.target.value }
+                                    : { ...prev, reference_label: event.target.value }
+                                )}
+                                className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Vencimiento</label>
+                            <input
+                                type="date"
+                                value={form.due_date}
+                                onChange={(event) => setForm(prev => ({ ...prev, due_date: event.target.value }))}
+                                className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                            />
+                        </div>
+                    </div>
+
+                    {form.procedure_type === 'trimestre_fiscal' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Trimestre</label>
+                                <select
+                                    value={form.period_value}
+                                    onChange={(event) => setForm(prev => ({ ...prev, period_type: 'trimestre', period_value: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="">Selecciona trimestre</option>
+                                    {CLIENT_QUARTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ejercicio</label>
+                                <input
+                                    inputMode="numeric"
+                                    value={form.fiscal_year}
+                                    onChange={(event) => setForm(prev => ({ ...prev, fiscal_year: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {form.procedure_type === 'declaracion_renta' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ejercicio fiscal</label>
+                                <input
+                                    inputMode="numeric"
+                                    value={form.fiscal_year}
+                                    onChange={(event) => setForm(prev => ({ ...prev, fiscal_year: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo de renta</label>
+                                <select
+                                    value={form.procedure_subtype}
+                                    onChange={(event) => setForm(prev => ({ ...prev, procedure_subtype: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="">Selecciona tipo</option>
+                                    {CLIENT_RENTA_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
+                    {form.procedure_type === 'impuesto_sociedades' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ejercicio fiscal</label>
+                                <input
+                                    inputMode="numeric"
+                                    value={form.fiscal_year}
+                                    onChange={(event) => setForm(prev => ({ ...prev, fiscal_year: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo de cierre</label>
+                                <select
+                                    value={form.procedure_subtype}
+                                    onChange={(event) => setForm(prev => ({ ...prev, procedure_subtype: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="">Selecciona tipo</option>
+                                    {CLIENT_SOCIETIES_CLOSING_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
+                    {form.procedure_type === 'censal_actividad' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Actuación censal</label>
+                                <select
+                                    value={form.procedure_subtype}
+                                    onChange={(event) => setForm(prev => ({ ...prev, procedure_subtype: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="">Selecciona actuación</option>
+                                    {CLIENT_CENSAL_ACTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Fecha de efecto</label>
+                                <input
+                                    type="date"
+                                    value={form.period_value}
+                                    onChange={(event) => setForm(prev => ({ ...prev, period_type: 'fecha_efecto', period_value: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {form.procedure_type === 'tickets_gastos' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Periodo</label>
+                                <select
+                                    value={form.period_type}
+                                    onChange={(event) => setForm(prev => ({ ...prev, period_type: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="">Selecciona periodo</option>
+                                    {CLIENT_TICKETS_PERIOD_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Detalle del periodo</label>
+                                <input
+                                    value={form.period_value}
+                                    onChange={(event) => setForm(prev => ({ ...prev, period_value: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Prioridad</label>
+                        <select
+                            value={form.priority}
+                            onChange={(event) => setForm(prev => ({ ...prev, priority: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                        >
+                            <option value="normal">Normal</option>
+                            <option value="high">Alta</option>
+                            <option value="urgent">Urgente</option>
+                            <option value="low">Baja</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Descripción</label>
+                        <textarea
+                            value={form.description}
+                            onChange={(event) => setForm(prev => ({ ...prev, description: event.target.value }))}
+                            rows={3}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                        />
+                    </div>
+
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Documentos requeridos</span>
+                            <button
+                                type="button"
+                                onClick={() => setDocumentDrafts(buildClientProcedureDocumentDrafts(form.procedure_type))}
+                                disabled={!form.procedure_type}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-bold text-slate-300 hover:border-indigo-500/50 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                Sugeridos
+                            </button>
+                        </div>
+                        <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                            Documentos sugeridos por la asesoría según el tipo de trámite y entidad. La documentación requerida puede ajustarse según cliente y caso.
+                        </p>
+                        <div className="space-y-2">
+                            {documentDrafts.length === 0 ? (
+                                <div className="rounded-lg border border-dashed border-slate-700 bg-slate-900/40 px-3 py-3 text-xs font-semibold text-slate-500">
+                                    Selecciona un tipo de trámite para cargar documentos sugeridos.
+                                </div>
+                            ) : documentDrafts.map(draft => (
+                                <label key={draft.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm font-semibold text-slate-200">
+                                    <input
+                                        type="checkbox"
+                                        checked={draft.enabled}
+                                        onChange={(event) => handleDocumentDraftToggle(draft.id, event.target.checked)}
+                                        className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                                    />
+                                    <span>{draft.document_label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={actionLoading === 'create'}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-700"
+                    >
+                        <Plus className="h-4 w-4" />
+                        {actionLoading === 'create' ? 'Creando...' : 'Crear trámite'}
+                    </button>
+                </form>
+
+                <div className="xl:col-span-8 space-y-5">
+                    <div className="rounded-2xl border border-slate-700/60 bg-slate-800/80 p-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                            <select
+                                value={filters.client_id}
+                                onChange={(event) => setFilters(prev => ({ ...prev, client_id: event.target.value }))}
+                                className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="">Todos los clientes</option>
+                                {clients.map(client => (
+                                    <option key={client.id} value={client.id}>{client.name}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={filters.status}
+                                onChange={(event) => setFilters(prev => ({ ...prev, status: event.target.value }))}
+                                className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="">Todos los estados</option>
+                                <option value="open">Abierto</option>
+                                <option value="in_progress">En curso</option>
+                                <option value="completed">Completado</option>
+                                <option value="cancelled">Cancelado</option>
+                            </select>
+                            <select
+                                value={filters.procedure_type}
+                                onChange={(event) => setFilters(prev => ({ ...prev, procedure_type: event.target.value }))}
+                                className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="">Todos los tipos</option>
+                                <option value="">Selecciona tipo de trámite</option>
+                            {CLIENT_PROCEDURE_TYPES.map(type => (
+                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={filters.entity_type}
+                                onChange={(event) => setFilters(prev => ({ ...prev, entity_type: event.target.value }))}
+                                className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="">Todos los tipos de entidad</option>
+                                {CLIENT_PROCEDURE_ENTITY_TYPES.map(type => (
+                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {loading ? (
+                        <div className="flex items-center justify-center py-24 text-slate-400">
+                            <div className="animate-pulse flex flex-col items-center gap-6">
+                                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                <p className="font-semibold tracking-wide text-lg">Cargando trámites...</p>
+                            </div>
+                        </div>
+                    ) : procedures.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-800/40 p-10 text-center text-slate-400">
+                            <FileText className="mx-auto mb-4 h-10 w-10 text-slate-500" />
+                            <p className="font-bold text-slate-300">No hay trámites documentales con estos filtros.</p>
+                        </div>
+                    ) : (
+                        procedures.map(procedure => {
+                            const procedureDraft = procedureUpdates[procedure.id] || { status: procedure.status, notes: '' };
+
+                            return (
+                                <section key={procedure.id} className="rounded-2xl border border-slate-700/60 bg-slate-800/80 p-5 shadow-xl shadow-black/20">
+                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                <span className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-indigo-300">
+                                                    {getClientProcedureTypeLabel(procedure.procedure_type)}
+                                                </span>
+                                                <span className="rounded-lg border border-slate-600/60 bg-slate-950/40 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">
+                                                    {getClientProcedureStatusLabel(procedure.status)}
+                                                </span>
+                                            </div>
+                                            <h3 className="text-lg font-black text-white">{procedure.title}</h3>
+                                            <p className="mt-1 text-sm font-semibold text-slate-400">{procedure.client?.name || procedure.client_id}</p>
+                                            <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold text-slate-500">
+                                                <span>Entidad: {getClientProcedureEntityTypeLabel(procedure.entity_type)}</span>
+                                                {isClientLaborProcedureType(procedure.procedure_type) && procedure.employee_name && <span>Empleado: {procedure.employee_name}</span>}
+                                                {!isClientLaborProcedureType(procedure.procedure_type) && (procedure.reference_label || procedure.employee_name) && <span>Referencia: {procedure.reference_label || procedure.employee_name}</span>}
+                                                {getClientProcedureStructuredDetails(procedure).map(detail => <span key={detail.label}>{detail.label}: {detail.value}</span>)}
+                                                <span>Prioridad: {procedure.priority || 'normal'}</span>
+                                                {procedure.due_date && <span>Vence: {procedure.due_date}</span>}
+                                                <span>Actualizado: {formatClientProcedureDateTime(procedure.updated_at)}</span>
+                                            </div>
+                                            {procedure.description && (
+                                                <p className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/30 px-3 py-2 text-sm leading-relaxed text-slate-300">
+                                                    {procedure.description}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div className="w-full lg:w-80 rounded-xl border border-slate-700/60 bg-slate-950/40 p-3">
+                                            <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">Estado del trámite</label>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                <select
+                                                    value={procedureDraft.status}
+                                                    onChange={(event) => setProcedureUpdates(prev => ({
+                                                        ...prev,
+                                                        [procedure.id]: { ...procedureDraft, status: event.target.value }
+                                                    }))}
+                                                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                >
+                                                    <option value="open">Abierto</option>
+                                                    <option value="in_progress">En curso</option>
+                                                    <option value="completed">Completado</option>
+                                                    <option value="cancelled">Cancelado</option>
+                                                </select>
+                                                <input
+                                                    value={procedureDraft.notes}
+                                                    onChange={(event) => setProcedureUpdates(prev => ({
+                                                        ...prev,
+                                                        [procedure.id]: { ...procedureDraft, notes: event.target.value }
+                                                    }))}
+                                                    placeholder="Nota interna"
+                                                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleUpdateProcedureStatus(procedure)}
+                                                    disabled={actionLoading === `procedure-status-${procedure.id}`}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-xs font-bold text-indigo-200 hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    <Save className="h-4 w-4" />
+                                                    Guardar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 space-y-4">
+                                        {(procedure.required_documents || []).map(requiredDocument => {
+                                            const documentDraft = documentUpdates[requiredDocument.id] || {
+                                                status: requiredDocument.status,
+                                                notes: requiredDocument.notes || ''
+                                            };
+                                            const selectedFile = uploadFiles[requiredDocument.id];
+                                            const activeUploadedDocuments = (requiredDocument.uploaded_documents || []).filter(uploadedDocument => (
+                                                uploadedDocument.procedure_id === procedure.id &&
+                                                uploadedDocument.required_document_id === requiredDocument.id &&
+                                                !uploadedDocument.deleted_at
+                                            ));
+                                            const isConditionalRequiredDocument = /si\s+procede/i.test(requiredDocument.document_label || '');
+
+                                            return (
+                                                <div key={requiredDocument.id} className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-4">
+                                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                                        <div>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <h4 className="font-bold text-slate-100">{requiredDocument.document_label}</h4>
+                                                                <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getClientDocumentStatusClass(requiredDocument.status)}`}>
+                                                                    {getClientDocumentStatusLabel(requiredDocument.status)}
+                                                                </span>
+                                                                {requiredDocument.required === 1 && (
+                                                                    <span className="rounded-lg border border-slate-600/60 bg-slate-950/40 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                                                                        {isConditionalRequiredDocument ? 'SI PROCEDE' : 'Obligatorio'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {requiredDocument.notes && (
+                                                                <p className="mt-2 text-sm text-slate-400">{requiredDocument.notes}</p>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="w-full lg:w-[420px]">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                                                                <input
+                                                                    type="file"
+                                                                    onChange={(event) => setUploadFiles(prev => ({
+                                                                        ...prev,
+                                                                        [requiredDocument.id]: event.target.files?.[0] || null
+                                                                    }))}
+                                                                    className="block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-slate-100 hover:file:bg-slate-600"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleUploadDocument(procedure, requiredDocument)}
+                                                                    disabled={!selectedFile || actionLoading === `upload-${requiredDocument.id}`}
+                                                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-200 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                >
+                                                                    <Upload className="h-4 w-4" />
+                                                                    Subir
+                                                                </button>
+                                                            </div>
+                                                            {selectedFile && (
+                                                                <div className="mt-2 text-xs font-semibold text-slate-500">
+                                                                    {selectedFile.name} · {formatClientProcedureFileSize(selectedFile.size)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {activeUploadedDocuments.length > 0 && (
+                                                        <div className="mt-4 space-y-2">
+                                                            {activeUploadedDocuments.map(uploadedDocument => (
+                                                                <div key={uploadedDocument.id} className="flex flex-col gap-3 rounded-xl border border-slate-700/50 bg-slate-950/40 px-3 py-3 md:flex-row md:items-center md:justify-between">
+                                                                    <div className="min-w-0">
+                                                                        <div className="flex items-center gap-2 text-sm font-bold text-slate-100">
+                                                                            <FileText className="h-4 w-4 shrink-0 text-blue-300" />
+                                                                            <span className="truncate">{uploadedDocument.original_filename}</span>
+                                                                        </div>
+                                                                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
+                                                                            <span>{formatClientProcedureFileSize(uploadedDocument.file_size)}</span>
+                                                                            <span>{uploadedDocument.mime_type || 'Tipo no informado'}</span>
+                                                                            <span>{formatClientProcedureDateTime(uploadedDocument.created_at)}</span>
+                                                                            <span>{getClientDocumentStatusLabel(uploadedDocument.status)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleOpenUploadedDocument(procedure, uploadedDocument)}
+                                                                            disabled={actionLoading === `download-${uploadedDocument.id}` || actionLoading === `delete-${uploadedDocument.id}`}
+                                                                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-200 hover:border-blue-500/50 hover:text-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                        >
+                                                                            <Download className="h-4 w-4" />
+                                                                            Abrir
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => openDeleteUploadedDocumentDialog(procedure, requiredDocument, uploadedDocument)}
+                                                                            disabled={actionLoading === `download-${uploadedDocument.id}` || actionLoading === `delete-${uploadedDocument.id}`}
+                                                                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                            {actionLoading === `delete-${uploadedDocument.id}` ? 'Eliminando...' : 'Eliminar'}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-[160px_1fr_auto]">
+                                                        <select
+                                                            value={documentDraft.status}
+                                                            onChange={(event) => setDocumentUpdates(prev => ({
+                                                                ...prev,
+                                                                [requiredDocument.id]: { ...documentDraft, status: event.target.value }
+                                                            }))}
+                                                            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                        >
+                                                            <option value="pending">Pendiente</option>
+                                                            <option value="received">Recibido</option>
+                                                            <option value="in_review">En revisión</option>
+                                                            <option value="accepted">Aceptado</option>
+                                                            <option value="rejected">Rechazado</option>
+                                                            <option value="not_applicable">No aplica</option>
+                                                        </select>
+                                                        <input
+                                                            value={documentDraft.notes}
+                                                            onChange={(event) => setDocumentUpdates(prev => ({
+                                                                ...prev,
+                                                                [requiredDocument.id]: { ...documentDraft, notes: event.target.value }
+                                                            }))}
+                                                            placeholder="Nota documental"
+                                                            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleUpdateDocumentStatus(procedure, requiredDocument)}
+                                                            disabled={actionLoading === `doc-status-${requiredDocument.id}`}
+                                                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                                        >
+                                                            <CheckCircle2 className="h-4 w-4" />
+                                                            Guardar estado
+                                                        </button>
+                                                    </div>
+
+                                                    {(requiredDocument.logs || []).length > 0 && (
+                                                        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+                                                            <div className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">Historial documental</div>
+                                                            <div className="space-y-2">
+                                                                {requiredDocument.logs.slice(0, 4).map(log => (
+                                                                    <div key={log.id} className="text-xs text-slate-400">
+                                                                        <span className="font-bold text-slate-300">{formatClientProcedureDateTime(log.created_at)}</span>
+                                                                        {' · '}
+                                                                        <span>{formatClientDocumentLogText(log)}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {(procedure.logs || []).length > 0 && (
+                                        <div className="mt-5 rounded-xl border border-slate-700/50 bg-slate-950/30 p-4">
+                                            <div className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">Historial del trámite</div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                {procedure.logs.slice(0, 6).map(log => (
+                                                    <div key={log.id} className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+                                                        <div className="font-bold text-slate-300">{formatClientProcedureDateTime(log.created_at)}</div>
+                                                        <div>{formatClientDocumentLogText(log)}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </section>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+
+            {deleteDialog && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+                        <h3 className="text-lg font-black text-white">Eliminar documento</h3>
+                        <p className="mt-3 text-sm leading-relaxed text-slate-300">
+                            ¿Seguro que quieres eliminar este archivo? Esta acción eliminará el archivo subido y no afectará al trámite.
+                        </p>
+                        {deleteDialog.uploadedDocument?.original_filename && (
+                            <div className="mt-3 rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm font-bold text-slate-200">
+                                {deleteDialog.uploadedDocument.original_filename}
+                            </div>
+                        )}
+                        {deleteError && (
+                            <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-200">
+                                {deleteError}
+                            </div>
+                        )}
+                        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                onClick={closeDeleteUploadedDocumentDialog}
+                                disabled={actionLoading.startsWith('delete-')}
+                                className="inline-flex items-center justify-center rounded-xl border border-slate-600 bg-slate-950 px-4 py-2 text-sm font-bold text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                No, cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDeleteUploadedDocument}
+                                disabled={actionLoading.startsWith('delete-')}
+                                className="inline-flex items-center justify-center rounded-xl border border-rose-500/40 bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {actionLoading.startsWith('delete-') ? 'Eliminando...' : 'Sí, eliminar'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
@@ -4408,6 +5751,9 @@ useEffect(() => {
                         <button type="button" onClick={() => setView('paquetes')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'paquetes' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
                             Paquetes para cliente
                         </button>
+                        <button type="button" onClick={() => setView('documentacion')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'documentacion' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
+                            Documentación y trámites
+                        </button>
                         <button type="button" onClick={() => setView('comercial')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'comercial' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
                             Vista Comercial
                         </button>
@@ -4436,6 +5782,7 @@ useEffect(() => {
                         <option value="normativas">Normativas base</option>
                         <option value="ayudas">Ayudas y subvenciones</option>
                         <option value="paquetes">Paquetes para cliente</option>
+                        <option value="documentacion">Documentación y trámites</option>
                         <option value="comercial">Vista Comercial</option>
                         <option value="portal">Portal Entidad</option>
                     </select>
@@ -4476,6 +5823,12 @@ useEffect(() => {
                         icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />}
                     />
                     <NavTab
+                        active={view === 'documentacion'}
+                        onClick={() => setView('documentacion')}
+                        label="Documentación y trámites"
+                        icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />}
+                    />
+                    <NavTab
                         active={view === 'comercial'}
                         onClick={() => setView('comercial')}
                         label="Vista Comercial"
@@ -4514,6 +5867,7 @@ useEffect(() => {
                 {view === 'ayudas' && <AidsPanel />}
                 {view === 'clientes' && <ClientsPanel />}
                 {view === 'paquetes' && <ClientPackagesPanel />}
+                {view === 'documentacion' && <ClientProceduresPanel />}
                 {view === 'comercial' && <CommercialDashboardPanel />}
                 {view === 'portal' && <PortalEntidadPanel />}
             </main>

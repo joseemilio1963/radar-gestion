@@ -1,6 +1,6 @@
-﻿import { BRAND_CONFIG, formatConfiguredClientName } from './brandConfig';
+import { BRAND_CONFIG, formatConfiguredClientName } from './brandConfig';
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Download, FileText, Plus, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
+import { Camera, CheckCircle2, Download, FileText, Plus, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
 
 function RadarPanel() {
     const [items, setItems] = useState([]);
@@ -166,7 +166,7 @@ function RadarPanel() {
                                     
                                     <div className="grid grid-cols-3 gap-3 text-xs mb-5 bg-slate-900/40 p-4 rounded-xl border border-slate-700/30">
                                         <div>
-                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">Categoría</span> 
+                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">Categoría</span>
                                             <span className="text-slate-200 font-medium">{item.category}</span>
                                         </div>
                                         <div>
@@ -174,7 +174,7 @@ function RadarPanel() {
                                             <span className="text-slate-200 font-medium">{item.territory}</span>
                                         </div>
                                         <div>
-                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">Publicación</span> 
+                                            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block mb-1">Publicación</span>
                                             <span className="text-slate-200 font-medium">{item.published_at || 'N/A'}</span>
                                         </div>
                                     </div>
@@ -1117,7 +1117,7 @@ function ClientsPanel() {
                                 onClick={() => handleClientsEntitiesSelectClient('')}
                                 className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-300 hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-200"
                             >
-                                ← Volver al selector de empresas
+                                ? Volver al selector de empresas
                             </button>
                         )}
                     </div>
@@ -1314,11 +1314,22 @@ const CLIENT_PROCEDURE_TYPES = [
     { value: 'declaracion_renta', label: 'Declaración de la renta' },
     { value: 'impuesto_sociedades', label: 'Impuesto sobre Sociedades' },
     { value: 'censal_actividad', label: 'Censal / actividad' },
+    { value: 'inspeccion_requerimiento', label: 'Inspección/requerimiento oficial' },
     { value: 'documentacion_general_empresa', label: 'Documentación general de empresa' },
     { value: 'tickets_gastos', label: 'Tickets / gastos' },
     { value: 'otro_tramite', label: 'Otro trámite' }
 ];
 
+const CLIENT_PORTAL_PROCEDURE_START_OPTIONS = [
+    { value: 'alta_empleado', label: 'Voy a contratar a un nuevo empleado' },
+    { value: 'tickets_gastos', label: 'Tengo tickets/gastos para entregar' },
+    { value: 'baja_medica_it', label: 'Tengo una baja médica' },
+    { value: 'trimestre_fiscal', label: 'Tengo que preparar el trimestre fiscal' },
+    { value: 'censal_actividad', label: 'Tengo una modificación censal' },
+    { value: 'inspeccion_requerimiento', label: 'Tengo una inspección o requerimiento oficial' },
+    { value: 'declaracion_renta', label: 'Necesito preparar documentación para renta' },
+    { value: 'impuesto_sociedades', label: 'Necesito preparar documentación para sociedades' }
+];
 const CLIENT_PROCEDURE_ENTITY_TYPES = [
     { value: 'autonomo_persona_fisica', label: 'Autónomo / persona física' },
     { value: 'sl', label: 'SL' },
@@ -1339,6 +1350,14 @@ const CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS = {
     declaracion_renta: ['Datos fiscales AEAT', 'Certificados de retenciones', 'Rendimientos del trabajo', 'Rendimientos bancarios', 'Alquileres si procede', 'Hipoteca vivienda habitual si procede', 'Donativos si procede', 'Gastos deducibles de actividad si procede', 'Ganancias o pérdidas patrimoniales si procede', 'Deducciones autonómicas si procede'],
     impuesto_sociedades: ['Balance de sumas y saldos', 'Cuenta de pérdidas y ganancias', 'Libro mayor', 'Amortizaciones', 'Préstamos y leasing si procede', 'Retenciones y pagos a cuenta si procede', 'Pagos fraccionados si procede', 'Documentación de cierre'],
     censal_actividad: ['DNI/NIE o CIF', 'Escritura de constitución si procede', 'Modelo censal o datos de alta/modificación', 'Epígrafe IAE', 'Domicilio fiscal', 'Domicilio de actividad si procede', 'Representante legal si procede', 'Actividad económica', 'Fecha de inicio/modificación/baja', 'Obligaciones fiscales previstas', 'Cuenta bancaria si procede'],
+    inspeccion_requerimiento: [
+        'Notificación o requerimiento recibido',
+        'Documentación solicitada por la administración',
+        { label: 'Número de expediente o referencia si existe', required: false },
+        { label: 'Fecha límite de respuesta si aparece', required: false },
+        { label: 'Comunicaciones, alegaciones o escritos previos si procede', required: false },
+        { label: 'Identificación del organismo actuante si procede', required: false }
+    ],
     documentacion_general_empresa: ['CIF/NIF', 'Escrituras', 'Poderes o representación', 'Certificado digital', 'Contratos principales', 'Alquiler del local', 'Licencias o permisos', 'Seguros', 'Documentación bancaria', 'Documentación de proveedores relevantes'],
     tickets_gastos: ['Ticket o factura', 'Fecha', 'Importe', 'Concepto', 'Forma de pago', 'Justificante bancario si procede', 'Categoría de gasto'],
     otro_tramite: ['Documentación asociada']
@@ -1391,6 +1410,16 @@ const CLIENT_TICKETS_PERIOD_OPTIONS = [
     { value: 'otro_periodo', label: 'Otro periodo' }
 ];
 
+const CLIENT_INSPECTION_AUTHORITY_OPTIONS = [
+    { value: 'hacienda', label: 'Inspección/requerimiento de Hacienda' },
+    { value: 'trabajo', label: 'Inspección/requerimiento de Trabajo' },
+    { value: 'sanidad', label: 'Inspección/requerimiento de Sanidad' },
+    { value: 'conselleria', label: 'Inspección/requerimiento de Conselleria / Generalitat' },
+    { value: 'ayuntamiento', label: 'Inspección/requerimiento del Ayuntamiento' },
+    { value: 'policia', label: 'Inspección/requerimiento policial' },
+    { value: 'otro_organismo', label: 'Requerimiento de otro organismo' }
+];
+
 function getClientProcedureOptionLabel(options, value) {
     return options.find(option => option.value === value)?.label || value || '';
 }
@@ -1425,6 +1454,11 @@ function getClientProcedureStructuredDetails(procedure) {
         }
     }
 
+    if (procedure.procedure_type === 'inspeccion_requerimiento') {
+        if (procedure.procedure_subtype) details.push({ label: 'Organismo', value: getClientProcedureOptionLabel(CLIENT_INSPECTION_AUTHORITY_OPTIONS, procedure.procedure_subtype) });
+        if (procedure.due_date) details.push({ label: 'Fecha límite', value: procedure.due_date });
+    }
+
     return details;
 }
 
@@ -1448,17 +1482,25 @@ function getClientProcedureDocumentKey(label, index) {
 function buildClientProcedureDocumentDrafts(procedureType) {
     if (!procedureType) return [];
 
-    const labels = CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS[procedureType] || CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS.otro_tramite;
+    const suggestions = CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS[procedureType] || CLIENT_PROCEDURE_DOCUMENT_SUGGESTIONS.otro_tramite;
 
-    return labels.map((label, index) => ({
-        id: `${procedureType}-${index}-${getClientProcedureDocumentKey(label, index)}`,
-        document_key: getClientProcedureDocumentKey(label, index),
-        document_label: label,
-        required: true,
-        enabled: true
-    }));
+    return suggestions.map((suggestion, index) => {
+        const label = typeof suggestion === 'string'
+            ? suggestion
+            : String(suggestion?.document_label || suggestion?.label || suggestion?.name || '').trim();
+        const required = typeof suggestion === 'string'
+            ? true
+            : !(suggestion.required === false || suggestion.required === 0);
+
+        return {
+            id: `${procedureType}-${index}-${getClientProcedureDocumentKey(label, index)}`,
+            document_key: getClientProcedureDocumentKey(label, index),
+            document_label: label,
+            required,
+            enabled: true
+        };
+    }).filter(draft => draft.document_label);
 }
-
 function formatClientProcedureDateTime(value) {
     if (!value) return 'Sin fecha';
 
@@ -1516,6 +1558,7 @@ function formatClientDocumentLogText(log) {
     const notes = String(log?.notes || '').trim();
 
     if (action === 'document_uploaded') {
+        if (notes.startsWith('Documento subido por el cliente:')) return notes;
         if (notes.startsWith('Documento subido correctamente:')) return notes;
         const receivedMatch = notes.match(/^Documento recibido:\s*(.+?)\.?$/i);
         return receivedMatch ? `Documento subido correctamente: ${receivedMatch[1]}` : 'Documento subido correctamente';
@@ -2432,6 +2475,7 @@ function ClientProceduresPanel() {
                                                 notes: requiredDocument.notes || ''
                                             };
                                             const selectedFile = uploadFiles[requiredDocument.id];
+                                            const managerFileInputId = `manager-document-file-${requiredDocument.id}`;
                                             const activeUploadedDocuments = (requiredDocument.uploaded_documents || []).filter(uploadedDocument => (
                                                 uploadedDocument.procedure_id === procedure.id &&
                                                 uploadedDocument.required_document_id === requiredDocument.id &&
@@ -2460,15 +2504,30 @@ function ClientProceduresPanel() {
                                                         </div>
 
                                                         <div className="w-full lg:w-[420px]">
-                                                            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-                                                                <input
-                                                                    type="file"
-                                                                    onChange={(event) => setUploadFiles(prev => ({
-                                                                        ...prev,
-                                                                        [requiredDocument.id]: event.target.files?.[0] || null
-                                                                    }))}
-                                                                    className="block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-slate-100 hover:file:bg-slate-600"
-                                                                />
+                                                            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                                                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-2 py-2">
+                                                                    <input
+                                                                        id={managerFileInputId}
+                                                                        type="file"
+                                                                        onChange={(event) => setUploadFiles(prev => ({
+                                                                            ...prev,
+                                                                            [requiredDocument.id]: event.target.files?.[0] || null
+                                                                        }))}
+                                                                        className="sr-only peer"
+                                                                    />
+                                                                    <label
+                                                                        htmlFor={managerFileInputId}
+                                                                        className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md bg-slate-700 px-3 py-1.5 text-xs font-bold text-slate-100 hover:bg-slate-600 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-slate-950"
+                                                                    >
+                                                                        Seleccionar archivo
+                                                                    </label>
+                                                                    <span
+                                                                        className={`min-w-0 truncate text-xs font-semibold ${selectedFile ? 'text-slate-300' : 'text-slate-500'}`}
+                                                                        title={selectedFile?.name || 'Sin archivo seleccionado'}
+                                                                    >
+                                                                        {selectedFile?.name || 'Sin archivo seleccionado'}
+                                                                    </span>
+                                                                </div>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleUploadDocument(procedure, requiredDocument)}
@@ -2480,8 +2539,9 @@ function ClientProceduresPanel() {
                                                                 </button>
                                                             </div>
                                                             {selectedFile && (
-                                                                <div className="mt-2 text-xs font-semibold text-slate-500">
-                                                                    {selectedFile.name} · {formatClientProcedureFileSize(selectedFile.size)}
+                                                                <div className="mt-2 flex min-w-0 items-center gap-1 text-xs font-semibold text-slate-500">
+                                                                    <span className="min-w-0 truncate" title={selectedFile.name}>{selectedFile.name}</span>
+                                                                    <span className="shrink-0">· {formatClientProcedureFileSize(selectedFile.size)}</span>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -4027,6 +4087,635 @@ function ClientAssistantFaqPanel({ clientName = 'tu empresa', clientId = '' }) {
     );
 }
 
+const CLIENT_PORTAL_DOCUMENT_UPLOAD_ACCEPT = '.pdf,image/jpeg,image/jpg,image/png,image/*';
+const CLIENT_PORTAL_PHOTO_UPLOAD_ACCEPT = 'image/*';
+const CLIENT_PORTAL_UPLOAD_FORMAT_ERROR = 'Formato no admitido. Sube PDF, JPG o PNG. HEIC no está admitido en esta V1.';
+
+function getClientPortalUploadFileExtension(filename) {
+    const rawName = String(filename || '').split(/[\\/]/).pop() || '';
+    const dotIndex = rawName.lastIndexOf('.');
+
+    return dotIndex >= 0 ? rawName.slice(dotIndex).toLowerCase() : '';
+}
+
+function validateClientPortalUploadFile(file, { allowPdf = true } = {}) {
+    if (!file) {
+        return { ok: false, message: 'Selecciona un archivo antes de subir.' };
+    }
+
+    const extension = getClientPortalUploadFileExtension(file.name);
+    const mimeType = String(file.type || '').split(';')[0].trim().toLowerCase();
+    const allowedExtensions = allowPdf
+        ? new Set(['.pdf', '.jpg', '.jpeg', '.png'])
+        : new Set(['.jpg', '.jpeg', '.png']);
+    const allowedMimeTypes = allowPdf
+        ? new Set(['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'])
+        : new Set(['image/jpeg', 'image/jpg', 'image/png']);
+
+    if (!allowedExtensions.has(extension)) {
+        return {
+            ok: false,
+            message: allowPdf
+                ? CLIENT_PORTAL_UPLOAD_FORMAT_ERROR
+                : 'Formato no admitido. Haz o selecciona una imagen JPG o PNG. HEIC no está admitido en esta V1.'
+        };
+    }
+
+    if (mimeType && mimeType !== 'application/octet-stream' && !allowedMimeTypes.has(mimeType)) {
+        return {
+            ok: false,
+            message: allowPdf
+                ? CLIENT_PORTAL_UPLOAD_FORMAT_ERROR
+                : 'Formato no admitido. Haz o selecciona una imagen JPG o PNG. HEIC no está admitido en esta V1.'
+        };
+    }
+
+    return { ok: true };
+}
+
+function getClientPortalDefaultFiscalYear() {
+    return String(new Date().getFullYear());
+}
+
+function buildEmptyClientPortalStartForm(procedureType = '') {
+    const needsFiscalYear = ['trimestre_fiscal', 'declaracion_renta', 'impuesto_sociedades'].includes(procedureType);
+
+    return {
+        procedure_type: procedureType,
+        period_type: procedureType === 'trimestre_fiscal' ? 'trimestre' : '',
+        period_value: '',
+        fiscal_year: needsFiscalYear ? getClientPortalDefaultFiscalYear() : '',
+        procedure_subtype: '',
+        reference_label: '',
+        due_date: '',
+        description: ''
+    };
+}
+function ClientPortalProceduresPanel({ clientId }) {
+    const [procedures, setProcedures] = useState([]);
+    const [summary, setSummary] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [message, setMessage] = useState(null);
+    const [uploadingDocumentId, setUploadingDocumentId] = useState('');
+    const [creatingProcedure, setCreatingProcedure] = useState(false);
+    const [startForm, setStartForm] = useState(() => buildEmptyClientPortalStartForm());
+
+    const loadClientProcedures = async (showLoading = true, successMessage = '') => {
+        if (!clientId) return;
+
+        if (showLoading) setLoading(true);
+        if (!showLoading) setRefreshing(true);
+
+        try {
+            const response = await fetch('/api/portal/client-procedures', {
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudieron cargar los documentos solicitados.');
+            }
+
+            setProcedures(data.procedures || []);
+            setSummary(data.summary || null);
+
+            if (successMessage) {
+                const updatedAt = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                setMessage({ type: 'success', text: `${successMessage} ${updatedAt}` });
+            }
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'No se pudieron cargar los documentos solicitados.' });
+        } finally {
+            if (showLoading) setLoading(false);
+            if (!showLoading) setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        loadClientProcedures(true);
+    }, [clientId]);
+
+    const handleClientDocumentUpload = async (procedure, requiredDocument, file, source) => {
+        const validation = validateClientPortalUploadFile(file, { allowPdf: source !== 'photo' });
+
+        if (!validation.ok) {
+            setMessage({ type: 'error', text: validation.message });
+            return;
+        }
+
+        setUploadingDocumentId(requiredDocument.id);
+        setMessage(null);
+
+        try {
+            const uploadUrlResponse = await fetch(`/api/portal/client-procedures/${encodeURIComponent(procedure.id)}/documents/${encodeURIComponent(requiredDocument.id)}/upload-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    original_filename: file.name,
+                    mime_type: file.type || 'application/octet-stream',
+                    file_size: file.size
+                })
+            });
+            const uploadUrlData = await uploadUrlResponse.json();
+
+            if (!uploadUrlResponse.ok || uploadUrlData.status !== 'ok') {
+                throw new Error(uploadUrlData.message || 'No se pudo preparar la subida.');
+            }
+
+            const uploadBody = new FormData();
+            uploadBody.append('cacheControl', '3600');
+            uploadBody.append('', file);
+
+            const storageResponse = await fetch(uploadUrlData.signed_url, {
+                method: 'PUT',
+                body: uploadBody
+            });
+
+            if (!storageResponse.ok) {
+                const detail = await storageResponse.text().catch(() => '');
+                throw new Error(`Supabase Storage rechazó la subida (${storageResponse.status}). ${detail}`.trim());
+            }
+
+            const completeResponse = await fetch(`/api/portal/client-procedures/${encodeURIComponent(procedure.id)}/documents/${encodeURIComponent(requiredDocument.id)}/complete-upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    uploaded_document_id: uploadUrlData.uploaded_document_id,
+                    original_filename: file.name,
+                    safe_filename: uploadUrlData.safe_filename,
+                    storage_bucket: uploadUrlData.storage_bucket,
+                    storage_path: uploadUrlData.storage_path,
+                    mime_type: file.type || 'application/octet-stream',
+                    file_size: file.size
+                })
+            });
+            const completeData = await completeResponse.json();
+
+            if (!completeResponse.ok || completeData.status !== 'ok') {
+                throw new Error(completeData.message || 'La subida se completó, pero no se pudo registrar el documento.');
+            }
+
+            setMessage({ type: 'success', text: `Documento subido correctamente: ${file.name}` });
+            await loadClientProcedures(false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'No se pudo subir el documento.' });
+        } finally {
+            setUploadingDocumentId('');
+        }
+    };
+
+    const handlePortalStartTypeChange = (procedureType) => {
+        setStartForm(buildEmptyClientPortalStartForm(procedureType));
+        setMessage(null);
+    };
+
+    const handleCreatePortalProcedure = async (event) => {
+        event.preventDefault();
+        setMessage(null);
+
+        if (!startForm.procedure_type) {
+            setMessage({ type: 'error', text: 'Selecciona qué necesitas gestionar.' });
+            return;
+        }
+
+        if (startForm.procedure_type === 'trimestre_fiscal' && (!startForm.period_value || !startForm.fiscal_year)) {
+            setMessage({ type: 'error', text: 'Selecciona trimestre y ejercicio.' });
+            return;
+        }
+
+        if ((startForm.procedure_type === 'declaracion_renta' || startForm.procedure_type === 'impuesto_sociedades') && !startForm.fiscal_year) {
+            setMessage({ type: 'error', text: 'Indica el ejercicio fiscal.' });
+            return;
+        }
+
+        if (startForm.procedure_type === 'censal_actividad' && !startForm.procedure_subtype) {
+            setMessage({ type: 'error', text: 'Selecciona la actuación censal.' });
+            return;
+        }
+
+        if (startForm.procedure_type === 'inspeccion_requerimiento' && !startForm.procedure_subtype) {
+            setMessage({ type: 'error', text: 'Selecciona el organismo.' });
+            return;
+        }
+
+        if (startForm.procedure_type === 'tickets_gastos' && !startForm.period_type) {
+            setMessage({ type: 'error', text: 'Selecciona el periodo de tickets y gastos.' });
+            return;
+        }
+
+        const payload = {
+            procedure_type: startForm.procedure_type
+        };
+
+        if (startForm.reference_label.trim()) payload.reference_label = startForm.reference_label.trim();
+        if (startForm.procedure_type === 'trimestre_fiscal') {
+            payload.period_value = startForm.period_value;
+            payload.fiscal_year = startForm.fiscal_year.trim();
+        }
+        if (startForm.procedure_type === 'declaracion_renta' || startForm.procedure_type === 'impuesto_sociedades') {
+            payload.fiscal_year = startForm.fiscal_year.trim();
+            if (startForm.procedure_subtype) payload.procedure_subtype = startForm.procedure_subtype;
+        }
+        if (startForm.procedure_type === 'censal_actividad') {
+            payload.procedure_subtype = startForm.procedure_subtype;
+            if (startForm.period_value) payload.period_value = startForm.period_value;
+        }
+        if (startForm.procedure_type === 'tickets_gastos') {
+            payload.period_type = startForm.period_type;
+            if (startForm.period_value.trim()) payload.period_value = startForm.period_value.trim();
+        }
+        if (startForm.procedure_type === 'inspeccion_requerimiento') {
+            payload.procedure_subtype = startForm.procedure_subtype;
+            if (startForm.due_date) payload.due_date = startForm.due_date;
+            if (startForm.description.trim()) payload.description = startForm.description.trim();
+        }
+
+        setCreatingProcedure(true);
+
+        try {
+            const response = await fetch('/api/portal/client-procedures', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo iniciar la solicitud documental.');
+            }
+
+            if (data.procedure) {
+                setProcedures(prev => [data.procedure, ...prev.filter(procedure => procedure.id !== data.procedure.id)]);
+                setSummary(null);
+            } else {
+                await loadClientProcedures(false);
+            }
+
+            setStartForm(buildEmptyClientPortalStartForm());
+            setMessage({ type: 'success', text: `Solicitud iniciada: ${data.procedure?.title || getClientProcedureTypeLabel(startForm.procedure_type)}` });
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'No se pudo iniciar la solicitud documental.' });
+        } finally {
+            setCreatingProcedure(false);
+        }
+    };
+    const computedSummary = summary || {
+        open_procedures: procedures.filter(procedure => procedure.status === 'open' || procedure.status === 'in_progress').length,
+        pending_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'pending').length, 0),
+        received_or_review_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'received' || doc.status === 'in_review').length, 0),
+        accepted_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'accepted').length, 0),
+        rejected_documents: procedures.reduce((total, procedure) => total + (procedure.required_documents || []).filter(doc => doc.status === 'rejected').length, 0)
+    };
+
+    return (
+        <section id="portal-documentacion" className="scroll-mt-28 rounded-2xl border border-slate-700/60 bg-slate-800/80 p-6 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-300">
+                        <FileText className="h-4 w-4" />
+                        Documentación solicitada
+                    </div>
+                    <h3 className="mt-2 text-xl font-extrabold text-white">Trámites y documentos pendientes</h3>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => loadClientProcedures(false, 'Documentación actualizada.')}
+                    disabled={refreshing || loading}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500/60 hover:text-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    {refreshing ? 'Actualizando...' : 'Actualizar'}
+                </button>
+            </div>
+
+            {message && (
+                <div className={`mt-5 rounded-xl border px-4 py-3 text-sm font-semibold ${message.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200'}`}>
+                    {message.text}
+                </div>
+            )}
+
+            <form onSubmit={handleCreatePortalProcedure} className="mt-5 rounded-2xl border border-blue-500/20 bg-blue-950/10 p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-300">
+                            <Plus className="h-4 w-4" />
+                            Iniciar solicitud documental
+                        </div>
+                        <h4 className="mt-2 text-lg font-extrabold text-white">¿Qué necesitas gestionar?</h4>
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={creatingProcedure || !startForm.procedure_type}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-bold text-blue-100 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <Plus className="h-4 w-4" />
+                        {creatingProcedure ? 'Iniciando...' : 'Iniciar solicitud'}
+                    </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="md:col-span-2">
+                        <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Necesidad</label>
+                        <select
+                            value={startForm.procedure_type}
+                            onChange={(event) => handlePortalStartTypeChange(event.target.value)}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                        >
+                            <option value="">Selecciona una necesidad</option>
+                            {CLIENT_PORTAL_PROCEDURE_START_OPTIONS.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {['alta_empleado', 'baja_medica_it'].includes(startForm.procedure_type) && (
+                        <div className="md:col-span-2">
+                            <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Empleado o referencia</label>
+                            <input
+                                value={startForm.reference_label}
+                                onChange={(event) => setStartForm(prev => ({ ...prev, reference_label: event.target.value }))}
+                                className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                            />
+                        </div>
+                    )}
+
+                    {startForm.procedure_type === 'trimestre_fiscal' && (
+                        <>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Trimestre</label>
+                                <select
+                                    value={startForm.period_value}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, period_type: 'trimestre', period_value: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                >
+                                    <option value="">Selecciona trimestre</option>
+                                    {CLIENT_QUARTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Ejercicio</label>
+                                <input
+                                    inputMode="numeric"
+                                    value={startForm.fiscal_year}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, fiscal_year: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {startForm.procedure_type === 'tickets_gastos' && (
+                        <>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Periodo</label>
+                                <select
+                                    value={startForm.period_type}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, period_type: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                >
+                                    <option value="">Selecciona periodo</option>
+                                    {CLIENT_TICKETS_PERIOD_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Detalle del periodo</label>
+                                <input
+                                    value={startForm.period_value}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, period_value: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {(startForm.procedure_type === 'declaracion_renta' || startForm.procedure_type === 'impuesto_sociedades') && (
+                        <>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Ejercicio fiscal</label>
+                                <input
+                                    inputMode="numeric"
+                                    value={startForm.fiscal_year}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, fiscal_year: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Tipo</label>
+                                <select
+                                    value={startForm.procedure_subtype}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, procedure_subtype: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                >
+                                    <option value="">Selecciona tipo</option>
+                                    {(startForm.procedure_type === 'declaracion_renta' ? CLIENT_RENTA_TYPE_OPTIONS : CLIENT_SOCIETIES_CLOSING_OPTIONS).map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </>
+                    )}
+
+                    {startForm.procedure_type === 'censal_actividad' && (
+                        <>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Actuación censal</label>
+                                <select
+                                    value={startForm.procedure_subtype}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, procedure_subtype: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                >
+                                    <option value="">Selecciona actuación</option>
+                                    {CLIENT_CENSAL_ACTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Fecha de efecto</label>
+                                <input
+                                    type="date"
+                                    value={startForm.period_value}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, period_type: 'fecha_efecto', period_value: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {startForm.procedure_type === 'inspeccion_requerimiento' && (
+                        <>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Organismo</label>
+                                <select
+                                    value={startForm.procedure_subtype}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, procedure_subtype: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                >
+                                    <option value="">Selecciona organismo</option>
+                                    {CLIENT_INSPECTION_AUTHORITY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Expediente/referencia</label>
+                                <input
+                                    value={startForm.reference_label}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, reference_label: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Fecha límite</label>
+                                <input
+                                    type="date"
+                                    value={startForm.due_date}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, due_date: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                            <div className="md:col-span-2 xl:col-span-4">
+                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-400">Descripción breve</label>
+                                <textarea
+                                    rows={3}
+                                    value={startForm.description}
+                                    onChange={(event) => setStartForm(prev => ({ ...prev, description: event.target.value }))}
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
+                                />
+                            </div>
+                        </>
+                    )}
+                </div>
+            </form>
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <MetricCard title="Trámites abiertos" value={computedSummary.open_procedures} color="text-white" border="border-slate-700/60" bg="bg-slate-900/60" />
+                <MetricCard title="Pendientes" value={computedSummary.pending_documents} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
+                <MetricCard title="Recibidos" value={computedSummary.received_or_review_documents} color="text-blue-400" border="border-blue-500/20" bg="bg-blue-950/20" />
+            </div>
+
+            {loading ? (
+                <div className="py-10 text-center text-sm font-semibold text-slate-400">Cargando documentación...</div>
+            ) : procedures.length === 0 ? (
+                <div className="mt-6 rounded-2xl border border-slate-700/60 bg-slate-900/50 p-6 text-sm font-semibold text-slate-400">
+                    No hay documentos solicitados en este momento.
+                </div>
+            ) : (
+                <div className="mt-6 space-y-5">
+                    {procedures.map(procedure => {
+                        const structuredDetails = getClientProcedureStructuredDetails(procedure);
+
+                        return (
+                            <article key={procedure.id} className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h4 className="text-lg font-extrabold text-white">{procedure.title || getClientProcedureTypeLabel(procedure.procedure_type)}</h4>
+                                            <span className="rounded-lg border border-slate-600/60 bg-slate-950/50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">
+                                                {getClientProcedureStatusLabel(procedure.status)}
+                                            </span>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                                            <span>{getClientProcedureTypeLabel(procedure.procedure_type)}</span>
+                                            {structuredDetails.map(detail => (
+                                                <span key={`${procedure.id}-${detail.label}`}>{detail.label}: {detail.value}</span>
+                                            ))}
+                                            {procedure.due_date && <span>Vence: {procedure.due_date}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-5 space-y-3">
+                                    {(procedure.required_documents || []).map(requiredDocument => {
+                                        const activeUploadedDocuments = (requiredDocument.uploaded_documents || []).filter(uploadedDocument => (
+                                            uploadedDocument.procedure_id === procedure.id &&
+                                            uploadedDocument.required_document_id === requiredDocument.id &&
+                                            !uploadedDocument.deleted_at
+                                        ));
+                                        const isConditionalRequiredDocument = /si\s+procede/i.test(requiredDocument.document_label || '');
+                                        const isUploading = uploadingDocumentId === requiredDocument.id;
+                                        const fileInputId = `portal-file-${requiredDocument.id}`;
+                                        const photoInputId = `portal-photo-${requiredDocument.id}`;
+
+                                        return (
+                                            <div key={requiredDocument.id} className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4">
+                                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h5 className="font-bold text-slate-100">{requiredDocument.document_label}</h5>
+                                                            <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getClientDocumentStatusClass(requiredDocument.status)}`}>
+                                                                {getClientDocumentStatusLabel(requiredDocument.status)}
+                                                            </span>
+                                                            {requiredDocument.required === 1 && (
+                                                                <span className="rounded-lg border border-slate-600/60 bg-slate-950/40 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                                                                    {isConditionalRequiredDocument ? 'SI PROCEDE' : 'OBLIGATORIO'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {requiredDocument.notes && (
+                                                            <p className="mt-2 text-sm text-slate-400">{requiredDocument.notes}</p>
+                                                        )}
+
+                                                        {activeUploadedDocuments.length > 0 && (
+                                                            <div className="mt-3 space-y-2">
+                                                                {activeUploadedDocuments.map(uploadedDocument => (
+                                                                    <div key={uploadedDocument.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300">
+                                                                        <FileText className="h-4 w-4 shrink-0 text-blue-300" />
+                                                                        <span className="truncate">{uploadedDocument.original_filename}</span>
+                                                                        <span className="shrink-0 text-slate-500">{uploadedDocument.uploaded_by === 'client' ? 'Subido por ti' : 'Subido por asesoría'}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                                                        <label htmlFor={fileInputId} className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-200 hover:bg-blue-500/20 ${isUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                                                            <Upload className="h-4 w-4" />
+                                                            {isUploading ? 'Subiendo...' : 'Subir archivo'}
+                                                            <input
+                                                                id={fileInputId}
+                                                                type="file"
+                                                                accept={CLIENT_PORTAL_DOCUMENT_UPLOAD_ACCEPT}
+                                                                disabled={isUploading}
+                                                                className="sr-only"
+                                                                onChange={(event) => {
+                                                                    const file = event.target.files?.[0] || null;
+                                                                    event.target.value = '';
+                                                                    if (file) handleClientDocumentUpload(procedure, requiredDocument, file, 'file');
+                                                                }}
+                                                            />
+                                                        </label>
+                                                        <label htmlFor={photoInputId} className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20 ${isUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                                                            <Camera className="h-4 w-4" />
+                                                            Hacer foto
+                                                            <input
+                                                                id={photoInputId}
+                                                                type="file"
+                                                                accept={CLIENT_PORTAL_PHOTO_UPLOAD_ACCEPT}
+                                                                capture="environment"
+                                                                disabled={isUploading}
+                                                                className="sr-only"
+                                                                onChange={(event) => {
+                                                                    const file = event.target.files?.[0] || null;
+                                                                    event.target.value = '';
+                                                                    if (file) handleClientDocumentUpload(procedure, requiredDocument, file, 'photo');
+                                                                }}
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </article>
+                        );
+                    })}
+                </div>
+            )}
+        </section>
+    );
+}
 function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false } = {}) {
     const [interestLoadingId, setInterestLoadingId] = useState(null);
     const [interestFeedback, setInterestFeedback] = useState({});
@@ -4260,6 +4949,10 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                 </div>
             )}
 
+            {exclusiveClientPortal && clientId && (
+                <ClientPortalProceduresPanel clientId={clientId} />
+            )}
+
             {!loading && summary && summary.total_published_packages === 0 && (
                 <div className="bg-slate-800/40 p-12 rounded-3xl border border-slate-700/50 border-dashed text-center flex flex-col items-center justify-center text-slate-400 backdrop-blur-sm">
                     <div className="bg-blue-500/10 p-5 rounded-full mb-6 border border-blue-500/20 shadow-inner">
@@ -4297,7 +4990,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                     onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                     className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
                                 >
-                                    ← Volver al inicio
+                                    ? Volver al inicio
                                 </button>
                             </div>
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -4328,7 +5021,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                         onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                         className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
                                     >
-                                        ← Volver al inicio
+                                        ? Volver al inicio
                                     </button>
                                 </div>
                                 <div className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Obligaciones validadas</div>
@@ -4368,7 +5061,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                         onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                         className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
                                     >
-                                        ← Volver al inicio
+                                        ? Volver al inicio
                                     </button>
                                 </div>
                                 <div className="text-xs font-bold uppercase tracking-widest text-rose-300 mb-3">Alertas relevantes</div>
@@ -4392,7 +5085,7 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
                                     onClick={() => document.getElementById('portal-cliente-inicio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                     className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 transition-colors"
                                 >
-                                    ← Volver al inicio
+                                    ? Volver al inicio
                                 </button>
                             </div>
                             <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -5850,7 +6543,7 @@ useEffect(() => {
                             onClick={() => setView('radar')}
                             className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-indigo-500 hover:text-indigo-300 transition-colors"
                         >
-                            ← Volver al panel principal
+                            ? Volver al panel principal
                         </button>
                     </div>
                 )}

@@ -1,4 +1,4 @@
-﻿import http from 'node:http';
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -869,6 +869,8 @@ function getClientCatalog() {
 const CLIENT_PROCEDURE_STATUSES = new Set(['open', 'in_progress', 'completed', 'cancelled']);
 const CLIENT_REQUIRED_DOCUMENT_STATUSES = new Set(['pending', 'received', 'in_review', 'accepted', 'rejected', 'not_applicable']);
 const CLIENT_UPLOADED_DOCUMENT_STATUSES = new Set(['received', 'in_review', 'accepted', 'rejected']);
+const CLIENT_PORTAL_DOCUMENT_ALLOWED_EXTENSIONS = new Set(['.pdf', '.jpg', '.jpeg', '.png']);
+const CLIENT_PORTAL_DOCUMENT_ALLOWED_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']);
 
 function sanitizeStoragePathSegment(value) {
     const normalized = String(value || 'unknown')
@@ -895,6 +897,62 @@ function sanitizeClientDocumentFilename(filename) {
     return safeName || 'documento';
 }
 
+function getClientDocumentFileExtension(filename) {
+    const rawName = String(filename || '').split(/[\\/]/).pop() || '';
+    const dotIndex = rawName.lastIndexOf('.');
+
+    return dotIndex >= 0 ? rawName.slice(dotIndex).toLowerCase() : '';
+}
+
+function validateClientPortalDocumentUploadMetadata({ originalFilename, mimeType, fileSize }) {
+    const filename = String(originalFilename || '').trim();
+    const normalizedMimeType = String(mimeType || '').split(';')[0].trim().toLowerCase();
+    const extension = getClientDocumentFileExtension(filename);
+    const normalizedFileSize = Number(fileSize || 0);
+
+    if (!filename) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'ORIGINAL_FILENAME_REQUIRED',
+            message: 'Selecciona un archivo PDF, JPG o PNG.'
+        };
+    }
+
+    if (!CLIENT_PORTAL_DOCUMENT_ALLOWED_EXTENSIONS.has(extension)) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'CLIENT_DOCUMENT_UNSUPPORTED_EXTENSION',
+            message: 'Formato no admitido. Sube un archivo PDF, JPG o PNG. HEIC no está admitido en esta V1.'
+        };
+    }
+
+    if (normalizedMimeType && normalizedMimeType !== 'application/octet-stream' && !CLIENT_PORTAL_DOCUMENT_ALLOWED_MIME_TYPES.has(normalizedMimeType)) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'CLIENT_DOCUMENT_UNSUPPORTED_MIME_TYPE',
+            message: 'Formato no admitido. Sube un archivo PDF, JPG o PNG. HEIC no está admitido en esta V1.'
+        };
+    }
+
+    if (Number.isFinite(normalizedFileSize) && normalizedFileSize < 0) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'CLIENT_DOCUMENT_INVALID_FILE_SIZE',
+            message: 'El tamaño del archivo no es válido.'
+        };
+    }
+
+    return {
+        ok: true,
+        extension,
+        mime_type: normalizedMimeType || null,
+        file_size: Number.isFinite(normalizedFileSize) && normalizedFileSize > 0 ? normalizedFileSize : null
+    };
+}
 function normalizeProcedureDocumentKey(label, index = 0) {
     const key = sanitizeStoragePathSegment(label).toLowerCase();
     return key || `documento-${index + 1}`;
@@ -934,6 +992,357 @@ function normalizeClientProcedureRequiredDocuments(requiredDocuments) {
         .filter(Boolean);
 }
 
+const PORTAL_CLIENT_PROCEDURE_START_CATALOG = {
+    alta_empleado: {
+        label: 'Voy a contratar a un nuevo empleado',
+        manager_label: 'Alta de empleado',
+        labor: true,
+        documents: ['DNI/NIE', 'Número Seguridad Social', 'Datos bancarios', 'Categoría profesional', 'Fecha de alta', 'Tipo de contrato/jornada']
+    },
+    tickets_gastos: {
+        label: 'Tengo tickets/gastos para entregar',
+        manager_label: 'Tickets / gastos',
+        documents: ['Ticket o factura', 'Fecha', 'Importe', 'Concepto', 'Forma de pago', 'Justificante bancario si procede', 'Categoría de gasto']
+    },
+    baja_medica_it: {
+        label: 'Tengo una baja médica',
+        manager_label: 'Baja médica / IT',
+        labor: true,
+        documents: ['Parte de baja', 'Parte de confirmación si procede', 'Parte de alta si procede']
+    },
+    trimestre_fiscal: {
+        label: 'Tengo que preparar el trimestre fiscal',
+        manager_label: 'Trimestre fiscal',
+        period_type: 'trimestre',
+        documents: ['Facturas emitidas', 'Facturas recibidas', 'Tickets y gastos', 'Extractos bancarios', 'Nóminas y seguros sociales si procede', 'Alquileres con retención si procede', 'Retenciones profesionales si procede', 'Operaciones intracomunitarias si procede', 'Otros justificantes del trimestre']
+    },
+    censal_actividad: {
+        label: 'Tengo una modificación censal',
+        manager_label: 'Censal / actividad',
+        period_type: 'fecha_efecto',
+        documents: ['DNI/NIE o CIF', 'Escritura de constitución si procede', 'Modelo censal o datos de alta/modificación', 'Epígrafe IAE', 'Domicilio fiscal', 'Domicilio de actividad si procede', 'Representante legal si procede', 'Actividad económica', 'Fecha de inicio/modificación/baja', 'Obligaciones fiscales previstas', 'Cuenta bancaria si procede']
+    },
+    declaracion_renta: {
+        label: 'Necesito preparar documentación para renta',
+        manager_label: 'Declaración de la renta',
+        documents: ['Datos fiscales AEAT', 'Certificados de retenciones', 'Rendimientos del trabajo', 'Rendimientos bancarios', 'Alquileres si procede', 'Hipoteca vivienda habitual si procede', 'Donativos si procede', 'Gastos deducibles de actividad si procede', 'Ganancias o pérdidas patrimoniales si procede', 'Deducciones autonómicas si procede']
+    },
+    impuesto_sociedades: {
+        label: 'Necesito preparar documentación para sociedades',
+        manager_label: 'Impuesto sobre Sociedades',
+        documents: ['Balance de sumas y saldos', 'Cuenta de pérdidas y ganancias', 'Libro mayor', 'Amortizaciones', 'Préstamos y leasing si procede', 'Retenciones y pagos a cuenta si procede', 'Pagos fraccionados si procede', 'Documentación de cierre']
+    },
+    inspeccion_requerimiento: {
+        label: 'Tengo una inspección o requerimiento oficial',
+        manager_label: 'Inspección/requerimiento oficial',
+        documents: [
+            'Notificación o requerimiento recibido',
+            'Documentación solicitada por la administración',
+            { label: 'Número de expediente o referencia si existe', required: false },
+            { label: 'Fecha límite de respuesta si aparece', required: false },
+            { label: 'Comunicaciones, alegaciones o escritos previos si procede', required: false },
+            { label: 'Identificación del organismo actuante si procede', required: false }
+        ]
+    }
+};
+
+const PORTAL_CLIENT_QUARTER_LABELS = {
+    q1: '1er trimestre',
+    q2: '2º trimestre',
+    q3: '3er trimestre',
+    q4: '4º trimestre'
+};
+
+const PORTAL_CLIENT_RENTA_SUBTYPE_LABELS = {
+    persona_fisica: 'Persona física',
+    autonomo_actividad: 'Autónomo con actividad',
+    renta_alquileres: 'Renta con alquileres',
+    ganancias_patrimoniales: 'Renta con ganancias patrimoniales',
+    otro_caso: 'Otro caso'
+};
+
+const PORTAL_CLIENT_SOCIETIES_SUBTYPE_LABELS = {
+    cierre_anual: 'Cierre anual',
+    pago_fraccionado: 'Pago fraccionado',
+    documentacion_complementaria: 'Documentación complementaria'
+};
+
+const PORTAL_CLIENT_CENSAL_SUBTYPE_LABELS = {
+    alta: 'Alta',
+    modificacion: 'Modificación',
+    baja: 'Baja'
+};
+
+const PORTAL_CLIENT_TICKETS_PERIOD_LABELS = {
+    mes: 'Mes',
+    trimestre: 'Trimestre',
+    anio: 'Año',
+    otro_periodo: 'Otro periodo'
+};
+
+const PORTAL_CLIENT_INSPECTION_AUTHORITY_LABELS = {
+    hacienda: 'Inspección/requerimiento de Hacienda',
+    trabajo: 'Inspección/requerimiento de Trabajo',
+    sanidad: 'Inspección/requerimiento de Sanidad',
+    conselleria: 'Inspección/requerimiento de Conselleria / Generalitat',
+    ayuntamiento: 'Inspección/requerimiento del Ayuntamiento',
+    policia: 'Inspección/requerimiento policial',
+    otro_organismo: 'Requerimiento de otro organismo'
+};
+
+const PORTAL_CLIENT_PROCEDURE_ALLOWED_FIELDS = new Set([
+    'procedure_type',
+    'procedure_subtype',
+    'authority_type',
+    'reference_label',
+    'due_date',
+    'response_deadline',
+    'description',
+    'period_type',
+    'period_value',
+    'fiscal_year'
+]);
+
+function normalizePortalClientText(value, maxLength = 160) {
+    return String(value || '').trim().slice(0, maxLength);
+}
+
+function isValidPortalClientFiscalYear(value) {
+    const year = String(value || '').trim();
+    const numericYear = Number(year);
+    const currentYear = new Date().getFullYear();
+
+    return /^\d{4}$/.test(year) && numericYear >= 2000 && numericYear <= currentYear + 2;
+}
+
+function isValidPortalClientDate(value) {
+    const date = String(value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+
+    const parsed = new Date(`${date}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+}
+
+function derivePortalClientProcedureEntityType(client) {
+    const nif = String(client?.nif || '').trim().toUpperCase();
+    const first = nif.charAt(0);
+
+    if (/^\d/.test(nif) || ['X', 'Y', 'Z'].includes(first)) return 'autonomo_persona_fisica';
+    if (first === 'B') return 'sl';
+    if (first === 'A') return 'sa';
+    if (first === 'E' || first === 'H') return 'comunidad_bienes';
+    if (['G', 'P', 'Q', 'R', 'S'].includes(first)) return 'asociacion_entidad_sin_animo_lucro';
+
+    return 'otro_tipo_entidad';
+}
+
+function normalizePortalClientProcedureMetadata(payload, catalogEntry) {
+    const procedureType = String(payload?.procedure_type || '').trim();
+    const periodType = String(payload?.period_type || '').trim();
+    const periodValue = normalizePortalClientText(payload?.period_value, 80);
+    const fiscalYear = normalizePortalClientText(payload?.fiscal_year, 4);
+    const rawProcedureSubtype = procedureType === 'inspeccion_requerimiento'
+        ? (payload?.procedure_subtype || payload?.authority_type)
+        : payload?.procedure_subtype;
+    const procedureSubtype = normalizePortalClientText(rawProcedureSubtype, 80);
+    const referenceLabel = normalizePortalClientText(payload?.reference_label, 120);
+    const dueDate = normalizePortalClientText(payload?.response_deadline || payload?.due_date, 10);
+    const description = normalizePortalClientText(payload?.description, 500);
+
+    if (procedureType === 'trimestre_fiscal') {
+        if (!Object.prototype.hasOwnProperty.call(PORTAL_CLIENT_QUARTER_LABELS, periodValue) || !isValidPortalClientFiscalYear(fiscalYear)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_PERIOD',
+                message: 'Selecciona trimestre y ejercicio válidos.'
+            };
+        }
+
+        return {
+            ok: true,
+            period_type: catalogEntry.period_type,
+            period_value: periodValue,
+            fiscal_year: fiscalYear,
+            procedure_subtype: null,
+            reference_label: referenceLabel || null,
+            due_date: null,
+            description: description || null
+        };
+    }
+
+    if (procedureType === 'declaracion_renta') {
+        if (!isValidPortalClientFiscalYear(fiscalYear)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_FISCAL_YEAR',
+                message: 'Indica un ejercicio fiscal válido.'
+            };
+        }
+
+        if (procedureSubtype && !Object.prototype.hasOwnProperty.call(PORTAL_CLIENT_RENTA_SUBTYPE_LABELS, procedureSubtype)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_SUBTYPE',
+                message: 'Tipo de renta no válido.'
+            };
+        }
+
+        return {
+            ok: true,
+            period_type: null,
+            period_value: null,
+            fiscal_year: fiscalYear,
+            procedure_subtype: procedureSubtype || null,
+            reference_label: referenceLabel || null,
+            due_date: null,
+            description: description || null
+        };
+    }
+
+    if (procedureType === 'impuesto_sociedades') {
+        if (!isValidPortalClientFiscalYear(fiscalYear)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_FISCAL_YEAR',
+                message: 'Indica un ejercicio fiscal válido.'
+            };
+        }
+
+        if (procedureSubtype && !Object.prototype.hasOwnProperty.call(PORTAL_CLIENT_SOCIETIES_SUBTYPE_LABELS, procedureSubtype)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_SUBTYPE',
+                message: 'Tipo de cierre no válido.'
+            };
+        }
+
+        return {
+            ok: true,
+            period_type: null,
+            period_value: null,
+            fiscal_year: fiscalYear,
+            procedure_subtype: procedureSubtype || null,
+            reference_label: referenceLabel || null,
+            due_date: null,
+            description: description || null
+        };
+    }
+
+    if (procedureType === 'censal_actividad') {
+        if (!Object.prototype.hasOwnProperty.call(PORTAL_CLIENT_CENSAL_SUBTYPE_LABELS, procedureSubtype)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_SUBTYPE',
+                message: 'Selecciona la actuación censal.'
+            };
+        }
+
+        if (periodValue && !/^\d{4}-\d{2}-\d{2}$/.test(periodValue)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_DATE',
+                message: 'La fecha de efecto no es válida.'
+            };
+        }
+
+        return {
+            ok: true,
+            period_type: periodValue ? catalogEntry.period_type : null,
+            period_value: periodValue || null,
+            fiscal_year: null,
+            procedure_subtype: procedureSubtype,
+            reference_label: referenceLabel || null,
+            due_date: null,
+            description: description || null
+        };
+    }
+
+    if (procedureType === 'tickets_gastos') {
+        if (!Object.prototype.hasOwnProperty.call(PORTAL_CLIENT_TICKETS_PERIOD_LABELS, periodType)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_PERIOD_TYPE',
+                message: 'Selecciona el periodo de tickets y gastos.'
+            };
+        }
+
+        return {
+            ok: true,
+            period_type: periodType,
+            period_value: periodValue || null,
+            fiscal_year: null,
+            procedure_subtype: null,
+            reference_label: referenceLabel || null,
+            due_date: null,
+            description: description || null
+        };
+    }
+
+    if (procedureType === 'inspeccion_requerimiento') {
+        if (!Object.prototype.hasOwnProperty.call(PORTAL_CLIENT_INSPECTION_AUTHORITY_LABELS, procedureSubtype)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_SUBTYPE',
+                message: 'Selecciona el organismo que ha enviado la inspección o requerimiento.'
+            };
+        }
+
+        if (dueDate && !isValidPortalClientDate(dueDate)) {
+            return {
+                ok: false,
+                error_code: 'INVALID_PORTAL_PROCEDURE_DUE_DATE',
+                message: 'La fecha límite no es válida.'
+            };
+        }
+
+        return {
+            ok: true,
+            period_type: null,
+            period_value: null,
+            fiscal_year: null,
+            procedure_subtype: procedureSubtype,
+            reference_label: referenceLabel || null,
+            due_date: dueDate || null,
+            description: description || null
+        };
+    }
+
+    return {
+        ok: true,
+        period_type: null,
+        period_value: null,
+        fiscal_year: null,
+        procedure_subtype: null,
+        reference_label: referenceLabel || null,
+        due_date: null,
+        description: description || null
+    };
+}
+
+function buildPortalClientProcedureTitle(catalogEntry, metadata) {
+    if (metadata.procedure_subtype && PORTAL_CLIENT_INSPECTION_AUTHORITY_LABELS[metadata.procedure_subtype]) {
+        return PORTAL_CLIENT_INSPECTION_AUTHORITY_LABELS[metadata.procedure_subtype];
+    }
+
+    const details = [];
+
+    if (metadata.period_value && PORTAL_CLIENT_QUARTER_LABELS[metadata.period_value]) details.push(PORTAL_CLIENT_QUARTER_LABELS[metadata.period_value]);
+    if (metadata.period_type && PORTAL_CLIENT_TICKETS_PERIOD_LABELS[metadata.period_type]) {
+        const periodLabel = PORTAL_CLIENT_TICKETS_PERIOD_LABELS[metadata.period_type];
+        details.push(metadata.period_value ? `${periodLabel}: ${metadata.period_value}` : periodLabel);
+    }
+    if (metadata.fiscal_year) details.push(metadata.fiscal_year);
+    if (metadata.procedure_subtype) {
+        const subtypeLabel = PORTAL_CLIENT_RENTA_SUBTYPE_LABELS[metadata.procedure_subtype] ||
+            PORTAL_CLIENT_SOCIETIES_SUBTYPE_LABELS[metadata.procedure_subtype] ||
+            PORTAL_CLIENT_CENSAL_SUBTYPE_LABELS[metadata.procedure_subtype];
+
+        if (subtypeLabel) details.push(subtypeLabel);
+    }
+    if (metadata.reference_label) details.push(metadata.reference_label);
+
+    return details.length ? `${catalogEntry.manager_label}: ${details.join(' · ')}` : catalogEntry.manager_label;
+}
 function buildClientProcedureStoragePath({ clientId, procedureId, requiredDocumentId, uploadedDocumentId, safeFilename }) {
     return [
         'client-procedures',
@@ -3346,6 +3755,38 @@ function verifyClientPortalSessionToken(token, expectedClientId) {
     }
 }
 
+function getAuthenticatedClientPortalClientId(req) {
+    try {
+        const cookies = parseCookies(req);
+        const token = cookies[CLIENT_PORTAL_SESSION_COOKIE_NAME];
+        const parts = String(token || '').split('.');
+
+        if (parts.length !== 2) return '';
+
+        const payloadEncoded = parts[0];
+        const signature = parts[1];
+
+        if (!payloadEncoded || !signature) return '';
+
+        const expectedSignature = crypto
+            .createHmac('sha256', getClientPortalAuthSecret())
+            .update(payloadEncoded)
+            .digest('base64url');
+
+        if (!safeEqualText(signature, expectedSignature)) return '';
+
+        const payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf8'));
+
+        if (!payload || payload.scope !== 'client_portal') return '';
+
+        const now = Math.floor(Date.now() / 1000);
+        if (!payload.exp || Number(payload.exp) <= now) return '';
+
+        return String(payload.client_id || '').trim();
+    } catch {
+        return '';
+    }
+}
 function setClientPortalSessionCookie(res, clientId) {
     const ttlSeconds = Math.floor(getClientPortalSessionTtlHours() * 60 * 60);
     const token = createClientPortalSessionToken(clientId);
@@ -4589,6 +5030,451 @@ const server = http.createServer(async (req, res) => {
     }
 
 
+    // API Route: GET /api/portal/client-procedures
+    if (pathname === '/api/portal/client-procedures' && req.method === 'GET') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        try {
+            const db = new DatabaseSync(DB_PATH);
+            const procedures = db.prepare(`
+                SELECT *
+                FROM client_procedure_requests
+                WHERE client_id = ?
+                ORDER BY updated_at DESC, created_at DESC
+                LIMIT 100
+            `).all(sessionClientId);
+            const hydrated = hydrateClientProcedures(db, procedures);
+            db.close();
+
+            const summary = hydrated.reduce((acc, procedure) => {
+                if (procedure.status === 'open' || procedure.status === 'in_progress') acc.open_procedures += 1;
+
+                for (const doc of procedure.required_documents || []) {
+                    if (doc.status === 'pending') acc.pending_documents += 1;
+                    if (doc.status === 'received' || doc.status === 'in_review') acc.received_or_review_documents += 1;
+                    if (doc.status === 'accepted') acc.accepted_documents += 1;
+                    if (doc.status === 'rejected') acc.rejected_documents += 1;
+                }
+
+                return acc;
+            }, {
+                open_procedures: 0,
+                pending_documents: 0,
+                received_or_review_documents: 0,
+                accepted_documents: 0,
+                rejected_documents: 0
+            });
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                client_id: sessionClientId,
+                count: hydrated.length,
+                summary,
+                procedures: hydrated
+            });
+        } catch (err) {
+            console.error('portal client procedures list error:', err);
+            return sendJson(res, 500, {
+                status: 'error',
+                error_code: 'PORTAL_CLIENT_PROCEDURES_LIST_FAILED',
+                message: 'No se pudieron cargar los trámites solicitados.'
+            });
+        }
+    }
+
+    // API Route: POST /api/portal/client-procedures
+    if (pathname === '/api/portal/client-procedures' && req.method === 'POST') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        return readRequestJson(req, async payload => {
+            const body = payload && typeof payload === 'object' ? payload : {};
+            const procedureType = String(body.procedure_type || '').trim();
+            const catalogEntry = PORTAL_CLIENT_PROCEDURE_START_CATALOG[procedureType];
+            const forbiddenField = Object.keys(body).find(field => !PORTAL_CLIENT_PROCEDURE_ALLOWED_FIELDS.has(field));
+
+            if (forbiddenField) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'PORTAL_PROCEDURE_FORBIDDEN_FIELDS',
+                    message: 'La solicitud no puede incluir campos arbitrarios o gestionados por la asesoría.'
+                });
+            }
+
+            if (!catalogEntry) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_PORTAL_PROCEDURE_TYPE',
+                    message: 'Tipo de solicitud documental no válido.'
+                });
+            }
+
+            const validClient = getClientCatalog().find(client => client.id === sessionClientId);
+
+            if (!validClient) {
+                return sendJson(res, 403, {
+                    status: 'error',
+                    error_code: 'PORTAL_CLIENT_NOT_FOUND',
+                    message: 'Cliente no válido para la sesión actual.'
+                });
+            }
+
+            const metadata = normalizePortalClientProcedureMetadata(body, catalogEntry);
+
+            if (!metadata.ok) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: metadata.error_code,
+                    message: metadata.message
+                });
+            }
+
+            const requiredDocuments = normalizeClientProcedureRequiredDocuments(catalogEntry.documents);
+
+            if (!requiredDocuments.length) {
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'PORTAL_PROCEDURE_CATALOG_EMPTY',
+                    message: 'El catálogo documental de este trámite no tiene documentos requeridos.'
+                });
+            }
+
+            const procedureId = generateId();
+            const title = buildPortalClientProcedureTitle(catalogEntry, metadata);
+            const entityType = derivePortalClientProcedureEntityType(validClient);
+            const employeeName = catalogEntry.labor ? metadata.reference_label : null;
+            const referenceLabel = catalogEntry.labor ? null : metadata.reference_label;
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                db.exec('BEGIN');
+                db.prepare(`
+                    INSERT INTO client_procedure_requests
+                    (id, client_id, procedure_type, entity_type, title, description, employee_name, priority, status, due_date, period_type, period_value, fiscal_year, procedure_subtype, reference_label)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'normal', 'open', ?, ?, ?, ?, ?, ?)
+                `).run(
+                    procedureId,
+                    sessionClientId,
+                    procedureType,
+                    entityType,
+                    title,
+                    metadata.description,
+                    employeeName,
+                    metadata.due_date,
+                    metadata.period_type,
+                    metadata.period_value,
+                    metadata.fiscal_year,
+                    metadata.procedure_subtype,
+                    referenceLabel
+                );
+
+                const docStmt = db.prepare(`
+                    INSERT INTO client_required_documents
+                    (id, procedure_id, document_key, document_label, required, status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                for (const doc of requiredDocuments) {
+                    docStmt.run(
+                        doc.id,
+                        procedureId,
+                        doc.document_key,
+                        doc.document_label,
+                        doc.required,
+                        doc.status,
+                        doc.notes
+                    );
+                }
+
+                db.prepare(`
+                    INSERT INTO client_document_review_logs
+                    (id, procedure_id, required_document_id, uploaded_document_id, action, actor, notes)
+                    VALUES (?, ?, null, null, ?, ?, ?)
+                `).run(
+                    generateId(),
+                    procedureId,
+                    'procedure_created',
+                    'client',
+                    `Trámite iniciado por el cliente: ${title}`
+                );
+
+                db.exec('COMMIT');
+
+                const procedure = hydrateClientProcedures(
+                    db,
+                    [db.prepare('SELECT * FROM client_procedure_requests WHERE id = ? AND client_id = ?').get(procedureId, sessionClientId)]
+                )[0];
+                db.close();
+
+                return sendJson(res, 201, {
+                    status: 'ok',
+                    procedure
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('portal client procedure create error:', err);
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'PORTAL_CLIENT_PROCEDURE_CREATE_FAILED',
+                    message: 'No se pudo iniciar la solicitud documental.'
+                });
+            }
+        });
+    }
+    // API Route: POST /api/portal/client-procedures/:id/documents/:requiredDocumentId/upload-url
+    const portalClientDocumentUploadUrlMatch = pathname.match(/^\/api\/portal\/client-procedures\/([^/]+)\/documents\/([^/]+)\/upload-url$/);
+    if (portalClientDocumentUploadUrlMatch && req.method === 'POST') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        const procedureId = decodeURIComponent(portalClientDocumentUploadUrlMatch[1]);
+        const requiredDocumentId = decodeURIComponent(portalClientDocumentUploadUrlMatch[2]);
+
+        return readRequestJson(req, async payload => {
+            const originalFilename = String(payload.original_filename || '').trim();
+            const mimeType = String(payload.mime_type || '').trim();
+            const fileSize = Number(payload.file_size || 0);
+            const validation = validateClientPortalDocumentUploadMetadata({ originalFilename, mimeType, fileSize });
+
+            if (!validation.ok) {
+                return sendJson(res, validation.http_status || 400, {
+                    status: 'error',
+                    error_code: validation.error_code,
+                    message: validation.message
+                });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+            const procedure = getClientProcedureById(db, procedureId);
+            const requiredDocument = getClientRequiredDocumentById(db, procedureId, requiredDocumentId);
+            db.close();
+
+            if (!procedure || procedure.client_id !== sessionClientId || !requiredDocument) {
+                return sendJson(res, 404, {
+                    status: 'error',
+                    error_code: 'PORTAL_CLIENT_REQUIRED_DOCUMENT_NOT_FOUND',
+                    message: 'Trámite o documento requerido no encontrado.'
+                });
+            }
+
+            const storageResult = getSupabaseStorageClient();
+
+            if (!storageResult.ok) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    error_code: storageResult.error_code,
+                    message: storageResult.message,
+                    storage: storageResult.env_status
+                });
+            }
+
+            const uploadedDocumentId = generateId();
+            const safeFilename = sanitizeClientDocumentFilename(originalFilename);
+            const storageBucket = getClientDocumentsStorageBucket();
+            const storagePath = buildClientProcedureStoragePath({
+                clientId: sessionClientId,
+                procedureId,
+                requiredDocumentId,
+                uploadedDocumentId,
+                safeFilename
+            });
+
+            const { data, error } = await storageResult.client
+                .storage
+                .from(storageBucket)
+                .createSignedUploadUrl(storagePath, { upsert: false });
+
+            if (error) {
+                return sendJson(res, 503, {
+                    status: 'error',
+                    error_code: 'SUPABASE_SIGNED_UPLOAD_URL_FAILED',
+                    message: `No se pudo generar URL firmada. Confirma que existe el bucket privado ${storageBucket} y que el backend tiene permisos de Storage.`,
+                    detail: error.message,
+                    storage: storageResult.env_status
+                });
+            }
+
+            return sendJson(res, 200, {
+                status: 'ok',
+                uploaded_document_id: uploadedDocumentId,
+                original_filename: originalFilename,
+                safe_filename: safeFilename,
+                storage_bucket: storageBucket,
+                storage_path: storagePath,
+                signed_url: data.signedUrl,
+                token: data.token,
+                mime_type: validation.mime_type || mimeType || null,
+                file_size: validation.file_size,
+                upload_method: 'PUT_FORM_DATA',
+                upload_file_field: '',
+                expires_in_seconds: 7200
+            });
+        });
+    }
+
+    // API Route: POST /api/portal/client-procedures/:id/documents/:requiredDocumentId/complete-upload
+    const portalClientDocumentCompleteUploadMatch = pathname.match(/^\/api\/portal\/client-procedures\/([^/]+)\/documents\/([^/]+)\/complete-upload$/);
+    if (portalClientDocumentCompleteUploadMatch && req.method === 'POST') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        const procedureId = decodeURIComponent(portalClientDocumentCompleteUploadMatch[1]);
+        const requiredDocumentId = decodeURIComponent(portalClientDocumentCompleteUploadMatch[2]);
+
+        return readRequestJson(req, async payload => {
+            const uploadedDocumentId = String(payload.uploaded_document_id || '').trim();
+            const originalFilename = String(payload.original_filename || '').trim();
+            const safeFilename = sanitizeClientDocumentFilename(payload.safe_filename || payload.original_filename);
+            const storageBucket = String(payload.storage_bucket || getClientDocumentsStorageBucket()).trim();
+            const storagePath = String(payload.storage_path || '').trim().replace(/^\/+/, '');
+            const mimeType = String(payload.mime_type || '').trim();
+            const fileSize = Number(payload.file_size || 0);
+            const validation = validateClientPortalDocumentUploadMetadata({ originalFilename, mimeType, fileSize });
+
+            if (!uploadedDocumentId || !originalFilename || !storagePath) {
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_COMPLETE_UPLOAD_PAYLOAD',
+                    message: 'Faltan metadatos de confirmación de subida.'
+                });
+            }
+
+            if (!validation.ok) {
+                return sendJson(res, validation.http_status || 400, {
+                    status: 'error',
+                    error_code: validation.error_code,
+                    message: validation.message
+                });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+            const procedure = getClientProcedureById(db, procedureId);
+            const requiredDocument = getClientRequiredDocumentById(db, procedureId, requiredDocumentId);
+            const existingUpload = getClientUploadedDocumentById(db, procedureId, uploadedDocumentId);
+
+            if (!procedure || procedure.client_id !== sessionClientId || !requiredDocument) {
+                db.close();
+                return sendJson(res, 404, {
+                    status: 'error',
+                    error_code: 'PORTAL_CLIENT_REQUIRED_DOCUMENT_NOT_FOUND',
+                    message: 'Trámite o documento requerido no encontrado.'
+                });
+            }
+
+            if (existingUpload) {
+                db.close();
+                return sendJson(res, 409, {
+                    status: 'error',
+                    error_code: 'UPLOADED_DOCUMENT_ALREADY_REGISTERED',
+                    message: 'El documento subido ya está registrado.'
+                });
+            }
+
+            const expectedPrefix = getClientProcedureExpectedStoragePrefix({
+                clientId: sessionClientId,
+                procedureId,
+                requiredDocumentId,
+                uploadedDocumentId
+            });
+
+            if (storageBucket !== getClientDocumentsStorageBucket() || !storagePath.startsWith(expectedPrefix)) {
+                db.close();
+                return sendJson(res, 400, {
+                    status: 'error',
+                    error_code: 'INVALID_STORAGE_PATH',
+                    message: 'La ruta de almacenamiento no corresponde al trámite y documento requeridos.'
+                });
+            }
+
+            const storageCheck = await verifySupabaseStorageObject(storageBucket, storagePath);
+
+            if (!storageCheck.ok) {
+                db.close();
+                return sendJson(res, 409, {
+                    status: 'error',
+                    error_code: storageCheck.error_code || 'SUPABASE_STORAGE_OBJECT_CHECK_FAILED',
+                    message: storageCheck.message || 'No se pudo confirmar la existencia del archivo en Supabase Storage.',
+                    storage: storageCheck.env_status || null
+                });
+            }
+
+            try {
+                db.exec('BEGIN');
+                db.prepare(`
+                    INSERT INTO client_uploaded_documents
+                    (id, procedure_id, required_document_id, client_id, original_filename, safe_filename, storage_bucket, storage_path, mime_type, file_size, uploaded_by, status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                    uploadedDocumentId,
+                    procedureId,
+                    requiredDocumentId,
+                    sessionClientId,
+                    originalFilename,
+                    safeFilename,
+                    storageBucket,
+                    storagePath,
+                    validation.mime_type || mimeType || null,
+                    validation.file_size,
+                    'client',
+                    'received',
+                    null
+                );
+                db.prepare(`
+                    UPDATE client_required_documents
+                    SET status = 'received', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND procedure_id = ?
+                `).run(requiredDocumentId, procedureId);
+                db.prepare(`
+                    INSERT INTO client_document_review_logs
+                    (id, procedure_id, required_document_id, uploaded_document_id, action, actor, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                    generateId(),
+                    procedureId,
+                    requiredDocumentId,
+                    uploadedDocumentId,
+                    'document_uploaded',
+                    'client',
+                    `Documento subido por el cliente: ${originalFilename}`
+                );
+                db.exec('COMMIT');
+
+                const updated = hydrateClientProcedures(
+                    db,
+                    [db.prepare('SELECT * FROM client_procedure_requests WHERE id = ? AND client_id = ?').get(procedureId, sessionClientId)]
+                )[0];
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'ok',
+                    procedure: updated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('portal client document complete upload error:', err);
+                return sendJson(res, 500, {
+                    status: 'error',
+                    error_code: 'PORTAL_CLIENT_DOCUMENT_COMPLETE_UPLOAD_FAILED',
+                    message: 'No se pudieron registrar los metadatos del documento.'
+                });
+            }
+        });
+    }
     // API Route: GET /api/radar/items
     if (req.url.split('?')[0] === '/api/radar/items' && req.method === 'GET') {
         try {

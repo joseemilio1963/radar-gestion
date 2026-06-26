@@ -43,6 +43,9 @@ function getClientDocumentsStorageBucket() {
 function isSupabaseReadonlyEnabled() {
     return String(process.env.SUPABASE_READONLY_ENABLED || '').toLowerCase() === 'true';
 }
+function isQuarterlyDocumentationEnabled() {
+    return String(process.env.RADAR_QUARTERLY_DOCUMENTATION_ENABLED || '').toLowerCase() === 'true';
+}
 
 function getSupabaseReadonlyEnvStatus() {
     const urlPresent = Boolean(process.env.SUPABASE_URL);
@@ -6547,6 +6550,25 @@ const server = http.createServer(async (req, res) => {
     }
 
 
+
+    // API Route: GET /api/manager/quarterly-documentation/status
+    if (pathname === '/api/manager/quarterly-documentation/status' && req.method === 'GET') {
+        if (!isQuarterlyDocumentationEnabled()) {
+            return sendJson(res, 404, {
+                status: 'error',
+                error_code: 'FEATURE_DISABLED'
+            });
+        }
+
+        return sendJson(res, 200, {
+            ok: true,
+            module: 'quarterly_documentation',
+            enabled: true,
+            version: 'v0.1-status',
+            scope: 'manager_only',
+            data_source: 'none_yet'
+        });
+    }
 
     // API Route: GET /api/manager/publication-generate/write-source/status
     // publication_generate_write_source_status_v1

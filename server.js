@@ -602,6 +602,101 @@ function initClientPortalAccessTables() {
 }
 initClientPortalAccessTables();
 
+function initQuarterlyDocumentationTables(db) {
+    db.exec(`
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE IF NOT EXISTS quarterly_documentation_periods (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            quarter INTEGER NOT NULL,
+            period_label TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'draft',
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(client_id, year, quarter),
+            CHECK (quarter >= 1 AND quarter <= 4)
+        );
+
+        CREATE TABLE IF NOT EXISTS quarterly_documentation_expected_documents (
+            id TEXT PRIMARY KEY,
+            period_id TEXT NOT NULL,
+            document_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            required INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'pending',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(period_id) REFERENCES quarterly_documentation_periods(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS quarterly_documentation_documents (
+            id TEXT PRIMARY KEY,
+            period_id TEXT NOT NULL,
+            expected_document_id TEXT,
+            client_id TEXT NOT NULL,
+            document_type TEXT NOT NULL,
+            source_type TEXT NOT NULL DEFAULT 'manual',
+            file_name TEXT,
+            file_mime TEXT,
+            file_size INTEGER,
+            storage_path TEXT,
+            document_date TEXT,
+            supplier_or_customer TEXT,
+            amount_gross REAL NOT NULL DEFAULT 0,
+            amount_net REAL NOT NULL DEFAULT 0,
+            vat_amount REAL NOT NULL DEFAULT 0,
+            income_amount REAL NOT NULL DEFAULT 0,
+            expense_amount REAL NOT NULL DEFAULT 0,
+            currency TEXT NOT NULL DEFAULT 'EUR',
+            review_status TEXT NOT NULL DEFAULT 'pending_review',
+            notes TEXT,
+            deleted_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(period_id) REFERENCES quarterly_documentation_periods(id) ON DELETE CASCADE,
+            FOREIGN KEY(expected_document_id) REFERENCES quarterly_documentation_expected_documents(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS quarterly_documentation_review_logs (
+            id TEXT PRIMARY KEY,
+            period_id TEXT,
+            document_id TEXT,
+            action TEXT NOT NULL,
+            previous_status TEXT,
+            new_status TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(period_id) REFERENCES quarterly_documentation_periods(id) ON DELETE SET NULL,
+            FOREIGN KEY(document_id) REFERENCES quarterly_documentation_documents(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_quarterly_documentation_periods_client_year_quarter
+            ON quarterly_documentation_periods(client_id, year, quarter);
+
+        CREATE INDEX IF NOT EXISTS idx_quarterly_documentation_expected_documents_period
+            ON quarterly_documentation_expected_documents(period_id);
+
+        CREATE INDEX IF NOT EXISTS idx_quarterly_documentation_documents_period
+            ON quarterly_documentation_documents(period_id);
+
+        CREATE INDEX IF NOT EXISTS idx_quarterly_documentation_documents_client
+            ON quarterly_documentation_documents(client_id);
+
+        CREATE INDEX IF NOT EXISTS idx_quarterly_documentation_documents_expected
+            ON quarterly_documentation_documents(expected_document_id);
+
+        CREATE INDEX IF NOT EXISTS idx_quarterly_documentation_review_logs_period
+            ON quarterly_documentation_review_logs(period_id);
+
+        CREATE INDEX IF NOT EXISTS idx_quarterly_documentation_review_logs_document
+            ON quarterly_documentation_review_logs(document_id);
+    `);
+}
 function initClientProcedureTables() {
     const db = new DatabaseSync(DB_PATH);
     db.exec(`
@@ -698,6 +793,14 @@ function initClientProcedureTables() {
 }
 initClientProcedureTables();
 
+if (isQuarterlyDocumentationEnabled()) {
+    const db = new DatabaseSync(DB_PATH);
+    try {
+        initQuarterlyDocumentationTables(db);
+    } finally {
+        db.close();
+    }
+}
 const MIME_TYPES = {
     '.html': 'text/html',
     '.css': 'text/css',

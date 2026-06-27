@@ -5136,6 +5136,702 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
     );
 }
 
+const QUARTERLY_PERIOD_STATUS_OPTIONS = [
+    { value: 'draft', label: 'Borrador' },
+    { value: 'open', label: 'Abierto' },
+    { value: 'in_review', label: 'En revision' },
+    { value: 'completed', label: 'Completado' },
+    { value: 'archived', label: 'Archivado' }
+];
+
+const QUARTERLY_EXPECTED_DOCUMENT_STATUS_OPTIONS = [
+    { value: 'pending', label: 'Pendiente' },
+    { value: 'requested', label: 'Solicitado' },
+    { value: 'received', label: 'Recibido' },
+    { value: 'in_review', label: 'En revision' },
+    { value: 'accepted', label: 'Aceptado' },
+    { value: 'rejected', label: 'Rechazado' },
+    { value: 'not_applicable', label: 'No procede' }
+];
+
+const QUARTERLY_QUARTER_OPTIONS = [
+    { value: '1', label: 'T1' },
+    { value: '2', label: 'T2' },
+    { value: '3', label: 'T3' },
+    { value: '4', label: 'T4' }
+];
+
+const QUARTERLY_INPUT_CLASS = 'w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500';
+const QUARTERLY_SELECT_CLASS = 'w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-slate-100 focus:outline-none focus:border-indigo-500';
+
+function quarterlyOptionLabel(options, value, fallback = 'Sin estado') {
+    return options.find(option => option.value === value)?.label || fallback;
+}
+
+function quarterlyPeriodStatusClass(status) {
+    if (status === 'completed') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    if (status === 'in_review') return 'border-blue-500/30 bg-blue-500/10 text-blue-300';
+    if (status === 'open') return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
+    if (status === 'archived') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+    return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+}
+
+function quarterlyExpectedDocumentStatusClass(status) {
+    if (status === 'accepted') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    if (status === 'rejected') return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+    if (status === 'received' || status === 'in_review') return 'border-blue-500/30 bg-blue-500/10 text-blue-300';
+    if (status === 'requested') return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
+    if (status === 'not_applicable') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+    return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+}
+
+function normalizeQuarterlyClientOption(client) {
+    const id = textFromValue(client?.id ?? client?.client_id ?? client?.clientId ?? client, '');
+    const name = textFromValue(client?.name ?? client?.client_name ?? client?.label ?? id, id || 'Cliente sin nombre');
+    return { id, name };
+}
+
+function formatQuarterlyDateTime(value) {
+    if (!value) return 'Sin fecha';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+async function readQuarterlyJson(response) {
+    try {
+        return await response.json();
+    } catch {
+        return {};
+    }
+}
+
+function buildQuarterlyExpectedDocumentDraft(document = {}) {
+    return {
+        id: document.id || '',
+        document_type: document.document_type || '',
+        title: document.title || '',
+        description: document.description || '',
+        required: document.required === true || document.required === 1,
+        status: document.status || 'pending',
+        sort_order: String(document.sort_order ?? 0)
+    };
+}
+
+function QuarterlyDocumentationPanel() {
+    const currentYear = String(new Date().getFullYear());
+    const currentQuarter = String(Math.floor(new Date().getMonth() / 3) + 1);
+    const [featureState, setFeatureState] = useState('checking');
+    const [clients, setClients] = useState([]);
+    const [periods, setPeriods] = useState([]);
+    const [selectedPeriodId, setSelectedPeriodId] = useState('');
+    const [selectedPeriod, setSelectedPeriod] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [periodsLoading, setPeriodsLoading] = useState(false);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
+    const [message, setMessage] = useState(null);
+    const [filters, setFilters] = useState({ client_id: '', status: '', year: '', quarter: '' });
+    const [periodForm, setPeriodForm] = useState({
+        client_id: '',
+        year: currentYear,
+        quarter: currentQuarter,
+        period_label: '',
+        status: 'draft',
+        notes: ''
+    });
+    const [expectedDocumentForm, setExpectedDocumentForm] = useState({
+        document_type: '',
+        title: '',
+        description: '',
+        required: true,
+        status: 'pending',
+        sort_order: '0'
+    });
+    const [expectedDocumentEdit, setExpectedDocumentEdit] = useState(null);
+
+    async function loadClients() {
+        const response = await fetch('/api/clients/entities', { credentials: 'same-origin' });
+        const data = await readQuarterlyJson(response);
+        if (!response.ok || data.status !== 'ok') {
+            throw new Error(data.message || 'No se pudieron cargar los clientes.');
+        }
+        const normalized = (data.clients || []).map(normalizeQuarterlyClientOption).filter(client => client.id);
+        setClients(normalized);
+        return normalized;
+    }
+
+    async function loadPeriods(targetFilters = filters, showLoading = true, rethrow = false) {
+        if (showLoading) setPeriodsLoading(true);
+        try {
+            const params = new URLSearchParams();
+            params.set('limit', '100');
+            if (targetFilters.client_id) params.set('client_id', targetFilters.client_id);
+            if (targetFilters.status) params.set('status', targetFilters.status);
+            if (targetFilters.year) params.set('year', targetFilters.year);
+            if (targetFilters.quarter) params.set('quarter', targetFilters.quarter);
+
+            const response = await fetch('/api/manager/quarterly-documentation/periods?' + params.toString(), { credentials: 'same-origin' });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                setPeriods([]);
+                setSelectedPeriod(null);
+                setSelectedPeriodId('');
+                return [];
+            }
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudieron cargar los periodos trimestrales.');
+            }
+
+            const nextPeriods = data.periods || [];
+            setPeriods(nextPeriods);
+            if (selectedPeriodId && !nextPeriods.some(period => period.id === selectedPeriodId)) {
+                setSelectedPeriod(null);
+                setSelectedPeriodId('');
+            }
+            return nextPeriods;
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'Error al cargar periodos trimestrales.' });
+            if (rethrow) throw err;
+            return [];
+        } finally {
+            if (showLoading) setPeriodsLoading(false);
+        }
+    }
+
+    async function loadPeriodDetail(periodId, showLoading = true, rethrow = false) {
+        if (!periodId) return null;
+        if (showLoading) setDetailLoading(true);
+        try {
+            const response = await fetch('/api/manager/quarterly-documentation/periods/' + encodeURIComponent(periodId), { credentials: 'same-origin' });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                setSelectedPeriod(null);
+                setSelectedPeriodId('');
+                return null;
+            }
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo cargar el periodo trimestral.');
+            }
+
+            setSelectedPeriod(data.period);
+            setSelectedPeriodId(periodId);
+            setExpectedDocumentEdit(null);
+            return data.period;
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'Error al cargar el periodo trimestral.' });
+            if (rethrow) throw err;
+            return null;
+        } finally {
+            if (showLoading) setDetailLoading(false);
+        }
+    }
+
+    async function loadQuarterlyModule() {
+        setLoading(true);
+        setMessage(null);
+        try {
+            const response = await fetch('/api/manager/quarterly-documentation/status', { credentials: 'same-origin' });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                return;
+            }
+
+            if (!response.ok || data.enabled !== true) {
+                throw new Error(data.message || 'No se pudo comprobar el modulo de documentacion trimestral.');
+            }
+
+            await loadClients();
+            setFeatureState('enabled');
+        } catch (err) {
+            setFeatureState('error');
+            setMessage({ type: 'error', text: err.message || 'No se pudo cargar el modulo trimestral.' });
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        loadQuarterlyModule().catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (featureState !== 'enabled') return;
+        loadPeriods(filters).catch(() => {});
+    }, [featureState, filters.client_id, filters.status, filters.year, filters.quarter]);
+
+    async function handleRefreshData() {
+        setRefreshing(true);
+        setMessage(null);
+        try {
+            await loadClients();
+            await loadPeriods(filters, false, true);
+            if (selectedPeriodId) await loadPeriodDetail(selectedPeriodId, false, true);
+            setMessage({ type: 'success', text: 'Datos actualizados.' });
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'No se pudieron actualizar los datos.' });
+        } finally {
+            setRefreshing(false);
+        }
+    }
+
+    async function handleCreatePeriod(event) {
+        event.preventDefault();
+        setMessage(null);
+        if (!periodForm.client_id || !periodForm.year || !periodForm.quarter) {
+            setMessage({ type: 'error', text: 'Selecciona cliente, ano y trimestre.' });
+            return;
+        }
+
+        setActionLoading('create-period');
+        try {
+            const response = await fetch('/api/manager/quarterly-documentation/periods', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    client_id: periodForm.client_id,
+                    year: Number(periodForm.year),
+                    quarter: Number(periodForm.quarter),
+                    period_label: periodForm.period_label,
+                    status: periodForm.status,
+                    notes: periodForm.notes,
+                    expected_documents: []
+                })
+            });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                return;
+            }
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo crear el periodo trimestral.');
+            }
+
+            setSelectedPeriod(data.period);
+            setSelectedPeriodId(data.period.id);
+            setPeriodForm(prev => ({ ...prev, period_label: '', notes: '' }));
+            setMessage({ type: 'success', text: 'Periodo trimestral creado.' });
+            await loadPeriods(filters, false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'Error al crear el periodo trimestral.' });
+        } finally {
+            setActionLoading('');
+        }
+    }
+
+    async function handleCreateExpectedDocument(event) {
+        event.preventDefault();
+        setMessage(null);
+        if (!selectedPeriod?.id) {
+            setMessage({ type: 'error', text: 'Selecciona un periodo antes de crear documentos esperados.' });
+            return;
+        }
+        if (!expectedDocumentForm.document_type || !expectedDocumentForm.title) {
+            setMessage({ type: 'error', text: 'Indica tipo documental y titulo.' });
+            return;
+        }
+
+        setActionLoading('create-expected-document');
+        try {
+            const response = await fetch('/api/manager/quarterly-documentation/periods/' + encodeURIComponent(selectedPeriod.id) + '/expected-documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    document_type: expectedDocumentForm.document_type,
+                    title: expectedDocumentForm.title,
+                    description: expectedDocumentForm.description,
+                    required: expectedDocumentForm.required,
+                    status: expectedDocumentForm.status,
+                    sort_order: Number(expectedDocumentForm.sort_order || 0)
+                })
+            });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                return;
+            }
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo crear el documento esperado.');
+            }
+
+            setSelectedPeriod(data.period);
+            setExpectedDocumentForm({ document_type: '', title: '', description: '', required: true, status: 'pending', sort_order: '0' });
+            setMessage({ type: 'success', text: 'Documento esperado creado.' });
+            await loadPeriods(filters, false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'Error al crear el documento esperado.' });
+        } finally {
+            setActionLoading('');
+        }
+    }
+
+    async function handleUpdateExpectedDocument(event) {
+        event.preventDefault();
+        if (!expectedDocumentEdit?.id) return;
+        setMessage(null);
+        if (!expectedDocumentEdit.document_type || !expectedDocumentEdit.title) {
+            setMessage({ type: 'error', text: 'Tipo documental y titulo son obligatorios.' });
+            return;
+        }
+
+        setActionLoading('update-expected-document');
+        try {
+            const response = await fetch('/api/manager/quarterly-documentation/expected-documents/' + encodeURIComponent(expectedDocumentEdit.id), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    document_type: expectedDocumentEdit.document_type,
+                    title: expectedDocumentEdit.title,
+                    description: expectedDocumentEdit.description,
+                    required: expectedDocumentEdit.required,
+                    status: expectedDocumentEdit.status,
+                    sort_order: Number(expectedDocumentEdit.sort_order || 0)
+                })
+            });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                return;
+            }
+
+            if (!response.ok || data.status !== 'ok') {
+                throw new Error(data.message || 'No se pudo actualizar el documento esperado.');
+            }
+
+            setSelectedPeriod(data.period);
+            setExpectedDocumentEdit(null);
+            setMessage({ type: 'success', text: 'Documento esperado actualizado.' });
+            await loadPeriods(filters, false);
+        } catch (err) {
+            setMessage({ type: 'error', text: err.message || 'Error al actualizar el documento esperado.' });
+        } finally {
+            setActionLoading('');
+        }
+    }
+
+    const computedSummary = {
+        periods: periods.length,
+        open: periods.filter(period => period.status === 'open').length,
+        inReview: periods.filter(period => period.status === 'in_review').length,
+        expectedDocuments: periods.reduce((total, period) => total + Number(period.summary?.expected_documents || 0), 0)
+    };
+
+    if (loading || featureState === 'checking') {
+        return (
+            <div className="flex items-center justify-center py-24 text-slate-400">
+                <div className="animate-pulse flex flex-col items-center gap-6">
+                    <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="font-semibold tracking-wide text-lg">Comprobando modulo trimestral...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (featureState === 'disabled') {
+        return (
+            <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
+                    <h2 className="text-xl font-bold text-white mb-2">Documentacion trimestral</h2>
+                    <p className="text-sm text-slate-400 font-medium">Control interno de periodos trimestrales y documentos esperados.</p>
+                </div>
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-200">
+                    <h3 className="text-lg font-bold mb-2">Modulo desactivado</h3>
+                    <p className="text-sm font-semibold">Modulo de documentacion trimestral desactivado en este entorno.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (featureState === 'error') {
+        return (
+            <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
+                    <h2 className="text-xl font-bold text-white mb-2">Documentacion trimestral</h2>
+                    <p className="text-sm text-slate-400 font-medium">Control interno de periodos trimestrales y documentos esperados.</p>
+                </div>
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-rose-200">
+                    <h3 className="text-lg font-bold mb-2">Error al cargar el modulo</h3>
+                    <p className="text-sm font-semibold">{message?.text || 'No se pudo cargar el modulo trimestral.'}</p>
+                    <button type="button" onClick={loadQuarterlyModule} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-500">
+                        <RefreshCw className="h-4 w-4" />
+                        Reintentar
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/60 shadow-sm backdrop-blur-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <h2 className="text-xl font-bold text-white mb-2">Documentacion trimestral</h2>
+                        <p className="text-sm text-slate-400 font-medium">Control interno de periodos trimestrales y documentos esperados.</p>
+                    </div>
+                    <button type="button" onClick={handleRefreshData} disabled={refreshing} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-bold text-slate-200 hover:border-indigo-500/60 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-60">
+                        <RefreshCw className={'h-4 w-4 ' + (refreshing ? 'animate-spin' : '')} />
+                        {refreshing ? 'Actualizando...' : 'Actualizar datos'}
+                    </button>
+                </div>
+            </div>
+
+            {message && (
+                <div className={'rounded-xl border px-4 py-3 text-sm font-semibold ' + (message.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200')}>
+                    {message.text}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+                <MetricCard title="Periodos" value={computedSummary.periods} color="text-white" border="border-slate-700/60" bg="bg-slate-800/80" />
+                <MetricCard title="Abiertos" value={computedSummary.open} color="text-indigo-400" border="border-indigo-500/20" bg="bg-indigo-950/20" />
+                <MetricCard title="En revision" value={computedSummary.inReview} color="text-blue-400" border="border-blue-500/20" bg="bg-blue-950/20" />
+                <MetricCard title="Documentos esperados" value={computedSummary.expectedDocuments} color="text-amber-400" border="border-amber-500/20" bg="bg-amber-950/20" />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+                <form onSubmit={handleCreatePeriod} className="xl:col-span-4 rounded-2xl border border-slate-700/60 bg-slate-800/80 p-6 shadow-xl shadow-black/20 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-700/60 pb-3">
+                        <Plus className="h-4 w-4 text-indigo-300" />
+                        <h3 className="text-lg font-bold text-white">Nuevo periodo</h3>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Cliente</label>
+                        <select value={periodForm.client_id} onChange={(event) => setPeriodForm(prev => ({ ...prev, client_id: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                            <option value="">Selecciona cliente</option>
+                            {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ano</label>
+                            <input inputMode="numeric" value={periodForm.year} onChange={(event) => setPeriodForm(prev => ({ ...prev, year: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Trimestre</label>
+                            <select value={periodForm.quarter} onChange={(event) => setPeriodForm(prev => ({ ...prev, quarter: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                                {QUARTERLY_QUARTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Etiqueta</label>
+                        <input value={periodForm.period_label} onChange={(event) => setPeriodForm(prev => ({ ...prev, period_label: event.target.value }))} placeholder={(periodForm.year || currentYear) + ' T' + (periodForm.quarter || currentQuarter)} className={QUARTERLY_INPUT_CLASS} />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Estado</label>
+                        <select value={periodForm.status} onChange={(event) => setPeriodForm(prev => ({ ...prev, status: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                            {QUARTERLY_PERIOD_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Notas</label>
+                        <textarea value={periodForm.notes} onChange={(event) => setPeriodForm(prev => ({ ...prev, notes: event.target.value }))} rows={3} className={QUARTERLY_INPUT_CLASS} />
+                    </div>
+
+                    <button type="submit" disabled={actionLoading === 'create-period'} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-700">
+                        <Plus className="h-4 w-4" />
+                        {actionLoading === 'create-period' ? 'Creando...' : 'Crear periodo'}
+                    </button>
+                </form>
+
+                <div className="xl:col-span-8 space-y-5">
+                    <div className="rounded-2xl border border-slate-700/60 bg-slate-800/80 p-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                            <select value={filters.client_id} onChange={(event) => setFilters(prev => ({ ...prev, client_id: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                                <option value="">Todos los clientes</option>
+                                {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                            </select>
+                            <select value={filters.status} onChange={(event) => setFilters(prev => ({ ...prev, status: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                                <option value="">Todos los estados</option>
+                                {QUARTERLY_PERIOD_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                            <input inputMode="numeric" value={filters.year} onChange={(event) => setFilters(prev => ({ ...prev, year: event.target.value }))} placeholder="Ano" className={QUARTERLY_INPUT_CLASS} />
+                            <select value={filters.quarter} onChange={(event) => setFilters(prev => ({ ...prev, quarter: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                                <option value="">Todos los trimestres</option>
+                                {QUARTERLY_QUARTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-700/60 bg-slate-800/80 p-5">
+                        <div className="flex items-center justify-between gap-4 border-b border-slate-700/60 pb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Periodos trimestrales</h3>
+                                <p className="text-xs font-semibold text-slate-500">{periods.length} resultados</p>
+                            </div>
+                            {periodsLoading && <div className="text-xs font-bold text-indigo-300">Cargando...</div>}
+                        </div>
+
+                        {periodsLoading ? (
+                            <div className="py-14 text-center text-sm font-semibold text-slate-400">Cargando periodos trimestrales...</div>
+                        ) : periods.length === 0 ? (
+                            <div className="mt-5 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-10 text-center text-sm font-semibold text-slate-500">No hay periodos trimestrales creados.</div>
+                        ) : (
+                            <div className="mt-5 space-y-3">
+                                {periods.map(period => (
+                                    <button key={period.id} type="button" onClick={() => loadPeriodDetail(period.id)} className={'w-full rounded-xl border p-4 text-left transition-colors ' + (selectedPeriodId === period.id ? 'border-indigo-500/60 bg-indigo-500/10' : 'border-slate-700/60 bg-slate-900/40 hover:border-slate-600 hover:bg-slate-900/70')}>
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                            <div>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h4 className="font-bold text-slate-100">{period.period_label || (period.year + ' T' + period.quarter)}</h4>
+                                                    <span className={'rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ' + quarterlyPeriodStatusClass(period.status)}>{quarterlyOptionLabel(QUARTERLY_PERIOD_STATUS_OPTIONS, period.status)}</span>
+                                                </div>
+                                                <p className="mt-1 text-sm font-semibold text-slate-400">{period.client?.name || period.client_id}</p>
+                                                <p className="mt-1 text-xs text-slate-500">Actualizado: {formatQuarterlyDateTime(period.updated_at)}</p>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-400 md:min-w-[260px]">
+                                                <div className="rounded-lg border border-slate-700/60 bg-slate-950/50 px-2 py-2"><div className="text-slate-100">{period.summary?.expected_documents || 0}</div><div>Esperados</div></div>
+                                                <div className="rounded-lg border border-slate-700/60 bg-slate-950/50 px-2 py-2"><div className="text-amber-300">{period.summary?.pending_expected_documents || 0}</div><div>Pendientes</div></div>
+                                                <div className="rounded-lg border border-slate-700/60 bg-slate-950/50 px-2 py-2"><div className="text-blue-300">{period.summary?.received_expected_documents || 0}</div><div>Recibidos</div></div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-700/60 bg-slate-800/80 p-5">
+                        <div className="flex items-center gap-2 border-b border-slate-700/60 pb-4">
+                            <FileText className="h-4 w-4 text-indigo-300" />
+                            <h3 className="text-lg font-bold text-white">Detalle de periodo</h3>
+                        </div>
+
+                        {detailLoading ? (
+                            <div className="py-14 text-center text-sm font-semibold text-slate-400">Cargando detalle...</div>
+                        ) : !selectedPeriod ? (
+                            <div className="mt-5 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-10 text-center text-sm font-semibold text-slate-500">Selecciona un periodo para ver documentos esperados.</div>
+                        ) : (
+                            <div className="mt-5 space-y-6">
+                                <div className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
+                                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                        <div>
+                                            <h4 className="text-lg font-bold text-white">{selectedPeriod.period_label || (selectedPeriod.year + ' T' + selectedPeriod.quarter)}</h4>
+                                            <p className="text-sm font-semibold text-slate-400">{selectedPeriod.client?.name || selectedPeriod.client_id}</p>
+                                            {selectedPeriod.notes && <p className="mt-2 text-sm leading-relaxed text-slate-500">{selectedPeriod.notes}</p>}
+                                        </div>
+                                        <span className={'inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ' + quarterlyPeriodStatusClass(selectedPeriod.status)}>{quarterlyOptionLabel(QUARTERLY_PERIOD_STATUS_OPTIONS, selectedPeriod.status)}</span>
+                                    </div>
+                                </div>
+
+                                <form onSubmit={handleCreateExpectedDocument} className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-4 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Plus className="h-4 w-4 text-indigo-300" />
+                                        <h4 className="font-bold text-white">Nuevo documento esperado</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo documental</label>
+                                            <input value={expectedDocumentForm.document_type} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, document_type: event.target.value }))} placeholder="facturas_emitidas" className={QUARTERLY_INPUT_CLASS} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Titulo</label>
+                                            <input value={expectedDocumentForm.title} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, title: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <select value={expectedDocumentForm.status} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, status: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                                            {QUARTERLY_EXPECTED_DOCUMENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                        </select>
+                                        <input inputMode="numeric" value={expectedDocumentForm.sort_order} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, sort_order: event.target.value }))} placeholder="Orden" className={QUARTERLY_INPUT_CLASS} />
+                                        <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-bold text-slate-200">
+                                            <input type="checkbox" checked={expectedDocumentForm.required} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, required: event.target.checked }))} className="h-4 w-4 rounded border-slate-600 bg-slate-950" />
+                                            Requerido
+                                        </label>
+                                    </div>
+                                    <textarea value={expectedDocumentForm.description} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, description: event.target.value }))} rows={3} placeholder="Descripcion interna" className={QUARTERLY_INPUT_CLASS} />
+                                    <button type="submit" disabled={actionLoading === 'create-expected-document'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-700">
+                                        <Plus className="h-4 w-4" />
+                                        {actionLoading === 'create-expected-document' ? 'Creando...' : 'Crear documento esperado'}
+                                    </button>
+                                </form>
+
+                                <div className="space-y-3">
+                                    <h4 className="font-bold text-white">Documentos esperados</h4>
+                                    {(selectedPeriod.expected_documents || []).length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-8 text-center text-sm font-semibold text-slate-500">Este periodo aun no tiene documentos esperados.</div>
+                                    ) : (
+                                        (selectedPeriod.expected_documents || []).map(document => (
+                                            <div key={document.id} className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
+                                                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                    <div>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <h5 className="font-bold text-slate-100">{document.title}</h5>
+                                                            <span className={'rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ' + quarterlyExpectedDocumentStatusClass(document.status)}>{quarterlyOptionLabel(QUARTERLY_EXPECTED_DOCUMENT_STATUS_OPTIONS, document.status)}</span>
+                                                        </div>
+                                                        <p className="mt-1 text-xs font-semibold text-slate-500">{document.document_type}</p>
+                                                        {document.description && <p className="mt-2 text-sm text-slate-400">{document.description}</p>}
+                                                        <p className="mt-2 text-xs text-slate-500">{document.required ? 'Requerido' : 'Opcional'} - Orden {document.sort_order}</p>
+                                                    </div>
+                                                    <button type="button" onClick={() => setExpectedDocumentEdit(buildQuarterlyExpectedDocumentDraft(document))} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-bold text-slate-200 hover:border-indigo-500/60 hover:text-indigo-300">
+                                                        <Save className="h-4 w-4" />
+                                                        Editar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+
+                                {expectedDocumentEdit && (
+                                    <form onSubmit={handleUpdateExpectedDocument} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 space-y-4">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <h4 className="font-bold text-emerald-100">Editar documento esperado</h4>
+                                            <button type="button" onClick={() => setExpectedDocumentEdit(null)} className="text-xs font-bold text-emerald-200 hover:text-white">Cancelar</button>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <input value={expectedDocumentEdit.document_type} onChange={(event) => setExpectedDocumentEdit(prev => ({ ...prev, document_type: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                                            <input value={expectedDocumentEdit.title} onChange={(event) => setExpectedDocumentEdit(prev => ({ ...prev, title: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                                        </div>
+                                        <textarea value={expectedDocumentEdit.description} onChange={(event) => setExpectedDocumentEdit(prev => ({ ...prev, description: event.target.value }))} rows={2} className={QUARTERLY_INPUT_CLASS} />
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                            <select value={expectedDocumentEdit.status} onChange={(event) => setExpectedDocumentEdit(prev => ({ ...prev, status: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                                                {QUARTERLY_EXPECTED_DOCUMENT_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                            </select>
+                                            <input inputMode="numeric" value={expectedDocumentEdit.sort_order} onChange={(event) => setExpectedDocumentEdit(prev => ({ ...prev, sort_order: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                                            <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm font-bold text-slate-200">
+                                                <input type="checkbox" checked={Boolean(expectedDocumentEdit.required)} onChange={(event) => setExpectedDocumentEdit(prev => ({ ...prev, required: event.target.checked }))} className="h-4 w-4 rounded border-slate-600 bg-slate-950" />
+                                                Requerido
+                                            </label>
+                                            <button type="submit" disabled={actionLoading === 'update-expected-document'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-700">
+                                                <Save className="h-4 w-4" />
+                                                {actionLoading === 'update-expected-document' ? 'Guardando...' : 'Guardar'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function CommercialDashboardPanel() {
     const [dashboard, setDashboard] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -6447,6 +7143,9 @@ useEffect(() => {
                         <button type="button" onClick={() => setView('documentacion')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'documentacion' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
                             Documentación y trámites
                         </button>
+                        <button type="button" onClick={() => setView('documentacion-trimestral')} className={'w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ' + (view === 'documentacion-trimestral' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300')}>
+                            Documentacion trimestral
+                        </button>
                         <button type="button" onClick={() => setView('comercial')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'comercial' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
                             Vista Comercial
                         </button>
@@ -6476,6 +7175,7 @@ useEffect(() => {
                         <option value="ayudas">Ayudas y subvenciones</option>
                         <option value="paquetes">Paquetes para cliente</option>
                         <option value="documentacion">Documentación y trámites</option>
+                        <option value="documentacion-trimestral">Documentacion trimestral</option>
                         <option value="comercial">Vista Comercial</option>
                         <option value="portal">Portal Entidad</option>
                     </select>
@@ -6522,6 +7222,12 @@ useEffect(() => {
                         icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />}
                     />
                     <NavTab
+                        active={view === 'documentacion-trimestral'}
+                        onClick={() => setView('documentacion-trimestral')}
+                        label="Documentacion trimestral"
+                        icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />}
+                    />
+                    <NavTab
                         active={view === 'comercial'}
                         onClick={() => setView('comercial')}
                         label="Vista Comercial"
@@ -6561,6 +7267,7 @@ useEffect(() => {
                 {view === 'clientes' && <ClientsPanel />}
                 {view === 'paquetes' && <ClientPackagesPanel />}
                 {view === 'documentacion' && <ClientProceduresPanel />}
+                {view === 'documentacion-trimestral' && <QuarterlyDocumentationPanel />}
                 {view === 'comercial' && <CommercialDashboardPanel />}
                 {view === 'portal' && <PortalEntidadPanel />}
             </main>

@@ -5249,6 +5249,7 @@ function QuarterlyDocumentationPanel() {
         status: 'pending',
         sort_order: '0'
     });
+    const [expectedDocumentNotice, setExpectedDocumentNotice] = useState(null);
     const [expectedDocumentEdit, setExpectedDocumentEdit] = useState(null);
 
     async function loadClients() {
@@ -5434,24 +5435,40 @@ function QuarterlyDocumentationPanel() {
     async function handleCreateExpectedDocument(event) {
         event.preventDefault();
         setMessage(null);
-        if (!selectedPeriod?.id) {
-            setMessage({ type: 'error', text: 'Selecciona un periodo antes de crear documentos esperados.' });
+        setExpectedDocumentNotice(null);
+
+        const periodId = selectedPeriod?.id || selectedPeriodId;
+        const documentType = String(expectedDocumentForm.document_type || '').trim();
+        const title = String(expectedDocumentForm.title || '').trim();
+
+        const showExpectedDocumentError = (text) => {
+            const notice = { type: 'error', text };
+            setExpectedDocumentNotice(notice);
+            setMessage(notice);
+        };
+
+        if (!periodId) {
+            showExpectedDocumentError('Selecciona o crea un periodo antes de añadir documentos esperados.');
             return;
         }
-        if (!expectedDocumentForm.document_type || !expectedDocumentForm.title) {
-            setMessage({ type: 'error', text: 'Indica tipo documental y titulo.' });
+        if (!documentType) {
+            showExpectedDocumentError('Indica el tipo documental del documento esperado.');
+            return;
+        }
+        if (!title) {
+            showExpectedDocumentError('Indica el titulo del documento esperado.');
             return;
         }
 
         setActionLoading('create-expected-document');
         try {
-            const response = await fetch('/api/manager/quarterly-documentation/periods/' + encodeURIComponent(selectedPeriod.id) + '/expected-documents', {
+            const response = await fetch('/api/manager/quarterly-documentation/periods/' + encodeURIComponent(periodId) + '/expected-documents', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    document_type: expectedDocumentForm.document_type,
-                    title: expectedDocumentForm.title,
+                    document_type: documentType,
+                    title,
                     description: expectedDocumentForm.description,
                     required: expectedDocumentForm.required,
                     status: expectedDocumentForm.status,
@@ -5466,15 +5483,21 @@ function QuarterlyDocumentationPanel() {
             }
 
             if (!response.ok || data.status !== 'ok') {
-                throw new Error(data.message || 'No se pudo crear el documento esperado.');
+                const backendMessage = [data.error_code, data.message].filter(Boolean).join(': ');
+                throw new Error(backendMessage || 'No se pudo crear el documento esperado.');
             }
 
             setSelectedPeriod(data.period);
+            setSelectedPeriodId(periodId);
             setExpectedDocumentForm({ document_type: '', title: '', description: '', required: true, status: 'pending', sort_order: '0' });
+            setExpectedDocumentNotice({ type: 'success', text: 'Documento esperado creado.' });
             setMessage({ type: 'success', text: 'Documento esperado creado.' });
             await loadPeriods(filters, false);
+            await loadPeriodDetail(periodId, false);
         } catch (err) {
-            setMessage({ type: 'error', text: err.message || 'Error al crear el documento esperado.' });
+            const errorNotice = { type: 'error', text: err.message || 'Error al crear el documento esperado.' };
+            setExpectedDocumentNotice(errorNotice);
+            setMessage(errorNotice);
         } finally {
             setActionLoading('');
         }
@@ -5742,6 +5765,11 @@ function QuarterlyDocumentationPanel() {
                                         <Plus className="h-4 w-4 text-indigo-300" />
                                         <h4 className="font-bold text-white">Nuevo documento esperado</h4>
                                     </div>
+                                    {expectedDocumentNotice && (
+                                        <div className={'rounded-xl border px-3 py-2 text-sm font-semibold ' + (expectedDocumentNotice.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200')}>
+                                            {expectedDocumentNotice.text}
+                                        </div>
+                                    )}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo documental</label>

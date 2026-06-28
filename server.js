@@ -980,6 +980,8 @@ const CLIENT_PORTAL_DOCUMENT_ALLOWED_MIME_TYPES = new Set(['application/pdf', 'i
 
 const QUARTERLY_DOCUMENTATION_PERIOD_STATUSES = new Set(['draft', 'open', 'in_review', 'completed', 'archived']);
 const QUARTERLY_DOCUMENTATION_EXPECTED_DOCUMENT_STATUSES = new Set(['pending', 'requested', 'received', 'in_review', 'accepted', 'rejected', 'not_applicable']);
+const QUARTERLY_DOCUMENTATION_DOCUMENT_REVIEW_STATUSES = new Set(['pending_review', 'in_review', 'accepted', 'rejected', 'not_applicable']);
+const QUARTERLY_DOCUMENTATION_DOCUMENT_SOURCE_TYPES = new Set(['manual', 'existing_reference']);
 
 function sendQuarterlyDocumentationFeatureDisabled(res) {
     return sendJson(res, 404, {
@@ -1270,6 +1272,179 @@ function normalizeQuarterlyDocumentationExpectedDocumentPayload(payload, options
     }
 
     return { ok: true, data };
+}
+
+function getQuarterlyDocumentationDocumentById(db, documentId) {
+    return db.prepare('SELECT * FROM quarterly_documentation_documents WHERE id = ? AND deleted_at IS NULL').get(documentId);
+}
+
+function validateQuarterlyDocumentationDocumentType(value) {
+    const documentType = String(value || '').trim();
+    return /^[a-z0-9_-]{1,80}$/.test(documentType) ? documentType : null;
+}
+
+function validateQuarterlyDocumentationReviewStatus(value, defaultValue = 'pending_review') {
+    const status = String(value || defaultValue).trim() || defaultValue;
+    return QUARTERLY_DOCUMENTATION_DOCUMENT_REVIEW_STATUSES.has(status) ? status : null;
+}
+
+function normalizeQuarterlyDocumentationSourceType(value) {
+    const sourceType = String(value || 'manual').trim() || 'manual';
+    return QUARTERLY_DOCUMENTATION_DOCUMENT_SOURCE_TYPES.has(sourceType) ? sourceType : null;
+}
+
+function normalizeQuarterlyDocumentationOptionalPayloadText(payload, field, maxLength, message) {
+    const hasField = Object.prototype.hasOwnProperty.call(payload, field);
+    if (!hasField) return { ok: true, has: false };
+
+    const normalized = normalizeQuarterlyDocumentationText(payload[field], maxLength);
+    if (!normalized.ok) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'INVALID_QUARTERLY_DOCUMENT_PAYLOAD',
+            message
+        };
+    }
+
+    return { ok: true, has: true, value: normalized.value };
+}
+
+function normalizeQuarterlyDocumentationFileSize(value) {
+    if (value === undefined || value === null || String(value).trim() === '') {
+        return { ok: true, value: null };
+    }
+
+    const fileSize = Number(value);
+    if (!Number.isInteger(fileSize) || fileSize < 0) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'INVALID_QUARTERLY_DOCUMENT_FILE_SIZE',
+            message: 'file_size debe ser un entero mayor o igual que 0.'
+        };
+    }
+
+    return { ok: true, value: fileSize };
+}
+
+function normalizeQuarterlyDocumentationReceivedDocumentPayload(inputPayload, options = {}) {
+    const payload = inputPayload && typeof inputPayload === 'object' ? inputPayload : {};
+    const partial = Boolean(options.partial);
+    const has = field => Object.prototype.hasOwnProperty.call(payload, field);
+    const amountFields = ['amount_gross', 'amount_net', 'vat_amount', 'income_amount', 'expense_amount'];
+    const forbiddenAmountField = amountFields.find(has);
+
+    if (forbiddenAmountField) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'QUARTERLY_DOCUMENT_AMOUNT_FIELDS_NOT_ALLOWED',
+            message: 'Los importes no se aceptan en esta fase.'
+        };
+    }
+
+    const allowedPatchFields = ['review_status', 'notes', 'document_type', 'file_name', 'file_mime', 'file_size', 'document_date', 'supplier_or_customer'];
+    if (partial && !allowedPatchFields.some(has)) {
+        return {
+            ok: false,
+            http_status: 400,
+            error_code: 'INVALID_QUARTERLY_DOCUMENT_PATCH',
+            message: 'No hay campos validos para actualizar.'
+        };
+    }
+
+    const data = {};
+
+    if (!partial || has('expected_document_id')) {
+        data.expected_document_id = String(payload.expected_document_id || '').trim() || null;
+    }
+
+    if (has('document_type')) {
+        const documentType = validateQuarterlyDocumentationDocumentType(payload.document_type);
+        if (!documentType) {
+            return {
+                ok: false,
+                http_status: 400,
+                error_code: 'INVALID_QUARTERLY_DOCUMENT_TYPE',
+                message: 'document_type no es valido.'
+            };
+        }
+        data.document_type = documentType;
+    } else if (!partial) {
+        data.document_type = null;
+    }
+
+    if (!partial || has('source_type')) {
+        const sourceType = normalizeQuarterlyDocumentationSourceType(payload.source_type);
+        if (!sourceType) {
+            return {
+                ok: false,
+                http_status: 400,
+                error_code: 'INVALID_QUARTERLY_DOCUMENT_SOURCE_TYPE',
+                message: 'source_type debe ser manual o existing_reference.'
+            };
+        }
+        data.source_type = sourceType;
+    }
+
+    if (!partial || has('review_status')) {
+        const reviewStatus = validateQuarterlyDocumentationReviewStatus(payload.review_status, 'pending_review');
+        if (!reviewStatus) {
+            return {
+                ok: false,
+                http_status: 400,
+                error_code: 'INVALID_QUARTERLY_DOCUMENT_REVIEW_STATUS',
+                message: 'review_status no es valido.'
+            };
+        }
+        data.review_status = reviewStatus;
+    }
+
+    const textFields = [
+        ['file_name', 260, 'file_name no es valido.'],
+        ['file_mime', 120, 'file_mime no es valido.'],
+        ['storage_path', 500, 'storage_path no es valido.'],
+        ['document_date', 40, 'document_date no es valido.'],
+        ['supplier_or_customer', 200, 'supplier_or_customer no es valido.'],
+        ['notes', 2000, 'notes no es valido.']
+    ];
+
+    for (const [field, maxLength, message] of textFields) {
+        if (partial && field === 'storage_path') continue;
+        const normalized = normalizeQuarterlyDocumentationOptionalPayloadText(payload, field, maxLength, message);
+        if (!normalized.ok) return normalized;
+        if (normalized.has) {
+            data[field] = normalized.value;
+        } else if (!partial) {
+            data[field] = null;
+        }
+    }
+
+    if (!partial || has('file_size')) {
+        const fileSize = normalizeQuarterlyDocumentationFileSize(payload.file_size);
+        if (!fileSize.ok) return fileSize;
+        data.file_size = fileSize.value;
+    }
+
+    return { ok: true, data };
+}
+
+function insertQuarterlyDocumentationReviewLog(db, payload) {
+    db.prepare(`
+        INSERT INTO quarterly_documentation_review_logs
+        (id, period_id, document_id, action, previous_status, new_status, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        generateId(),
+        payload.period_id || null,
+        payload.document_id || null,
+        payload.action,
+        payload.previous_status || null,
+        payload.new_status || null,
+        payload.notes || null,
+        payload.created_at || getQuarterlyDocumentationNow()
+    );
 }
 
 function normalizeQuarterlyDocumentationPeriodPayload(payload) {
@@ -7406,6 +7581,211 @@ const server = http.createServer(async (req, res) => {
             }
         });
     }
+    // API Route: POST /api/manager/quarterly-documentation/periods/:periodId/documents
+    const quarterlyDocumentCreateMatch = pathname.match(/^\/api\/manager\/quarterly-documentation\/periods\/([^/]+)\/documents$/);
+    if (quarterlyDocumentCreateMatch && req.method === 'POST') {
+        if (!isQuarterlyDocumentationEnabled()) {
+            return sendQuarterlyDocumentationFeatureDisabled(res);
+        }
+
+        const periodId = decodeURIComponent(quarterlyDocumentCreateMatch[1]);
+
+        return readRequestJson(req, async payload => {
+            const normalized = normalizeQuarterlyDocumentationReceivedDocumentPayload(payload);
+            if (!normalized.ok) {
+                return sendJson(res, normalized.http_status || 400, {
+                    status: 'error',
+                    error_code: normalized.error_code,
+                    message: normalized.message
+                });
+            }
+
+            const documentId = generateId();
+            const now = getQuarterlyDocumentationNow();
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                db.exec('PRAGMA foreign_keys = ON');
+                const period = getQuarterlyDocumentationPeriodById(db, periodId);
+                if (!period) {
+                    db.close();
+                    return sendJson(res, 404, { status: 'error', error_code: 'QUARTERLY_PERIOD_NOT_FOUND', message: 'Periodo trimestral no encontrado.' });
+                }
+
+                let expectedDocument = null;
+                if (normalized.data.expected_document_id) {
+                    expectedDocument = getQuarterlyDocumentationExpectedDocumentById(db, normalized.data.expected_document_id);
+                    if (!expectedDocument) {
+                        db.close();
+                        return sendJson(res, 404, { status: 'error', error_code: 'EXPECTED_DOCUMENT_NOT_FOUND', message: 'Documento esperado no encontrado.' });
+                    }
+
+                    if (expectedDocument.period_id !== periodId) {
+                        db.close();
+                        return sendJson(res, 409, { status: 'error', error_code: 'EXPECTED_DOCUMENT_PERIOD_MISMATCH', message: 'El documento esperado no pertenece al periodo trimestral.' });
+                    }
+                }
+
+                const documentType = normalized.data.document_type || expectedDocument?.document_type || null;
+                if (!documentType) {
+                    db.close();
+                    return sendJson(res, 400, { status: 'error', error_code: 'QUARTERLY_DOCUMENT_TYPE_REQUIRED', message: 'document_type es obligatorio si no se informa expected_document_id.' });
+                }
+
+                db.exec('BEGIN');
+                db.prepare(`
+                    INSERT INTO quarterly_documentation_documents
+                    (id, period_id, expected_document_id, client_id, document_type, source_type, file_name, file_mime, file_size, storage_path, document_date, supplier_or_customer, review_status, notes, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                    documentId,
+                    periodId,
+                    normalized.data.expected_document_id,
+                    period.client_id,
+                    documentType,
+                    normalized.data.source_type,
+                    normalized.data.file_name,
+                    normalized.data.file_mime,
+                    normalized.data.file_size,
+                    normalized.data.storage_path,
+                    normalized.data.document_date,
+                    normalized.data.supplier_or_customer,
+                    normalized.data.review_status,
+                    normalized.data.notes,
+                    now,
+                    now
+                );
+
+                insertQuarterlyDocumentationReviewLog(db, {
+                    period_id: periodId,
+                    document_id: documentId,
+                    action: 'document_received_created',
+                    previous_status: null,
+                    new_status: normalized.data.review_status,
+                    notes: normalized.data.notes || 'Documento recibido registrado.',
+                    created_at: now
+                });
+
+                if (expectedDocument && (expectedDocument.status === 'pending' || expectedDocument.status === 'requested')) {
+                    db.prepare(`
+                        UPDATE quarterly_documentation_expected_documents
+                        SET status = ?, updated_at = ?
+                        WHERE id = ?
+                    `).run('received', now, expectedDocument.id);
+                }
+
+                db.exec('COMMIT');
+                const document = getQuarterlyDocumentationDocumentById(db, documentId);
+                const hydrated = hydrateQuarterlyDocumentationPeriod(db, getQuarterlyDocumentationPeriodById(db, periodId));
+                db.close();
+
+                return sendJson(res, 201, {
+                    status: 'success',
+                    document: mapQuarterlyDocumentationDocument(document),
+                    period: hydrated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('quarterly documentation received document create error:', err);
+                return sendJson(res, 500, { status: 'error', error_code: 'QUARTERLY_DOCUMENT_CREATE_FAILED', message: 'No se pudo registrar el documento recibido.' });
+            }
+        });
+    }
+
+    // API Route: PATCH /api/manager/quarterly-documentation/documents/:documentId
+    const quarterlyDocumentPatchMatch = pathname.match(/^\/api\/manager\/quarterly-documentation\/documents\/([^/]+)$/);
+    if (quarterlyDocumentPatchMatch && req.method === 'PATCH') {
+        if (!isQuarterlyDocumentationEnabled()) {
+            return sendQuarterlyDocumentationFeatureDisabled(res);
+        }
+
+        const documentId = decodeURIComponent(quarterlyDocumentPatchMatch[1]);
+
+        return readRequestJson(req, async payload => {
+            const normalized = normalizeQuarterlyDocumentationReceivedDocumentPayload(payload, { partial: true });
+            if (!normalized.ok) {
+                return sendJson(res, normalized.http_status || 400, {
+                    status: 'error',
+                    error_code: normalized.error_code,
+                    message: normalized.message
+                });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                db.exec('PRAGMA foreign_keys = ON');
+                const current = getQuarterlyDocumentationDocumentById(db, documentId);
+                if (!current) {
+                    db.close();
+                    return sendJson(res, 404, { status: 'error', error_code: 'QUARTERLY_DOCUMENT_NOT_FOUND', message: 'Documento recibido no encontrado.' });
+                }
+
+                const updates = [];
+                const params = [];
+                for (const field of Object.keys(normalized.data)) {
+                    updates.push(`${field} = ?`);
+                    params.push(normalized.data[field]);
+                }
+                updates.push('updated_at = ?');
+                const now = getQuarterlyDocumentationNow();
+                params.push(now, documentId);
+
+                const nextStatus = Object.prototype.hasOwnProperty.call(normalized.data, 'review_status')
+                    ? normalized.data.review_status
+                    : current.review_status;
+                const statusChanged = nextStatus !== current.review_status;
+                const notesChanged = Object.prototype.hasOwnProperty.call(normalized.data, 'notes') && (normalized.data.notes || null) !== (current.notes || null);
+
+                db.exec('BEGIN');
+                db.prepare(`
+                    UPDATE quarterly_documentation_documents
+                    SET ${updates.join(', ')}
+                    WHERE id = ? AND deleted_at IS NULL
+                `).run(...params);
+
+                if (statusChanged) {
+                    insertQuarterlyDocumentationReviewLog(db, {
+                        period_id: current.period_id,
+                        document_id: current.id,
+                        action: 'document_review_status_updated',
+                        previous_status: current.review_status,
+                        new_status: nextStatus,
+                        notes: normalized.data.notes || 'Estado de revision actualizado.',
+                        created_at: now
+                    });
+                } else if (notesChanged) {
+                    insertQuarterlyDocumentationReviewLog(db, {
+                        period_id: current.period_id,
+                        document_id: current.id,
+                        action: 'document_notes_updated',
+                        previous_status: current.review_status,
+                        new_status: current.review_status,
+                        notes: normalized.data.notes || 'Notas documentales actualizadas.',
+                        created_at: now
+                    });
+                }
+
+                db.exec('COMMIT');
+                const updated = getQuarterlyDocumentationDocumentById(db, documentId);
+                const period = hydrateQuarterlyDocumentationPeriod(db, getQuarterlyDocumentationPeriodById(db, updated.period_id));
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'success',
+                    document: mapQuarterlyDocumentationDocument(updated),
+                    period
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('quarterly documentation received document update error:', err);
+                return sendJson(res, 500, { status: 'error', error_code: 'QUARTERLY_DOCUMENT_UPDATE_FAILED', message: 'No se pudo actualizar el documento recibido.' });
+            }
+        });
+    }
+
     // API Route: GET /api/manager/publication-generate/write-source/status
     // publication_generate_write_source_status_v1
     if (req.url.split('?')[0] === '/api/manager/publication-generate/write-source/status' && req.method === 'GET') {

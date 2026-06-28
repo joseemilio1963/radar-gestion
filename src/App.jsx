@@ -5154,6 +5154,14 @@ const QUARTERLY_EXPECTED_DOCUMENT_STATUS_OPTIONS = [
     { value: 'not_applicable', label: 'No procede' }
 ];
 
+const QUARTERLY_RECEIVED_DOCUMENT_REVIEW_STATUS_OPTIONS = [
+    { value: 'pending_review', label: 'Pendiente revision' },
+    { value: 'in_review', label: 'En revision' },
+    { value: 'accepted', label: 'Aceptado' },
+    { value: 'rejected', label: 'Rechazado' },
+    { value: 'not_applicable', label: 'No procede' }
+];
+
 const QUARTERLY_QUARTER_OPTIONS = [
     { value: '1', label: 'T1' },
     { value: '2', label: 'T2' },
@@ -5183,6 +5191,25 @@ function quarterlyExpectedDocumentStatusClass(status) {
     if (status === 'requested') return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
     if (status === 'not_applicable') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
     return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+}
+
+function quarterlyReceivedDocumentReviewStatusClass(status) {
+    if (status === 'accepted') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    if (status === 'rejected') return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+    if (status === 'in_review') return 'border-blue-500/30 bg-blue-500/10 text-blue-300';
+    if (status === 'not_applicable') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+    return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+}
+
+function normalizeQuarterlyDocumentTypeInput(value) {
+    return String(value ?? '')
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
 }
 
 function normalizeQuarterlyClientOption(client) {
@@ -5251,6 +5278,17 @@ function QuarterlyDocumentationPanel() {
     });
     const [expectedDocumentNotice, setExpectedDocumentNotice] = useState(null);
     const [expectedDocumentEdit, setExpectedDocumentEdit] = useState(null);
+    const [receivedDocumentForm, setReceivedDocumentForm] = useState({
+        expected_document_id: '',
+        document_type: '',
+        file_name: '',
+        document_date: '',
+        supplier_or_customer: '',
+        review_status: 'pending_review',
+        notes: ''
+    });
+    const [receivedDocumentNotice, setReceivedDocumentNotice] = useState(null);
+    const [receivedDocumentEdits, setReceivedDocumentEdits] = useState({});
 
     async function loadClients() {
         const response = await fetch('/api/clients/entities', { credentials: 'same-origin' });
@@ -5325,6 +5363,8 @@ function QuarterlyDocumentationPanel() {
             setSelectedPeriod(data.period);
             setSelectedPeriodId(periodId);
             setExpectedDocumentEdit(null);
+            setReceivedDocumentNotice(null);
+            setReceivedDocumentEdits({});
             return data.period;
         } catch (err) {
             setMessage({ type: 'error', text: err.message || 'Error al cargar el periodo trimestral.' });
@@ -5438,7 +5478,7 @@ function QuarterlyDocumentationPanel() {
         setExpectedDocumentNotice(null);
 
         const periodId = selectedPeriod?.id || selectedPeriodId;
-        const documentType = String(expectedDocumentForm.document_type || '').trim();
+        const documentType = normalizeQuarterlyDocumentTypeInput(expectedDocumentForm.document_type);
         const title = String(expectedDocumentForm.title || '').trim();
 
         const showExpectedDocumentError = (text) => {
@@ -5549,6 +5589,158 @@ function QuarterlyDocumentationPanel() {
         }
     }
 
+    function handleReceivedDocumentExpectedChange(expectedDocumentId) {
+        const expectedDocument = (selectedPeriod?.expected_documents || []).find(document => document.id === expectedDocumentId);
+        setReceivedDocumentForm(prev => ({
+            ...prev,
+            expected_document_id: expectedDocumentId,
+            document_type: prev.document_type || expectedDocument?.document_type || ''
+        }));
+    }
+
+    function getReceivedDocumentEdit(document) {
+        return receivedDocumentEdits[document.id] || {
+            review_status: document.review_status || 'pending_review',
+            notes: document.notes || ''
+        };
+    }
+
+    async function handleCreateReceivedDocument(event) {
+        event.preventDefault();
+        setMessage(null);
+        setReceivedDocumentNotice(null);
+
+        const periodId = selectedPeriod?.id || selectedPeriodId;
+        const expectedDocumentId = String(receivedDocumentForm.expected_document_id || '').trim();
+        const documentType = normalizeQuarterlyDocumentTypeInput(receivedDocumentForm.document_type);
+
+        const showReceivedDocumentError = (text) => {
+            const notice = { type: 'error', text };
+            setReceivedDocumentNotice(notice);
+            setMessage(notice);
+        };
+
+        if (!periodId) {
+            showReceivedDocumentError('Selecciona o crea un periodo antes de registrar documentos recibidos.');
+            return;
+        }
+
+        if (!expectedDocumentId && !documentType) {
+            showReceivedDocumentError('Indica el tipo documental o selecciona un documento esperado.');
+            return;
+        }
+
+        const payload = {
+            review_status: receivedDocumentForm.review_status || 'pending_review'
+        };
+        if (expectedDocumentId) payload.expected_document_id = expectedDocumentId;
+        if (documentType) payload.document_type = documentType;
+
+        const fileName = String(receivedDocumentForm.file_name || '').trim();
+        const documentDate = String(receivedDocumentForm.document_date || '').trim();
+        const supplierOrCustomer = String(receivedDocumentForm.supplier_or_customer || '').trim();
+        const notes = String(receivedDocumentForm.notes || '').trim();
+
+        if (fileName) payload.file_name = fileName;
+        if (documentDate) payload.document_date = documentDate;
+        if (supplierOrCustomer) payload.supplier_or_customer = supplierOrCustomer;
+        if (notes) payload.notes = notes;
+
+        setActionLoading('create-received-document');
+        try {
+            const response = await fetch('/api/manager/quarterly-documentation/periods/' + encodeURIComponent(periodId) + '/documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                return;
+            }
+
+            if (!response.ok || data.status !== 'success') {
+                const backendMessage = [data.error_code, data.message].filter(Boolean).join(': ');
+                throw new Error(backendMessage || 'No se pudo registrar el documento recibido.');
+            }
+
+            setSelectedPeriod(data.period);
+            setSelectedPeriodId(periodId);
+            setReceivedDocumentForm({
+                expected_document_id: '',
+                document_type: '',
+                file_name: '',
+                document_date: '',
+                supplier_or_customer: '',
+                review_status: 'pending_review',
+                notes: ''
+            });
+            await loadPeriods(filters, false);
+            await loadPeriodDetail(periodId, false);
+            setReceivedDocumentNotice({ type: 'success', text: 'Documento recibido registrado.' });
+            setMessage({ type: 'success', text: 'Documento recibido registrado.' });
+        } catch (err) {
+            const notice = { type: 'error', text: err.message || 'Error al registrar el documento recibido.' };
+            setReceivedDocumentNotice(notice);
+            setMessage(notice);
+        } finally {
+            setActionLoading('');
+        }
+    }
+
+    async function handleUpdateReceivedDocument(document) {
+        if (!document?.id) return;
+        setMessage(null);
+        setReceivedDocumentNotice(null);
+
+        const draft = getReceivedDocumentEdit(document);
+        const reviewStatus = String(draft.review_status || document.review_status || 'pending_review').trim() || 'pending_review';
+        const notes = String(draft.notes || '').trim();
+
+        setActionLoading(`update-received-document-${document.id}`);
+        try {
+            const response = await fetch('/api/manager/quarterly-documentation/documents/' + encodeURIComponent(document.id), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    review_status: reviewStatus,
+                    notes
+                })
+            });
+            const data = await readQuarterlyJson(response);
+
+            if (response.status === 404 && data.error_code === 'FEATURE_DISABLED') {
+                setFeatureState('disabled');
+                return;
+            }
+
+            if (!response.ok || data.status !== 'success') {
+                const backendMessage = [data.error_code, data.message].filter(Boolean).join(': ');
+                throw new Error(backendMessage || 'No se pudo actualizar el documento recibido.');
+            }
+
+            setSelectedPeriod(data.period);
+            setReceivedDocumentEdits(prev => ({
+                ...prev,
+                [document.id]: {
+                    review_status: data.document?.review_status || reviewStatus,
+                    notes: data.document?.notes ?? notes
+                }
+            }));
+            setReceivedDocumentNotice({ type: 'success', text: 'Documento recibido actualizado.' });
+            setMessage({ type: 'success', text: 'Documento recibido actualizado.' });
+            await loadPeriods(filters, false);
+        } catch (err) {
+            const notice = { type: 'error', text: err.message || 'Error al actualizar el documento recibido.' };
+            setReceivedDocumentNotice(notice);
+            setMessage(notice);
+        } finally {
+            setActionLoading('');
+        }
+    }
     const computedSummary = {
         periods: periods.length,
         open: periods.filter(period => period.status === 'open').length,
@@ -5759,7 +5951,117 @@ function QuarterlyDocumentationPanel() {
                                         <span className={'inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ' + quarterlyPeriodStatusClass(selectedPeriod.status)}>{quarterlyOptionLabel(QUARTERLY_PERIOD_STATUS_OPTIONS, selectedPeriod.status)}</span>
                                     </div>
                                 </div>
+                                <section className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-4 space-y-4">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="h-4 w-4 text-indigo-300" />
+                                            <h4 className="font-bold text-white">Documentos recibidos</h4>
+                                        </div>
+                                        <span className="rounded-lg border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">
+                                            {(selectedPeriod.documents || []).length} registrados
+                                        </span>
+                                    </div>
 
+                                    <form onSubmit={handleCreateReceivedDocument} className="space-y-4 rounded-xl border border-slate-700/60 bg-slate-950/40 p-4">
+                                        <div className="flex items-center gap-2">
+                                            <Plus className="h-4 w-4 text-indigo-300" />
+                                            <h5 className="font-bold text-slate-100">Registrar documento recibido</h5>
+                                        </div>
+                                        {receivedDocumentNotice && (
+                                            <div className={'rounded-xl border px-3 py-2 text-sm font-semibold ' + (receivedDocumentNotice.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200')}>
+                                                {receivedDocumentNotice.text}
+                                            </div>
+                                        )}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Documento esperado</label>
+                                                <select value={receivedDocumentForm.expected_document_id} onChange={(event) => handleReceivedDocumentExpectedChange(event.target.value)} className={QUARTERLY_SELECT_CLASS}>
+                                                    <option value="">Sin asociar</option>
+                                                    {(selectedPeriod.expected_documents || []).map(document => (
+                                                        <option key={document.id} value={document.id}>{document.title}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo documental</label>
+                                                <input value={receivedDocumentForm.document_type} onChange={(event) => setReceivedDocumentForm(prev => ({ ...prev, document_type: event.target.value }))} placeholder="Facturas recibidas" className={QUARTERLY_INPUT_CLASS} />
+                                                <p className="mt-1.5 text-xs font-semibold text-slate-500">Puedes escribirlo normal, por ejemplo: Facturas recibidas.</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Nombre de archivo / referencia</label>
+                                                <input value={receivedDocumentForm.file_name} onChange={(event) => setReceivedDocumentForm(prev => ({ ...prev, file_name: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Fecha del documento</label>
+                                                <input type="date" value={receivedDocumentForm.document_date} onChange={(event) => setReceivedDocumentForm(prev => ({ ...prev, document_date: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Proveedor o cliente</label>
+                                                <input value={receivedDocumentForm.supplier_or_customer} onChange={(event) => setReceivedDocumentForm(prev => ({ ...prev, supplier_or_customer: event.target.value }))} className={QUARTERLY_INPUT_CLASS} />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Estado de revision</label>
+                                                <select value={receivedDocumentForm.review_status} onChange={(event) => setReceivedDocumentForm(prev => ({ ...prev, review_status: event.target.value }))} className={QUARTERLY_SELECT_CLASS}>
+                                                    {QUARTERLY_RECEIVED_DOCUMENT_REVIEW_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Notas internas</label>
+                                                <textarea value={receivedDocumentForm.notes} onChange={(event) => setReceivedDocumentForm(prev => ({ ...prev, notes: event.target.value }))} rows={2} className={QUARTERLY_INPUT_CLASS} />
+                                            </div>
+                                        </div>
+                                        <button type="submit" disabled={actionLoading === 'create-received-document'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-700">
+                                            <Plus className="h-4 w-4" />
+                                            {actionLoading === 'create-received-document' ? 'Registrando...' : 'Registrar documento recibido'}
+                                        </button>
+                                    </form>
+
+                                    <div className="space-y-3">
+                                        {(selectedPeriod.documents || []).length === 0 ? (
+                                            <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-8 text-center text-sm font-semibold text-slate-500">Sin documentos recibidos.</div>
+                                        ) : (
+                                            (selectedPeriod.documents || []).map(receivedDocument => {
+                                                const receivedEdit = getReceivedDocumentEdit(receivedDocument);
+                                                return (
+                                                    <div key={receivedDocument.id} className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4">
+                                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                                            <div className="min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <h5 className="font-bold text-slate-100 truncate">{receivedDocument.file_name || receivedDocument.document_type || 'Documento recibido'}</h5>
+                                                                    <span className={'rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ' + quarterlyReceivedDocumentReviewStatusClass(receivedDocument.review_status)}>{quarterlyOptionLabel(QUARTERLY_RECEIVED_DOCUMENT_REVIEW_STATUS_OPTIONS, receivedDocument.review_status, 'Pendiente revision')}</span>
+                                                                </div>
+                                                                <p className="mt-1 text-xs font-semibold text-slate-500">{receivedDocument.document_type}</p>
+                                                                {receivedDocument.supplier_or_customer && <p className="mt-1 text-xs text-slate-400">Proveedor o cliente: {receivedDocument.supplier_or_customer}</p>}
+                                                                {receivedDocument.document_date && <p className="mt-1 text-xs text-slate-500">Fecha: {receivedDocument.document_date}</p>}
+                                                                {receivedDocument.notes && <p className="mt-2 text-sm text-slate-400">{receivedDocument.notes}</p>}
+                                                            </div>
+                                                            <div className="w-full lg:w-[360px] space-y-2">
+                                                                <select value={receivedEdit.review_status} onChange={(event) => setReceivedDocumentEdits(prev => {
+                                                                    const draft = prev[receivedDocument.id] || { review_status: receivedDocument.review_status || 'pending_review', notes: receivedDocument.notes || '' };
+                                                                    return { ...prev, [receivedDocument.id]: { ...draft, review_status: event.target.value } };
+                                                                })} className={QUARTERLY_SELECT_CLASS}>
+                                                                    {QUARTERLY_RECEIVED_DOCUMENT_REVIEW_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                                                </select>
+                                                                <textarea value={receivedEdit.notes} onChange={(event) => setReceivedDocumentEdits(prev => {
+                                                                    const draft = prev[receivedDocument.id] || { review_status: receivedDocument.review_status || 'pending_review', notes: receivedDocument.notes || '' };
+                                                                    return { ...prev, [receivedDocument.id]: { ...draft, notes: event.target.value } };
+                                                                })} rows={2} placeholder="Notas internas" className={QUARTERLY_INPUT_CLASS} />
+                                                                <button type="button" onClick={() => handleUpdateReceivedDocument(receivedDocument)} disabled={actionLoading === `update-received-document-${receivedDocument.id}`} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-4 py-2 text-sm font-bold text-indigo-200 hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60">
+                                                                    <Save className="h-4 w-4" />
+                                                                    {actionLoading === `update-received-document-${receivedDocument.id}` ? 'Guardando...' : 'Guardar revision'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </section>
                                 <form onSubmit={handleCreateExpectedDocument} className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-4 space-y-4">
                                     <div className="flex items-center gap-2">
                                         <Plus className="h-4 w-4 text-indigo-300" />
@@ -5773,7 +6075,8 @@ function QuarterlyDocumentationPanel() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tipo documental</label>
-                                            <input value={expectedDocumentForm.document_type} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, document_type: event.target.value }))} placeholder="facturas_emitidas" className={QUARTERLY_INPUT_CLASS} />
+                                            <input value={expectedDocumentForm.document_type} onChange={(event) => setExpectedDocumentForm(prev => ({ ...prev, document_type: event.target.value }))} placeholder="Facturas recibidas" className={QUARTERLY_INPUT_CLASS} />
+                                            <p className="mt-1.5 text-xs font-semibold text-slate-500">Puedes escribirlo normal, por ejemplo: Facturas recibidas. Radar lo adapta internamente.</p>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Titulo</label>
@@ -5802,25 +6105,42 @@ function QuarterlyDocumentationPanel() {
                                     {(selectedPeriod.expected_documents || []).length === 0 ? (
                                         <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-8 text-center text-sm font-semibold text-slate-500">Este periodo aun no tiene documentos esperados.</div>
                                     ) : (
-                                        (selectedPeriod.expected_documents || []).map(document => (
-                                            <div key={document.id} className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
-                                                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                                    <div>
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                            <h5 className="font-bold text-slate-100">{document.title}</h5>
-                                                            <span className={'rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ' + quarterlyExpectedDocumentStatusClass(document.status)}>{quarterlyOptionLabel(QUARTERLY_EXPECTED_DOCUMENT_STATUS_OPTIONS, document.status)}</span>
+                                        (selectedPeriod.expected_documents || []).map(document => {
+                                            const receivedForExpected = document.documents || [];
+                                            return (
+                                                <div key={document.id} className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
+                                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                        <div>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <h5 className="font-bold text-slate-100">{document.title}</h5>
+                                                                <span className={'rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ' + quarterlyExpectedDocumentStatusClass(document.status)}>{quarterlyOptionLabel(QUARTERLY_EXPECTED_DOCUMENT_STATUS_OPTIONS, document.status)}</span>
+                                                                <span className="rounded-lg border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">Recibidos: {receivedForExpected.length}</span>
+                                                            </div>
+                                                            <p className="mt-1 text-xs font-semibold text-slate-500">{document.document_type}</p>
+                                                            {document.description && <p className="mt-2 text-sm text-slate-400">{document.description}</p>}
+                                                            <p className="mt-2 text-xs text-slate-500">{document.required ? 'Requerido' : 'Opcional'} - Orden {document.sort_order}</p>
                                                         </div>
-                                                        <p className="mt-1 text-xs font-semibold text-slate-500">{document.document_type}</p>
-                                                        {document.description && <p className="mt-2 text-sm text-slate-400">{document.description}</p>}
-                                                        <p className="mt-2 text-xs text-slate-500">{document.required ? 'Requerido' : 'Opcional'} - Orden {document.sort_order}</p>
+                                                        <button type="button" onClick={() => setExpectedDocumentEdit(buildQuarterlyExpectedDocumentDraft(document))} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-bold text-slate-200 hover:border-indigo-500/60 hover:text-indigo-300">
+                                                            <Save className="h-4 w-4" />
+                                                            Editar
+                                                        </button>
                                                     </div>
-                                                    <button type="button" onClick={() => setExpectedDocumentEdit(buildQuarterlyExpectedDocumentDraft(document))} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-bold text-slate-200 hover:border-indigo-500/60 hover:text-indigo-300">
-                                                        <Save className="h-4 w-4" />
-                                                        Editar
-                                                    </button>
+                                                    {receivedForExpected.length > 0 && (
+                                                        <div className="mt-4 space-y-2 rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+                                                            {receivedForExpected.map(receivedDocument => (
+                                                                <div key={receivedDocument.id} className="flex flex-col gap-1 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs font-semibold text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                                                                    <span className="text-slate-200">{receivedDocument.file_name || receivedDocument.document_type || 'Documento recibido'}</span>
+                                                                    <span className="flex flex-wrap items-center gap-2">
+                                                                        <span className={'rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ' + quarterlyReceivedDocumentReviewStatusClass(receivedDocument.review_status)}>{quarterlyOptionLabel(QUARTERLY_RECEIVED_DOCUMENT_REVIEW_STATUS_OPTIONS, receivedDocument.review_status, 'Pendiente revision')}</span>
+                                                                        {receivedDocument.document_date && <span>{receivedDocument.document_date}</span>}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </div>
 

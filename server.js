@@ -1050,6 +1050,10 @@ function getQuarterlyDocumentationPeriodById(db, periodId) {
     return db.prepare('SELECT * FROM quarterly_documentation_periods WHERE id = ?').get(periodId);
 }
 
+function getPortalQuarterlyDocumentationPeriodById(db, periodId, clientId) {
+    return db.prepare('SELECT * FROM quarterly_documentation_periods WHERE id = ? AND client_id = ?').get(periodId, clientId);
+}
+
 function getQuarterlyDocumentationExpectedDocumentById(db, expectedDocumentId) {
     return db.prepare('SELECT * FROM quarterly_documentation_expected_documents WHERE id = ?').get(expectedDocumentId);
 }
@@ -1077,6 +1081,30 @@ function getQuarterlyDocumentationPeriodSummary(db, periodId) {
     };
 }
 
+function getPortalQuarterlyDocumentationPeriodSummary(db, periodId, clientId) {
+    const expected = db.prepare(`
+        SELECT
+            COUNT(ed.id) AS total,
+            SUM(CASE WHEN ed.status = 'pending' THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN ed.status = 'received' THEN 1 ELSE 0 END) AS received
+        FROM quarterly_documentation_expected_documents ed
+        INNER JOIN quarterly_documentation_periods p ON p.id = ed.period_id
+        WHERE ed.period_id = ? AND p.client_id = ?
+    `).get(periodId, clientId);
+    const documents = db.prepare(`
+        SELECT COUNT(*) AS total
+        FROM quarterly_documentation_documents
+        WHERE period_id = ? AND client_id = ? AND deleted_at IS NULL
+    `).get(periodId, clientId);
+
+    return {
+        expected_documents: Number(expected?.total || 0),
+        pending_expected_documents: Number(expected?.pending || 0),
+        received_expected_documents: Number(expected?.received || 0),
+        uploaded_documents: Number(documents?.total || 0),
+        received_documents: Number(documents?.total || 0)
+    };
+}
 function mapQuarterlyDocumentationPeriod(row, clientsById, summary = null) {
     const client = clientsById.get(row.client_id) || {
         id: row.client_id,
@@ -1129,6 +1157,24 @@ function mapQuarterlyDocumentationDocument(row) {
     };
 }
 
+function mapPortalQuarterlyDocumentationDocument(row) {
+    return {
+        id: row.id,
+        period_id: row.period_id,
+        expected_document_id: row.expected_document_id || null,
+        document_type: row.document_type,
+        source_type: row.source_type,
+        file_name: row.file_name || null,
+        file_mime: row.file_mime || null,
+        file_size: row.file_size || null,
+        document_date: row.document_date || null,
+        supplier_or_customer: row.supplier_or_customer || null,
+        currency: row.currency,
+        review_status: row.review_status,
+        created_at: row.created_at,
+        updated_at: row.updated_at
+    };
+}
 function mapQuarterlyDocumentationExpectedDocument(row, documents = []) {
     return {
         id: row.id,
@@ -1145,6 +1191,50 @@ function mapQuarterlyDocumentationExpectedDocument(row, documents = []) {
     };
 }
 
+function hydratePortalQuarterlyDocumentationPeriod(db, period, clientId) {
+    const clientsById = getQuarterlyDocumentationClientMap();
+    const expectedDocuments = db.prepare(`
+        SELECT ed.*
+        FROM quarterly_documentation_expected_documents ed
+        INNER JOIN quarterly_documentation_periods p ON p.id = ed.period_id
+        WHERE ed.period_id = ? AND p.client_id = ?
+        ORDER BY ed.sort_order ASC, ed.created_at ASC
+    `).all(period.id, clientId);
+    const expectedDocumentIds = new Set(expectedDocuments.map(doc => doc.id));
+    const documents = db.prepare(`
+        SELECT d.*
+        FROM quarterly_documentation_documents d
+        INNER JOIN quarterly_documentation_periods p ON p.id = d.period_id
+        WHERE d.period_id = ?
+            AND d.client_id = ?
+            AND p.client_id = ?
+            AND d.deleted_at IS NULL
+            AND (
+                d.expected_document_id IS NULL OR EXISTS (
+                    SELECT 1
+                    FROM quarterly_documentation_expected_documents ed
+                    WHERE ed.id = d.expected_document_id AND ed.period_id = d.period_id
+                )
+            )
+        ORDER BY d.created_at DESC
+    `).all(period.id, clientId, clientId)
+        .map(mapPortalQuarterlyDocumentationDocument);
+    const documentsByExpected = new Map();
+
+    for (const document of documents) {
+        if (!document.expected_document_id || !expectedDocumentIds.has(document.expected_document_id)) continue;
+        if (!documentsByExpected.has(document.expected_document_id)) {
+            documentsByExpected.set(document.expected_document_id, []);
+        }
+        documentsByExpected.get(document.expected_document_id).push(document);
+    }
+
+    return {
+        ...mapQuarterlyDocumentationPeriod(period, clientsById, getPortalQuarterlyDocumentationPeriodSummary(db, period.id, clientId)),
+        expected_documents: expectedDocuments.map(doc => mapQuarterlyDocumentationExpectedDocument(doc, documentsByExpected.get(doc.id) || [])),
+        documents
+    };
+}
 function hydrateQuarterlyDocumentationPeriod(db, period) {
     const clientsById = getQuarterlyDocumentationClientMap();
     const expectedDocuments = db.prepare(`
@@ -7220,6 +7310,82 @@ const server = http.createServer(async (req, res) => {
     }
 
 
+
+    // API Route: GET /api/portal/quarterly-documentation/periods
+    if (pathname === '/api/portal/quarterly-documentation/periods' && req.method === 'GET') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        if (!isQuarterlyDocumentationEnabled()) {
+            return sendQuarterlyDocumentationFeatureDisabled(res);
+        }
+
+        const db = new DatabaseSync(DB_PATH);
+
+        try {
+            const clientsById = getQuarterlyDocumentationClientMap();
+            const periods = db.prepare(`
+                SELECT *
+                FROM quarterly_documentation_periods
+                WHERE client_id = ?
+                ORDER BY year DESC, quarter DESC, updated_at DESC
+            `).all(sessionClientId);
+            const mapped = periods.map(period => mapQuarterlyDocumentationPeriod(
+                period,
+                clientsById,
+                getPortalQuarterlyDocumentationPeriodSummary(db, period.id, sessionClientId)
+            ));
+            db.close();
+
+            return sendJson(res, 200, {
+                status: 'success',
+                count: mapped.length,
+                periods: mapped
+            });
+        } catch (err) {
+            try { db.close(); } catch {}
+            console.error('portal quarterly documentation periods list error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'PORTAL_QUARTERLY_PERIODS_LOAD_FAILED', message: 'No se pudieron cargar los periodos trimestrales del portal.' });
+        }
+    }
+
+    // API Route: GET /api/portal/quarterly-documentation/periods/:periodId
+    const portalQuarterlyPeriodDetailMatch = pathname.match(/^\/api\/portal\/quarterly-documentation\/periods\/([^/]+)$/);
+    if (portalQuarterlyPeriodDetailMatch && req.method === 'GET') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        if (!isQuarterlyDocumentationEnabled()) {
+            return sendQuarterlyDocumentationFeatureDisabled(res);
+        }
+
+        const periodId = decodeURIComponent(portalQuarterlyPeriodDetailMatch[1]);
+        const db = new DatabaseSync(DB_PATH);
+
+        try {
+            const period = getPortalQuarterlyDocumentationPeriodById(db, periodId, sessionClientId);
+            if (!period) {
+                db.close();
+                return sendJson(res, 404, { status: 'error', error_code: 'PORTAL_QUARTERLY_PERIOD_NOT_FOUND', message: 'Periodo trimestral no encontrado.' });
+            }
+
+            const hydrated = hydratePortalQuarterlyDocumentationPeriod(db, period, sessionClientId);
+            db.close();
+
+            return sendJson(res, 200, {
+                status: 'success',
+                period: hydrated
+            });
+        } catch (err) {
+            try { db.close(); } catch {}
+            console.error('portal quarterly documentation period detail error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'PORTAL_QUARTERLY_PERIOD_LOAD_FAILED', message: 'No se pudo cargar el periodo trimestral del portal.' });
+        }
+    }
 
     // API Route: GET /api/manager/quarterly-documentation/status
     if (pathname === '/api/manager/quarterly-documentation/status' && req.method === 'GET') {

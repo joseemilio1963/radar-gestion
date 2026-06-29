@@ -1094,6 +1094,7 @@ function sendClientPortalCommunicationsFeatureDisabled(res) {
 }
 const CLIENT_PORTAL_COMMUNICATION_CATEGORIES = new Set(['document', 'question', 'tax_notice', 'invoice', 'contract', 'certificate', 'other']);
 const CLIENT_PORTAL_COMMUNICATION_PRIORITIES = new Set(['low', 'normal', 'high']);
+const CLIENT_PORTAL_COMMUNICATION_EVENT_TYPES = new Set(['message', 'clarification_response']);
 const CLIENT_PORTAL_COMMUNICATION_CREATE_FIELDS = new Set([
     'category',
     'subject',
@@ -6363,6 +6364,94 @@ const server = http.createServer(async (req, res) => {
         });
     }
 
+    // API Route: POST /api/portal/client-communications/:threadId/events
+    const portalClientCommunicationEventMatch = pathname.match(/^\/api\/portal\/client-communications\/([^/]+)\/events$/);
+    if (portalClientCommunicationEventMatch && req.method === 'POST') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        if (!isClientPortalCommunicationsEnabled()) {
+            return sendClientPortalCommunicationsFeatureDisabled(res);
+        }
+
+        const threadId = decodeURIComponent(portalClientCommunicationEventMatch[1]);
+
+        return readRequestJson(req, async payload => {
+            const body = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+            const allowedFields = new Set(['message', 'event_type']);
+            const forbiddenField = Object.keys(body).find(field => !allowedFields.has(field));
+
+            if (forbiddenField) {
+                return sendJson(res, 400, { status: 'error', error_code: 'FORBIDDEN_FIELD', message: 'Campo no permitido.' });
+            }
+
+            const messageResult = normalizeClientPortalCommunicationText(body.message, 4000);
+            if (!messageResult.ok || !messageResult.value) {
+                return sendJson(res, 400, { status: 'error', error_code: 'MESSAGE_REQUIRED', message: 'message es obligatorio.' });
+            }
+
+            const eventType = String(body.event_type || 'message').trim() || 'message';
+            if (!CLIENT_PORTAL_COMMUNICATION_EVENT_TYPES.has(eventType)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_EVENT_TYPE', message: 'event_type no es valido.' });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                const thread = db.prepare('SELECT * FROM client_portal_threads WHERE id = ? AND client_id = ? AND deleted_at IS NULL').get(threadId, sessionClientId);
+                if (!thread) {
+                    db.close();
+                    return sendJson(res, 404, { status: 'error', error_code: 'CLIENT_COMMUNICATION_NOT_FOUND', message: 'Comunicacion no encontrada.' });
+                }
+
+                if (thread.status === 'closed' || thread.status === 'archived') {
+                    db.close();
+                    return sendJson(res, 400, { status: 'error', error_code: 'THREAD_CLOSED', message: 'El hilo no admite nuevos mensajes.' });
+                }
+
+                const now = new Date().toISOString();
+
+                db.exec('BEGIN');
+                db.prepare(`
+                    INSERT INTO client_portal_thread_events
+                    (id, thread_id, client_id, actor_type, actor_id, event_type, body, metadata_json, visible_to_client, created_at)
+                    VALUES (?, ?, ?, 'client', ?, ?, ?, null, 1, ?)
+                `).run(
+                    generateId(),
+                    threadId,
+                    sessionClientId,
+                    sessionClientId,
+                    eventType,
+                    messageResult.value,
+                    now
+                );
+
+                db.prepare(`
+                    UPDATE client_portal_threads
+                    SET updated_at = ?, last_event_at = ?
+                    WHERE id = ? AND client_id = ? AND deleted_at IS NULL
+                `).run(now, now, threadId, sessionClientId);
+
+                db.exec('COMMIT');
+                const updatedThread = db.prepare('SELECT * FROM client_portal_threads WHERE id = ? AND client_id = ? AND deleted_at IS NULL').get(threadId, sessionClientId);
+                const hydrated = hydratePortalClientCommunicationThread(db, updatedThread);
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'success',
+                    thread: hydrated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('portal client communication event create error:', err);
+                return sendJson(res, 500, { status: 'error', error_code: 'PORTAL_CLIENT_COMMUNICATION_EVENT_CREATE_FAILED', message: 'No se pudo crear el mensaje.' });
+            }
+        });
+    }
     // API Route: GET /api/portal/client-communications/:threadId
     const portalClientCommunicationDetailMatch = pathname.match(/^\/api\/portal\/client-communications\/([^/]+)$/);
     if (portalClientCommunicationDetailMatch && req.method === 'GET') {

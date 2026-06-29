@@ -1092,6 +1092,198 @@ function sendClientPortalCommunicationsFeatureDisabled(res) {
         error_code: 'FEATURE_DISABLED'
     });
 }
+const CLIENT_PORTAL_COMMUNICATION_CATEGORIES = new Set(['document', 'question', 'tax_notice', 'invoice', 'contract', 'certificate', 'other']);
+const CLIENT_PORTAL_COMMUNICATION_PRIORITIES = new Set(['low', 'normal', 'high']);
+const CLIENT_PORTAL_COMMUNICATION_CREATE_FIELDS = new Set([
+    'category',
+    'subject',
+    'description',
+    'priority',
+    'entity_id',
+    'related_period_id',
+    'related_expected_document_id',
+    'document_type',
+    'title',
+    'document_date',
+    'supplier_or_customer',
+    'original_filename',
+    'file_mime',
+    'file_size'
+]);
+const CLIENT_PORTAL_COMMUNICATION_DOCUMENT_FIELDS = [
+    'document_type',
+    'title',
+    'document_date',
+    'supplier_or_customer',
+    'original_filename',
+    'file_mime',
+    'file_size'
+];
+
+function hasOwnField(obj, field) {
+    return Object.prototype.hasOwnProperty.call(obj, field);
+}
+
+function normalizeClientPortalCommunicationText(value, maxLength) {
+    if (value === undefined || value === null) return { ok: true, value: null };
+    const text = String(value).trim();
+    if (!text) return { ok: true, value: null };
+    if (text.length > maxLength) return { ok: false };
+    return { ok: true, value: text };
+}
+
+function normalizeClientPortalCommunicationToken(value, maxLength = 80) {
+    const text = String(value || '').trim();
+    if (!text) return null;
+    return new RegExp(`^[a-z0-9_-]{1,${maxLength}}$`).test(text) ? text : null;
+}
+
+function normalizeClientPortalCommunicationLimit(value) {
+    if (value === undefined || value === null || value === '') return 50;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) return null;
+    return Math.min(parsed, 100);
+}
+
+function hasClientPortalCommunicationDocumentMetadata(body) {
+    return CLIENT_PORTAL_COMMUNICATION_DOCUMENT_FIELDS.some(field => {
+        if (!hasOwnField(body, field)) return false;
+        const value = body[field];
+        if (value === undefined || value === null) return false;
+        return String(value).trim() !== '';
+    });
+}
+
+function normalizeClientPortalCommunicationFileSize(value) {
+    if (value === undefined || value === null || value === '') return { ok: true, value: null };
+    const fileSize = Number(value);
+    if (!Number.isInteger(fileSize) || fileSize < 0) return { ok: false };
+    return { ok: true, value: fileSize };
+}
+
+function normalizeClientPortalCommunicationEntityId(value, sessionClientId) {
+    const entityId = String(value || '').trim();
+    if (!entityId) return { ok: true, value: null };
+    if (entityId !== sessionClientId) return { ok: false };
+    return { ok: true, value: entityId };
+}
+
+function validateClientPortalCommunicationRelations(db, payload) {
+    const relatedPeriodId = String(payload.related_period_id || '').trim() || null;
+    const relatedExpectedDocumentId = String(payload.related_expected_document_id || '').trim() || null;
+    let period = null;
+    let expectedDocument = null;
+
+    if (relatedPeriodId) {
+        period = db.prepare(`
+            SELECT id
+            FROM quarterly_documentation_periods
+            WHERE id = ? AND client_id = ?
+        `).get(relatedPeriodId, payload.client_id);
+
+        if (!period) {
+            return { ok: false, http_status: 404, error_code: 'RELATED_PERIOD_NOT_FOUND' };
+        }
+    }
+
+    if (relatedExpectedDocumentId) {
+        expectedDocument = db.prepare(`
+            SELECT ed.id, ed.period_id
+            FROM quarterly_documentation_expected_documents ed
+            INNER JOIN quarterly_documentation_periods p ON p.id = ed.period_id
+            WHERE ed.id = ? AND p.client_id = ?
+        `).get(relatedExpectedDocumentId, payload.client_id);
+
+        if (!expectedDocument) {
+            return { ok: false, http_status: 404, error_code: 'RELATED_EXPECTED_DOCUMENT_NOT_FOUND' };
+        }
+
+        if (relatedPeriodId && expectedDocument.period_id !== relatedPeriodId) {
+            return { ok: false, http_status: 400, error_code: 'RELATED_DOCUMENT_PERIOD_MISMATCH' };
+        }
+    }
+
+    return {
+        ok: true,
+        related_period_id: relatedPeriodId || expectedDocument?.period_id || null,
+        related_expected_document_id: relatedExpectedDocumentId
+    };
+}
+
+function mapPortalClientCommunicationThread(row, details = {}) {
+    return {
+        id: row.id,
+        entity_id: row.entity_id || null,
+        category: row.category,
+        subject: row.subject,
+        status: row.status,
+        priority: row.priority,
+        origin: row.origin,
+        source_type: row.source_type,
+        related_period_id: row.related_period_id || null,
+        related_expected_document_id: row.related_expected_document_id || null,
+        related_procedure_id: null,
+        last_event_at: row.last_event_at,
+        closed_at: row.closed_at || null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        ...(details.events ? { events: details.events } : {}),
+        ...(details.document_items ? { document_items: details.document_items } : {})
+    };
+}
+
+function mapPortalClientCommunicationEvent(row) {
+    return {
+        id: row.id,
+        thread_id: row.thread_id,
+        actor_type: row.actor_type,
+        event_type: row.event_type,
+        body: row.body || null,
+        metadata_json: null,
+        created_at: row.created_at
+    };
+}
+
+function mapPortalClientCommunicationDocumentItem(row) {
+    return {
+        id: row.id,
+        thread_id: row.thread_id,
+        entity_id: row.entity_id || null,
+        document_type: row.document_type,
+        title: row.title,
+        description: row.description || null,
+        document_date: row.document_date || null,
+        supplier_or_customer: row.supplier_or_customer || null,
+        original_filename: row.original_filename || null,
+        file_mime: row.file_mime || null,
+        file_size: row.file_size,
+        review_status: row.review_status,
+        related_period_id: row.related_period_id || null,
+        related_expected_document_id: row.related_expected_document_id || null,
+        created_at: row.created_at,
+        updated_at: row.updated_at
+    };
+}
+
+function hydratePortalClientCommunicationThread(db, thread) {
+    const events = db.prepare(`
+        SELECT *
+        FROM client_portal_thread_events
+        WHERE thread_id = ? AND client_id = ? AND visible_to_client = 1
+        ORDER BY created_at ASC
+    `).all(thread.id, thread.client_id).map(mapPortalClientCommunicationEvent);
+    const documentItems = db.prepare(`
+        SELECT *
+        FROM client_portal_document_items
+        WHERE thread_id = ? AND client_id = ? AND deleted_at IS NULL
+        ORDER BY created_at ASC
+    `).all(thread.id, thread.client_id).map(mapPortalClientCommunicationDocumentItem);
+
+    return mapPortalClientCommunicationThread(thread, {
+        events,
+        document_items: documentItems
+    });
+}
 function getQuarterlyDocumentationNow() {
     return new Date().toISOString();
 }
@@ -5895,6 +6087,318 @@ const server = http.createServer(async (req, res) => {
     }
 
 
+    // API Route: GET /api/portal/client-communications
+    if (pathname === '/api/portal/client-communications' && req.method === 'GET') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        if (!isClientPortalCommunicationsEnabled()) {
+            return sendClientPortalCommunicationsFeatureDisabled(res);
+        }
+
+        const queryString = req.url.split('?')[1] || '';
+        const searchParams = new URLSearchParams(queryString);
+
+        if (searchParams.has('client_id')) {
+            return sendJson(res, 400, { status: 'error', error_code: 'FORBIDDEN_FIELD', message: 'Campo no permitido.' });
+        }
+
+        const limit = normalizeClientPortalCommunicationLimit(searchParams.get('limit'));
+        if (limit === null) {
+            return sendJson(res, 400, { status: 'error', error_code: 'INVALID_LIMIT', message: 'limit no es valido.' });
+        }
+
+        const clauses = ['client_id = ?', 'deleted_at IS NULL'];
+        const params = [sessionClientId];
+        const statusFilter = String(searchParams.get('status') || '').trim();
+        const categoryFilter = String(searchParams.get('category') || '').trim();
+        const priorityFilter = String(searchParams.get('priority') || '').trim();
+
+        if (statusFilter) {
+            const statusToken = normalizeClientPortalCommunicationToken(statusFilter, 40);
+            if (!statusToken) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_STATUS_FILTER', message: 'status no es valido.' });
+            }
+            clauses.push('status = ?');
+            params.push(statusToken);
+        }
+
+        if (categoryFilter) {
+            if (!CLIENT_PORTAL_COMMUNICATION_CATEGORIES.has(categoryFilter)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_CATEGORY_FILTER', message: 'category no es valido.' });
+            }
+            clauses.push('category = ?');
+            params.push(categoryFilter);
+        }
+
+        if (priorityFilter) {
+            if (!CLIENT_PORTAL_COMMUNICATION_PRIORITIES.has(priorityFilter)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_PRIORITY_FILTER', message: 'priority no es valido.' });
+            }
+            clauses.push('priority = ?');
+            params.push(priorityFilter);
+        }
+
+        const db = new DatabaseSync(DB_PATH);
+        try {
+            const threads = db.prepare(`
+                SELECT *
+                FROM client_portal_threads
+                WHERE ${clauses.join(' AND ')}
+                ORDER BY updated_at DESC, last_event_at DESC
+                LIMIT ${limit}
+            `).all(...params).map(row => mapPortalClientCommunicationThread(row));
+            db.close();
+
+            return sendJson(res, 200, {
+                status: 'success',
+                count: threads.length,
+                threads
+            });
+        } catch (err) {
+            try { db.close(); } catch {}
+            console.error('portal client communications list error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'PORTAL_CLIENT_COMMUNICATIONS_LIST_FAILED', message: 'No se pudieron cargar las comunicaciones.' });
+        }
+    }
+
+    // API Route: POST /api/portal/client-communications
+    if (pathname === '/api/portal/client-communications' && req.method === 'POST') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        if (!isClientPortalCommunicationsEnabled()) {
+            return sendClientPortalCommunicationsFeatureDisabled(res);
+        }
+
+        return readRequestJson(req, async payload => {
+            const body = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+
+            if (hasOwnField(body, 'related_procedure_id')) {
+                return sendJson(res, 400, { status: 'error', error_code: 'UNSUPPORTED_FIELD', message: 'Campo no soportado en esta fase.' });
+            }
+
+            const forbiddenField = Object.keys(body).find(field => !CLIENT_PORTAL_COMMUNICATION_CREATE_FIELDS.has(field));
+
+            if (forbiddenField) {
+                return sendJson(res, 400, { status: 'error', error_code: 'FORBIDDEN_FIELD', message: 'Campo no permitido.' });
+            }
+
+            const category = String(body.category || '').trim();
+            if (!CLIENT_PORTAL_COMMUNICATION_CATEGORIES.has(category)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_CATEGORY', message: 'category no es valido.' });
+            }
+
+            const subjectResult = normalizeClientPortalCommunicationText(body.subject, 200);
+            if (!subjectResult.ok || !subjectResult.value) {
+                return sendJson(res, 400, { status: 'error', error_code: 'SUBJECT_REQUIRED', message: 'subject es obligatorio.' });
+            }
+
+            const descriptionResult = normalizeClientPortalCommunicationText(body.description, 4000);
+            if (!descriptionResult.ok) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_DESCRIPTION', message: 'description no es valida.' });
+            }
+
+            const priority = String(body.priority || 'normal').trim() || 'normal';
+            if (!CLIENT_PORTAL_COMMUNICATION_PRIORITIES.has(priority)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_PRIORITY', message: 'priority no es valido.' });
+            }
+
+            const entityResult = normalizeClientPortalCommunicationEntityId(body.entity_id, sessionClientId);
+            if (!entityResult.ok) {
+                return sendJson(res, 400, { status: 'error', error_code: 'ENTITY_NOT_ALLOWED', message: 'entity_id no permitido.' });
+            }
+
+            const hasDocumentMetadata = hasClientPortalCommunicationDocumentMetadata(body);
+            if (!descriptionResult.value && !hasDocumentMetadata) {
+                return sendJson(res, 400, { status: 'error', error_code: 'DESCRIPTION_REQUIRED', message: 'description es obligatoria si no hay metadatos documentales.' });
+            }
+
+            let documentType = null;
+            let title = null;
+            let documentDate = null;
+            let supplierOrCustomer = null;
+            let originalFilename = null;
+            let fileMime = null;
+            let fileSize = null;
+
+            if (hasDocumentMetadata) {
+                const rawDocumentType = String(body.document_type || '').trim();
+                documentType = rawDocumentType ? normalizeClientPortalCommunicationToken(rawDocumentType, 80) : 'other';
+                if (!documentType) {
+                    return sendJson(res, 400, { status: 'error', error_code: 'INVALID_DOCUMENT_TYPE', message: 'document_type no es valido.' });
+                }
+
+                title = normalizeClientPortalCommunicationText(body.title, 200);
+                documentDate = normalizeClientPortalCommunicationText(body.document_date, 40);
+                supplierOrCustomer = normalizeClientPortalCommunicationText(body.supplier_or_customer, 200);
+                originalFilename = normalizeClientPortalCommunicationText(body.original_filename, 260);
+                fileMime = normalizeClientPortalCommunicationText(body.file_mime, 120);
+                const fileSizeResult = normalizeClientPortalCommunicationFileSize(body.file_size);
+
+                if (!title.ok || !title.value) {
+                    return sendJson(res, 400, { status: 'error', error_code: 'DOCUMENT_TITLE_REQUIRED', message: 'title es obligatorio para metadatos documentales.' });
+                }
+
+                if (!documentDate.ok || !supplierOrCustomer.ok || !originalFilename.ok || !fileMime.ok) {
+                    return sendJson(res, 400, { status: 'error', error_code: 'INVALID_DOCUMENT_METADATA', message: 'Metadatos documentales no validos.' });
+                }
+
+                if (!fileSizeResult.ok) {
+                    return sendJson(res, 400, { status: 'error', error_code: 'INVALID_FILE_SIZE', message: 'file_size debe ser un numero no negativo.' });
+                }
+
+                fileSize = fileSizeResult.value;
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+            try {
+                const relations = validateClientPortalCommunicationRelations(db, {
+                    client_id: sessionClientId,
+                    related_period_id: body.related_period_id,
+                    related_expected_document_id: body.related_expected_document_id
+                });
+
+                if (!relations.ok) {
+                    db.close();
+                    return sendJson(res, relations.http_status, { status: 'error', error_code: relations.error_code, message: 'Relacion no disponible.' });
+                }
+
+                const now = new Date().toISOString();
+                const threadId = generateId();
+                const documentItemId = hasDocumentMetadata ? generateId() : null;
+
+                db.exec('BEGIN');
+                db.prepare(`
+                    INSERT INTO client_portal_threads
+                    (id, client_id, entity_id, category, subject, status, priority, origin, source_type, related_period_id, related_expected_document_id, related_procedure_id, created_by_type, created_by_id, last_event_at, closed_at, created_at, updated_at, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, 'open', ?, 'client_portal', 'spontaneous', ?, ?, null, 'client', ?, ?, null, ?, ?, null)
+                `).run(
+                    threadId,
+                    sessionClientId,
+                    entityResult.value,
+                    category,
+                    subjectResult.value,
+                    priority,
+                    relations.related_period_id,
+                    relations.related_expected_document_id,
+                    sessionClientId,
+                    now,
+                    now,
+                    now
+                );
+
+                db.prepare(`
+                    INSERT INTO client_portal_thread_events
+                    (id, thread_id, client_id, actor_type, actor_id, event_type, body, metadata_json, visible_to_client, created_at)
+                    VALUES (?, ?, ?, 'client', ?, 'thread_created', ?, null, 1, ?)
+                `).run(
+                    generateId(),
+                    threadId,
+                    sessionClientId,
+                    sessionClientId,
+                    descriptionResult.value,
+                    now
+                );
+
+                if (hasDocumentMetadata) {
+                    db.prepare(`
+                        INSERT INTO client_portal_document_items
+                        (id, thread_id, client_id, entity_id, document_type, title, description, document_date, supplier_or_customer, original_filename, file_mime, file_size, review_status, related_period_id, related_expected_document_id, created_at, updated_at, deleted_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received_metadata', ?, ?, ?, ?, null)
+                    `).run(
+                        documentItemId,
+                        threadId,
+                        sessionClientId,
+                        entityResult.value,
+                        documentType,
+                        title.value,
+                        descriptionResult.value,
+                        documentDate.value,
+                        supplierOrCustomer.value,
+                        originalFilename.value,
+                        fileMime.value,
+                        fileSize,
+                        relations.related_period_id,
+                        relations.related_expected_document_id,
+                        now,
+                        now
+                    );
+
+                    db.prepare(`
+                        INSERT INTO client_portal_thread_events
+                        (id, thread_id, client_id, actor_type, actor_id, event_type, body, metadata_json, visible_to_client, created_at)
+                        VALUES (?, ?, ?, 'client', ?, 'document_metadata_added', ?, null, 1, ?)
+                    `).run(
+                        generateId(),
+                        threadId,
+                        sessionClientId,
+                        sessionClientId,
+                        title.value,
+                        now
+                    );
+                }
+
+                db.exec('COMMIT');
+                const thread = db.prepare('SELECT * FROM client_portal_threads WHERE id = ? AND client_id = ? AND deleted_at IS NULL').get(threadId, sessionClientId);
+                const hydrated = hydratePortalClientCommunicationThread(db, thread);
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'success',
+                    thread: hydrated
+                });
+            } catch (err) {
+                try { db.exec('ROLLBACK'); } catch {}
+                try { db.close(); } catch {}
+                console.error('portal client communications create error:', err);
+                return sendJson(res, 500, { status: 'error', error_code: 'PORTAL_CLIENT_COMMUNICATION_CREATE_FAILED', message: 'No se pudo crear la comunicacion.' });
+            }
+        });
+    }
+
+    // API Route: GET /api/portal/client-communications/:threadId
+    const portalClientCommunicationDetailMatch = pathname.match(/^\/api\/portal\/client-communications\/([^/]+)$/);
+    if (portalClientCommunicationDetailMatch && req.method === 'GET') {
+        const sessionClientId = getAuthenticatedClientPortalClientId(req);
+
+        if (!sessionClientId) {
+            return requireClientPortalAuth(res, null);
+        }
+
+        if (!isClientPortalCommunicationsEnabled()) {
+            return sendClientPortalCommunicationsFeatureDisabled(res);
+        }
+
+        const threadId = decodeURIComponent(portalClientCommunicationDetailMatch[1]);
+        const db = new DatabaseSync(DB_PATH);
+
+        try {
+            const thread = db.prepare('SELECT * FROM client_portal_threads WHERE id = ? AND client_id = ? AND deleted_at IS NULL').get(threadId, sessionClientId);
+            if (!thread) {
+                db.close();
+                return sendJson(res, 404, { status: 'error', error_code: 'CLIENT_COMMUNICATION_NOT_FOUND', message: 'Comunicacion no encontrada.' });
+            }
+
+            const hydrated = hydratePortalClientCommunicationThread(db, thread);
+            db.close();
+
+            return sendJson(res, 200, {
+                status: 'success',
+                thread: hydrated
+            });
+        } catch (err) {
+            try { db.close(); } catch {}
+            console.error('portal client communications detail error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'PORTAL_CLIENT_COMMUNICATION_LOAD_FAILED', message: 'No se pudo cargar la comunicacion.' });
+        }
+    }
     // API Route: GET /api/portal/client-procedures
     if (pathname === '/api/portal/client-procedures' && req.method === 'GET') {
         const sessionClientId = getAuthenticatedClientPortalClientId(req);

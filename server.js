@@ -1096,6 +1096,7 @@ const CLIENT_PORTAL_COMMUNICATION_CATEGORIES = new Set(['document', 'question', 
 const CLIENT_PORTAL_COMMUNICATION_PRIORITIES = new Set(['low', 'normal', 'high']);
 const CLIENT_PORTAL_COMMUNICATION_EVENT_TYPES = new Set(['message', 'clarification_response']);
 const MANAGER_CLIENT_COMMUNICATION_EVENT_TYPES = new Set(['message', 'clarification_request']);
+const MANAGER_CLIENT_COMMUNICATION_STATUSES = new Set(['open', 'in_review', 'waiting_client', 'closed', 'archived']);
 const CLIENT_PORTAL_COMMUNICATION_CREATE_FIELDS = new Set([
     'category',
     'subject',
@@ -5599,6 +5600,92 @@ const server = http.createServer(async (req, res) => {
                 try { db.close(); } catch {}
                 console.error('manager client communication event create error:', err);
                 return sendJson(res, 500, { status: 'error', error_code: 'MANAGER_CLIENT_COMMUNICATION_EVENT_CREATE_FAILED', message: 'No se pudo crear la respuesta.' });
+            }
+        });
+    }
+    // API Route: PATCH /api/manager/client-communications/:threadId
+    const managerClientCommunicationPatchMatch = pathname.match(/^\/api\/manager\/client-communications\/([^/]+)$/);
+    if (managerClientCommunicationPatchMatch && req.method === 'PATCH') {
+        if (!isClientPortalCommunicationsEnabled()) {
+            return sendClientPortalCommunicationsFeatureDisabled(res);
+        }
+
+        const threadId = decodeURIComponent(managerClientCommunicationPatchMatch[1]);
+
+        return readRequestJson(req, async payload => {
+            const body = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+            const allowedFields = new Set(['status', 'priority']);
+            const forbiddenField = Object.keys(body).find(field => !allowedFields.has(field));
+
+            if (forbiddenField) {
+                return sendJson(res, 400, { status: 'error', error_code: 'FORBIDDEN_FIELD', message: 'Campo no permitido.' });
+            }
+
+            const hasStatus = hasOwnField(body, 'status');
+            const hasPriority = hasOwnField(body, 'priority');
+
+            if (!hasStatus && !hasPriority) {
+                return sendJson(res, 400, { status: 'error', error_code: 'UPDATE_FIELD_REQUIRED', message: 'Debe indicarse status o priority.' });
+            }
+
+            const nextStatus = hasStatus ? String(body.status || '').trim() : null;
+            const nextPriority = hasPriority ? String(body.priority || '').trim() : null;
+
+            if (hasStatus && !MANAGER_CLIENT_COMMUNICATION_STATUSES.has(nextStatus)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_STATUS', message: 'status no es valido.' });
+            }
+
+            if (hasPriority && !CLIENT_PORTAL_COMMUNICATION_PRIORITIES.has(nextPriority)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_PRIORITY', message: 'priority no es valido.' });
+            }
+
+            const db = new DatabaseSync(DB_PATH);
+
+            try {
+                const thread = db.prepare('SELECT * FROM client_portal_threads WHERE id = ? AND deleted_at IS NULL').get(threadId);
+                if (!thread) {
+                    db.close();
+                    return sendJson(res, 404, { status: 'error', error_code: 'CLIENT_COMMUNICATION_NOT_FOUND', message: 'Comunicacion no encontrada.' });
+                }
+
+                const now = new Date().toISOString();
+                const assignments = [];
+                const params = [];
+
+                if (hasStatus) {
+                    assignments.push('status = ?');
+                    params.push(nextStatus);
+                    assignments.push('closed_at = ?');
+                    params.push(nextStatus === 'closed' || nextStatus === 'archived' ? now : null);
+                }
+
+                if (hasPriority) {
+                    assignments.push('priority = ?');
+                    params.push(nextPriority);
+                }
+
+                assignments.push('updated_at = ?');
+                params.push(now);
+                params.push(thread.id);
+
+                db.prepare(`
+                    UPDATE client_portal_threads
+                    SET ${assignments.join(', ')}
+                    WHERE id = ? AND deleted_at IS NULL
+                `).run(...params);
+
+                const updatedThread = db.prepare('SELECT * FROM client_portal_threads WHERE id = ? AND deleted_at IS NULL').get(thread.id);
+                const hydrated = hydrateManagerClientCommunicationThread(db, updatedThread);
+                db.close();
+
+                return sendJson(res, 200, {
+                    status: 'success',
+                    thread: hydrated
+                });
+            } catch (err) {
+                try { db.close(); } catch {}
+                console.error('manager client communication update error:', err);
+                return sendJson(res, 500, { status: 'error', error_code: 'MANAGER_CLIENT_COMMUNICATION_UPDATE_FAILED', message: 'No se pudo actualizar la comunicacion.' });
             }
         });
     }

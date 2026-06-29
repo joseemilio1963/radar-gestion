@@ -6180,6 +6180,210 @@ function QuarterlyDocumentationPanel() {
     );
 }
 
+function formatManagerClientCommunicationDate(value) {
+    if (!value) return 'Sin fecha';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function formatManagerClientCommunicationSize(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes < 0) return 'Sin tamano';
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ['KB', 'MB', 'GB'];
+    let size = bytes / 1024;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+    }
+    return `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: size >= 10 ? 0 : 1 }).format(size)} ${units[unitIndex]}`;
+}
+
+function formatManagerClientCommunicationToken(value, fallback = 'Sin dato') {
+    if (value === null || value === undefined || value === '') return fallback;
+    return String(value).replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function managerClientCommunicationStatusClass(status) {
+    if (status === 'closed') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    if (status === 'pending_manager') return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+    if (status === 'pending_client') return 'border-blue-500/30 bg-blue-500/10 text-blue-300';
+    return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+}
+
+function managerClientCommunicationPriorityClass(priority) {
+    if (priority === 'urgent' || priority === 'high') return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+    if (priority === 'low') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+    return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
+}
+
+function ManagerClientCommunicationsPanel() {
+    const [threads, setThreads] = useState([]);
+    const [selectedThreadId, setSelectedThreadId] = useState('');
+    const [threadDetail, setThreadDetail] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [detailError, setDetailError] = useState('');
+
+    const buildErrorMessage = async (response, fallback) => {
+        let data = null;
+        try {
+            data = await response.json();
+        } catch {}
+        if (response.status === 404) return 'La funcionalidad de comunicaciones todavía no esta activa.';
+        if (response.status === 401 || response.status === 403) return 'Sesion de gestor requerida.';
+        return data?.message || fallback;
+    };
+
+    const loadThreadDetail = async (threadId) => {
+        if (!threadId) return;
+        setSelectedThreadId(threadId);
+        setThreadDetail(null);
+        setDetailError('');
+        setDetailLoading(true);
+        try {
+            const response = await fetch(`/api/manager/client-communications/${encodeURIComponent(threadId)}`, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error(await buildErrorMessage(response, 'No se pudo cargar la comunicacion seleccionada.'));
+            const data = await response.json();
+            if (data.status !== 'success' || !data.thread) throw new Error(data.message || 'No se pudo cargar la comunicacion seleccionada.');
+            setThreadDetail(data.thread);
+        } catch (err) {
+            setDetailError(err.message || 'No se pudo cargar la comunicacion seleccionada.');
+        } finally {
+            setDetailLoading(false);
+        }
+    };
+
+    const loadThreads = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch('/api/manager/client-communications', { credentials: 'same-origin' });
+            if (!response.ok) throw new Error(await buildErrorMessage(response, 'No se pudieron cargar las comunicaciones de clientes.'));
+            const data = await response.json();
+            if (data.status !== 'success' || !Array.isArray(data.threads)) throw new Error(data.message || 'No se pudieron cargar las comunicaciones de clientes.');
+            setThreads(data.threads);
+            if (selectedThreadId && !data.threads.some(thread => String(thread.id) === String(selectedThreadId))) {
+                setSelectedThreadId('');
+                setThreadDetail(null);
+                setDetailError('');
+            }
+        } catch (err) {
+            setThreads([]);
+            setSelectedThreadId('');
+            setThreadDetail(null);
+            setDetailError('');
+            setError(err.message || 'No se pudieron cargar las comunicaciones de clientes.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadThreads();
+    }, []);
+
+    const detailEvents = Array.isArray(threadDetail?.events) ? threadDetail.events : [];
+    const detailDocumentItems = Array.isArray(threadDetail?.document_items) ? threadDetail.document_items : [];
+
+    return (
+        <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl shadow-slate-950/30">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <h2 className="text-2xl font-black text-white">Comunicaciones de clientes</h2>
+                        <p className="mt-2 text-sm font-semibold text-slate-400">Hilos y mensajes enviados desde el Portal Cliente.</p>
+                    </div>
+                    <button type="button" onClick={loadThreads} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-bold text-slate-200 hover:border-indigo-500/60 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-60">
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        Actualizar
+                    </button>
+                </div>
+                {error && <div className="mt-5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{error}</div>}
+                {loading && <div className="mt-5 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-8 text-center text-sm font-semibold text-slate-400">Cargando comunicaciones...</div>}
+                {!loading && !error && threads.length === 0 && <div className="mt-5 rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-10 text-center text-sm font-semibold text-slate-500">No hay comunicaciones de clientes registradas.</div>}
+            </div>
+
+            {!loading && !error && threads.length > 0 && (
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                    <div className="space-y-3">
+                        {threads.map(thread => {
+                            const active = String(selectedThreadId) === String(thread.id);
+                            return (
+                                <button key={thread.id} type="button" onClick={() => loadThreadDetail(thread.id)} className={`w-full rounded-2xl border p-4 text-left transition-colors ${active ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-800 bg-slate-900/70 hover:border-slate-600'}`}>
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="min-w-0">
+                                            <h3 className="truncate text-base font-black text-white">{thread.subject || 'Sin asunto'}</h3>
+                                            <p className="mt-1 text-xs font-semibold text-slate-500">Cliente: {thread.client_id || 'Sin cliente'}</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${managerClientCommunicationStatusClass(thread.status)}`}>{formatManagerClientCommunicationToken(thread.status, 'Sin estado')}</span>
+                                            <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${managerClientCommunicationPriorityClass(thread.priority)}`}>{formatManagerClientCommunicationToken(thread.priority, 'Sin prioridad')}</span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-1 gap-3 text-xs font-semibold text-slate-400 sm:grid-cols-2">
+                                        <div><span className="block text-slate-500">Categoria</span><span className="text-slate-200">{formatManagerClientCommunicationToken(thread.category, 'Sin categoria')}</span></div>
+                                        <div><span className="block text-slate-500">Ultima actividad</span><span className="text-slate-200">{formatManagerClientCommunicationDate(thread.last_event_at || thread.updated_at)}</span></div>
+                                        <div><span className="block text-slate-500">Mensajes</span><span className="text-slate-200">{Number(thread.events_count || 0)}</span></div>
+                                        <div><span className="block text-slate-500">Documentos</span><span className="text-slate-200">{Number(thread.document_items_count || 0)}</span></div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+                        {!selectedThreadId && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-10 text-center text-sm font-semibold text-slate-500">Selecciona una comunicacion para ver su detalle.</div>}
+                        {detailLoading && <div className="rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-10 text-center text-sm font-semibold text-slate-400">Cargando detalle...</div>}
+                        {!detailLoading && detailError && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{detailError}</div>}
+                        {!detailLoading && !detailError && threadDetail && (
+                            <div className="space-y-6">
+                                <div>
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div><h3 className="text-xl font-black text-white">{threadDetail.subject || 'Sin asunto'}</h3><p className="mt-1 text-sm font-semibold text-slate-500">Cliente: {threadDetail.client_id || 'Sin cliente'}</p></div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${managerClientCommunicationStatusClass(threadDetail.status)}`}>{formatManagerClientCommunicationToken(threadDetail.status, 'Sin estado')}</span>
+                                            <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${managerClientCommunicationPriorityClass(threadDetail.priority)}`}>{formatManagerClientCommunicationToken(threadDetail.priority, 'Sin prioridad')}</span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-5 grid grid-cols-1 gap-3 text-sm font-semibold text-slate-400 md:grid-cols-2">
+                                        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Categoria</span><span className="text-slate-200">{formatManagerClientCommunicationToken(threadDetail.category, 'Sin categoria')}</span></div>
+                                        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Creada</span><span className="text-slate-200">{formatManagerClientCommunicationDate(threadDetail.created_at)}</span></div>
+                                        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Actualizada</span><span className="text-slate-200">{formatManagerClientCommunicationDate(threadDetail.updated_at)}</span></div>
+                                        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Ultima actividad</span><span className="text-slate-200">{formatManagerClientCommunicationDate(threadDetail.last_event_at)}</span></div>
+                                        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Periodo relacionado</span><span className="text-slate-200">{threadDetail.related_period_id || 'Sin periodo'}</span></div>
+                                        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Documento esperado relacionado</span><span className="text-slate-200">{threadDetail.related_expected_document_id || 'Sin documento'}</span></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-400">Mensajes</h4>
+                                    {detailEvents.length === 0 ? <div className="mt-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-8 text-center text-sm font-semibold text-slate-500">No hay mensajes registrados.</div> : (
+                                        <div className="mt-3 space-y-3">
+                                            {detailEvents.map(event => <div key={event.id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="flex flex-wrap items-center gap-2"><span className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">{formatManagerClientCommunicationToken(event.actor_type, 'Sin actor')}</span><span className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">{formatManagerClientCommunicationToken(event.event_type, 'Sin tipo')}</span></div><span className="text-xs font-semibold text-slate-500">{formatManagerClientCommunicationDate(event.created_at)}</span></div>{event.body && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{event.body}</p>}</div>)}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-400">Documentos</h4>
+                                    {detailDocumentItems.length === 0 ? <div className="mt-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-8 text-center text-sm font-semibold text-slate-500">No hay documentos asociados.</div> : (
+                                        <div className="mt-3 space-y-3">
+                                            {detailDocumentItems.map(item => <div key={item.id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="flex min-w-0 gap-3"><FileText className="mt-0.5 h-5 w-5 shrink-0 text-indigo-400" /><div className="min-w-0"><h5 className="truncate font-black text-white">{item.title || 'Documento sin titulo'}</h5><p className="mt-1 text-xs font-semibold text-slate-500">{formatManagerClientCommunicationToken(item.document_type, 'Sin tipo')}</p></div></div><span className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">{formatManagerClientCommunicationToken(item.review_status, 'Sin revision')}</span></div><div className="mt-4 grid grid-cols-1 gap-3 text-xs font-semibold text-slate-400 sm:grid-cols-2"><div><span className="block text-slate-500">Archivo</span><span className="break-words text-slate-200">{item.original_filename || 'Sin archivo'}</span></div><div><span className="block text-slate-500">Tamano</span><span className="text-slate-200">{formatManagerClientCommunicationSize(item.file_size)}</span></div><div><span className="block text-slate-500">Fecha documento</span><span className="text-slate-200">{item.document_date || 'Sin fecha'}</span></div><div><span className="block text-slate-500">Proveedor o cliente</span><span className="text-slate-200">{item.supplier_or_customer || 'Sin dato'}</span></div></div></div>)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 function CommercialDashboardPanel() {
     const [dashboard, setDashboard] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -7494,6 +7698,9 @@ useEffect(() => {
                         <button type="button" onClick={() => setView('documentacion-trimestral')} className={'w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ' + (view === 'documentacion-trimestral' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300')}>
                             Documentacion trimestral
                         </button>
+                        <button type="button" onClick={() => setView('client-communications')} className={'w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ' + (view === 'client-communications' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300')}>
+                            Comunicaciones de clientes
+                        </button>
                         <button type="button" onClick={() => setView('comercial')} className={`w-full text-left rounded-xl border px-4 py-3 text-sm font-bold ${view === 'comercial' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 bg-slate-950/50 text-slate-300'}`}>
                             Vista Comercial
                         </button>
@@ -7524,6 +7731,7 @@ useEffect(() => {
                         <option value="paquetes">Paquetes para cliente</option>
                         <option value="documentacion">Documentación y trámites</option>
                         <option value="documentacion-trimestral">Documentacion trimestral</option>
+                        <option value="client-communications">Comunicaciones de clientes</option>
                         <option value="comercial">Vista Comercial</option>
                         <option value="portal">Portal Entidad</option>
                     </select>
@@ -7576,6 +7784,12 @@ useEffect(() => {
                         icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />}
                     />
                     <NavTab
+                        active={view === 'client-communications'}
+                        onClick={() => setView('client-communications')}
+                        label="Comunicaciones de clientes"
+                        icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 4v-4z" />}
+                    />
+                    <NavTab
                         active={view === 'comercial'}
                         onClick={() => setView('comercial')}
                         label="Vista Comercial"
@@ -7616,6 +7830,7 @@ useEffect(() => {
                 {view === 'paquetes' && <ClientPackagesPanel />}
                 {view === 'documentacion' && <ClientProceduresPanel />}
                 {view === 'documentacion-trimestral' && <QuarterlyDocumentationPanel />}
+                {view === 'client-communications' && <ManagerClientCommunicationsPanel />}
                 {view === 'comercial' && <CommercialDashboardPanel />}
                 {view === 'portal' && <PortalEntidadPanel />}
             </main>

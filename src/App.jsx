@@ -4716,6 +4716,211 @@ function ClientPortalProceduresPanel({ clientId }) {
         </section>
     );
 }
+function formatPortalCommunicationDate(value) {
+    if (!value) return 'Sin fecha';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function formatPortalCommunicationToken(value, fallback = 'Sin dato') {
+    if (value === null || value === undefined || value === '') return fallback;
+    return String(value).replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function getPortalCommunicationStatusLabel(value) {
+    const labels = {
+        open: 'Abierta',
+        in_review: 'En revision',
+        waiting_client: 'Pendiente del cliente',
+        pending_manager: 'Pendiente de asesoria',
+        pending_client: 'Pendiente del cliente',
+        closed: 'Cerrada',
+        archived: 'Archivada'
+    };
+    return labels[value] || formatPortalCommunicationToken(value, 'Sin estado');
+}
+
+function getPortalCommunicationPriorityLabel(value) {
+    const labels = {
+        low: 'Baja',
+        normal: 'Normal',
+        high: 'Alta',
+        urgent: 'Alta'
+    };
+    return labels[value] || formatPortalCommunicationToken(value, 'Sin prioridad');
+}
+
+function getPortalCommunicationStatusClass(value) {
+    if (value === 'closed') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+    if (value === 'archived') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+    if (value === 'waiting_client' || value === 'pending_client') return 'border-blue-500/30 bg-blue-500/10 text-blue-300';
+    if (value === 'in_review' || value === 'pending_manager') return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
+    return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
+}
+
+function getPortalCommunicationPriorityClass(value) {
+    if (value === 'high' || value === 'urgent') return 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+    if (value === 'low') return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+    return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
+}
+
+function PortalClientCommunicationsPanel() {
+    const [threads, setThreads] = useState([]);
+    const [selectedThreadId, setSelectedThreadId] = useState('');
+    const [threadDetail, setThreadDetail] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [detailError, setDetailError] = useState('');
+
+    const buildErrorMessage = async (response, fallback) => {
+        let data = null;
+        try {
+            data = await response.json();
+        } catch {}
+        if (response.status === 404) return 'La funcionalidad de comunicaciones todavia no esta activa.';
+        if (response.status === 401 || response.status === 403) return 'Accede al portal para consultar tus comunicaciones.';
+        return data?.message || fallback;
+    };
+
+    const loadThreadDetail = async (threadId) => {
+        if (!threadId) return;
+        setSelectedThreadId(threadId);
+        setThreadDetail(null);
+        setDetailError('');
+        setDetailLoading(true);
+        try {
+            const response = await fetch(`/api/portal/client-communications/${encodeURIComponent(threadId)}`, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error(await buildErrorMessage(response, 'No se pudo cargar la comunicacion seleccionada.'));
+            const data = await response.json();
+            if (data.status !== 'success' || !data.thread) throw new Error(data.message || 'No se pudo cargar la comunicacion seleccionada.');
+            setThreadDetail(data.thread);
+        } catch (err) {
+            setDetailError(err.message || 'No se pudo cargar la comunicacion seleccionada.');
+        } finally {
+            setDetailLoading(false);
+        }
+    };
+
+    const loadThreads = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch('/api/portal/client-communications', { credentials: 'same-origin' });
+            if (!response.ok) throw new Error(await buildErrorMessage(response, 'No se pudieron cargar las comunicaciones.'));
+            const data = await response.json();
+            if (data.status !== 'success' || !Array.isArray(data.threads)) throw new Error(data.message || 'No se pudieron cargar las comunicaciones.');
+            setThreads(data.threads);
+            if (selectedThreadId && !data.threads.some(thread => String(thread.id) === String(selectedThreadId))) {
+                setSelectedThreadId('');
+                setThreadDetail(null);
+                setDetailError('');
+            }
+        } catch (err) {
+            setThreads([]);
+            setSelectedThreadId('');
+            setThreadDetail(null);
+            setDetailError('');
+            setError(err.message || 'No se pudieron cargar las comunicaciones.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadThreads();
+    }, []);
+
+    const detailEvents = Array.isArray(threadDetail?.events) ? threadDetail.events : [];
+    const detailDocumentItems = Array.isArray(threadDetail?.document_items) ? threadDetail.document_items : [];
+
+    return (
+        <section id="portal-comunicaciones" className="scroll-mt-28 rounded-2xl border border-slate-700/60 bg-slate-800/80 p-6 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h3 className="text-lg font-bold text-white">Comunicaciones</h3>
+                    <p className="mt-2 text-sm font-semibold text-slate-400">Consulta los mensajes y solicitudes relacionados con tu empresa.</p>
+                </div>
+                <button type="button" onClick={loadThreads} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-bold text-slate-200 hover:border-blue-500 hover:text-blue-300 disabled:cursor-not-allowed disabled:opacity-60">
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    Actualizar
+                </button>
+            </div>
+
+            {error && <div className="mt-5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{error}</div>}
+            {loading && <div className="mt-5 rounded-xl border border-slate-700 bg-slate-900/50 px-4 py-8 text-center text-sm font-semibold text-slate-400">Cargando comunicaciones...</div>}
+            {!loading && !error && threads.length === 0 && <div className="mt-5 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-10 text-center text-sm font-semibold text-slate-500">No hay comunicaciones registradas.</div>}
+
+            {!loading && !error && threads.length > 0 && (
+                <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                    <div aria-label="listado read-only de comunicaciones" className="space-y-3">
+                        {threads.map(thread => {
+                            const active = String(selectedThreadId) === String(thread.id);
+                            return (
+                                <button key={thread.id} type="button" onClick={() => loadThreadDetail(thread.id)} className={`w-full rounded-xl border p-4 text-left transition-colors ${active ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700/60 bg-slate-900/50 hover:border-slate-500'}`}>
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="min-w-0">
+                                            <h4 className="truncate font-bold text-slate-100">{thread.subject || 'Sin asunto'}</h4>
+                                            <p className="mt-1 text-xs font-semibold text-slate-500">Categoria: {formatPortalCommunicationToken(thread.category, 'Sin categoria')}</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getPortalCommunicationStatusClass(thread.status)}`}>{getPortalCommunicationStatusLabel(thread.status)}</span>
+                                            <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getPortalCommunicationPriorityClass(thread.priority)}`}>{getPortalCommunicationPriorityLabel(thread.priority)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 text-xs font-semibold text-slate-500">Ultima actividad: <span className="text-slate-300">{formatPortalCommunicationDate(thread.last_event_at || thread.updated_at)}</span></div>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div aria-label="detalle read-only de comunicacion" className="rounded-xl border border-slate-700/60 bg-slate-900/50 p-5">
+                        {!selectedThreadId && <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/30 px-4 py-10 text-center text-sm font-semibold text-slate-500">Selecciona una comunicacion para ver el detalle.</div>}
+                        {detailLoading && <div className="rounded-xl border border-slate-700 bg-slate-950/30 px-4 py-10 text-center text-sm font-semibold text-slate-400">Cargando detalle...</div>}
+                        {!detailLoading && detailError && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{detailError}</div>}
+
+                        {!detailLoading && !detailError && threadDetail && (
+                            <div className="space-y-5">
+                                <div>
+                                    <h4 className="text-xl font-black text-white">{threadDetail.subject || 'Sin asunto'}</h4>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getPortalCommunicationStatusClass(threadDetail.status)}`}>Estado: {getPortalCommunicationStatusLabel(threadDetail.status)}</span>
+                                        <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getPortalCommunicationPriorityClass(threadDetail.priority)}`}>Prioridad: {getPortalCommunicationPriorityLabel(threadDetail.priority)}</span>
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-1 gap-3 text-sm font-semibold text-slate-400 sm:grid-cols-2">
+                                        <div><span className="block text-xs text-slate-500">Categoria</span><span className="text-slate-200">{formatPortalCommunicationToken(threadDetail.category, 'Sin categoria')}</span></div>
+                                        <div><span className="block text-xs text-slate-500">Ultima actividad</span><span className="text-slate-200">{formatPortalCommunicationDate(threadDetail.last_event_at)}</span></div>
+                                        <div><span className="block text-xs text-slate-500">Creacion</span><span className="text-slate-200">{formatPortalCommunicationDate(threadDetail.created_at)}</span></div>
+                                        <div><span className="block text-xs text-slate-500">Actualizacion</span><span className="text-slate-200">{formatPortalCommunicationDate(threadDetail.updated_at)}</span></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h5 className="text-sm font-black uppercase tracking-widest text-slate-400">Mensajes</h5>
+                                    {detailEvents.length === 0 ? <div className="mt-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/30 px-4 py-8 text-center text-sm font-semibold text-slate-500">No hay mensajes visibles en este hilo.</div> : (
+                                        <div className="mt-3 space-y-3">
+                                            {detailEvents.map(event => <div key={event.id} className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="flex flex-wrap items-center gap-2"><span className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">{formatPortalCommunicationToken(event.actor_type, 'Sin origen')}</span><span className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">{formatPortalCommunicationToken(event.event_type, 'Sin tipo')}</span></div><span className="text-xs font-semibold text-slate-500">{formatPortalCommunicationDate(event.created_at)}</span></div>{event.body && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{event.body}</p>}</div>)}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <h5 className="text-sm font-black uppercase tracking-widest text-slate-400">Documentos</h5>
+                                    {detailDocumentItems.length === 0 ? <div className="mt-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/30 px-4 py-8 text-center text-sm font-semibold text-slate-500">No hay documentos asociados.</div> : (
+                                        <div className="mt-3 space-y-3">
+                                            {detailDocumentItems.map(item => <div key={item.id} className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="flex min-w-0 gap-3"><FileText className="mt-0.5 h-5 w-5 shrink-0 text-blue-300" /><div className="min-w-0"><h6 className="truncate font-bold text-slate-100">{item.title || 'Documento sin titulo'}</h6><p className="mt-1 text-xs font-semibold text-slate-500">{formatPortalCommunicationToken(item.document_type, 'Sin tipo')}</p></div></div><span className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-300">{formatPortalCommunicationToken(item.review_status, 'Sin revision')}</span></div><div className="mt-4 grid grid-cols-1 gap-3 text-xs font-semibold text-slate-400 sm:grid-cols-2"><div><span className="block text-slate-500">Archivo</span><span className="break-words text-slate-200">{item.original_filename || 'Sin archivo'}</span></div><div><span className="block text-slate-500">Tamano</span><span className="text-slate-200">{formatClientProcedureFileSize(item.file_size)}</span></div><div><span className="block text-slate-500">Fecha documento</span><span className="text-slate-200">{item.document_date || 'Sin fecha'}</span></div><div><span className="block text-slate-500">Proveedor o cliente</span><span className="text-slate-200">{item.supplier_or_customer || 'Sin dato'}</span></div></div></div>)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
 function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false } = {}) {
     const [interestLoadingId, setInterestLoadingId] = useState(null);
     const [interestFeedback, setInterestFeedback] = useState({});
@@ -4951,6 +5156,10 @@ function PortalEntidadPanel({ fixedClientId = '', exclusiveClientPortal = false 
 
             {exclusiveClientPortal && clientId && (
                 <ClientPortalProceduresPanel clientId={clientId} />
+            )}
+
+            {exclusiveClientPortal && clientId && (
+                <PortalClientCommunicationsPanel />
             )}
 
             {!loading && summary && summary.total_published_packages === 0 && (

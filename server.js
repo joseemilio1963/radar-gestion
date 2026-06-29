@@ -1266,6 +1266,87 @@ function mapPortalClientCommunicationDocumentItem(row) {
     };
 }
 
+function mapManagerClientCommunicationThread(row, details = {}) {
+    return {
+        id: row.id,
+        client_id: row.client_id,
+        entity_id: row.entity_id || null,
+        category: row.category,
+        subject: row.subject,
+        status: row.status,
+        priority: row.priority,
+        origin: row.origin,
+        source_type: row.source_type,
+        related_period_id: row.related_period_id || null,
+        related_expected_document_id: row.related_expected_document_id || null,
+        related_procedure_id: row.related_procedure_id || null,
+        last_event_at: row.last_event_at,
+        closed_at: row.closed_at || null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        ...(row.events_count !== undefined ? { events_count: Number(row.events_count || 0) } : {}),
+        ...(row.document_items_count !== undefined ? { document_items_count: Number(row.document_items_count || 0) } : {}),
+        ...(details.events ? { events: details.events } : {}),
+        ...(details.document_items ? { document_items: details.document_items } : {})
+    };
+}
+
+function mapManagerClientCommunicationEvent(row) {
+    return {
+        id: row.id,
+        thread_id: row.thread_id,
+        client_id: row.client_id,
+        actor_type: row.actor_type,
+        actor_id: row.actor_id || null,
+        event_type: row.event_type,
+        body: row.body || null,
+        visible_to_client: Number(row.visible_to_client || 0),
+        created_at: row.created_at,
+        metadata_json: null
+    };
+}
+
+function mapManagerClientCommunicationDocumentItem(row) {
+    return {
+        id: row.id,
+        thread_id: row.thread_id,
+        client_id: row.client_id,
+        entity_id: row.entity_id || null,
+        document_type: row.document_type,
+        title: row.title,
+        description: row.description || null,
+        document_date: row.document_date || null,
+        supplier_or_customer: row.supplier_or_customer || null,
+        original_filename: row.original_filename || null,
+        file_mime: row.file_mime || null,
+        file_size: row.file_size,
+        review_status: row.review_status,
+        related_period_id: row.related_period_id || null,
+        related_expected_document_id: row.related_expected_document_id || null,
+        created_at: row.created_at,
+        updated_at: row.updated_at
+    };
+}
+
+function hydrateManagerClientCommunicationThread(db, thread) {
+    const events = db.prepare(`
+        SELECT *
+        FROM client_portal_thread_events
+        WHERE thread_id = ? AND client_id = ?
+        ORDER BY created_at ASC
+    `).all(thread.id, thread.client_id).map(mapManagerClientCommunicationEvent);
+    const documentItems = db.prepare(`
+        SELECT *
+        FROM client_portal_document_items
+        WHERE thread_id = ? AND client_id = ? AND deleted_at IS NULL
+        ORDER BY created_at ASC
+    `).all(thread.id, thread.client_id).map(mapManagerClientCommunicationDocumentItem);
+
+    return mapManagerClientCommunicationThread(thread, {
+        events,
+        document_items: documentItems
+    });
+}
 function hydratePortalClientCommunicationThread(db, thread) {
     const events = db.prepare(`
         SELECT *
@@ -5314,6 +5395,131 @@ const server = http.createServer(async (req, res) => {
         });
     }
 
+    // API Route: GET /api/manager/client-communications
+    if (pathname === '/api/manager/client-communications' && req.method === 'GET') {
+        if (!isClientPortalCommunicationsEnabled()) {
+            return sendClientPortalCommunicationsFeatureDisabled(res);
+        }
+
+        const queryString = req.url.split('?')[1] || '';
+        const searchParams = new URLSearchParams(queryString);
+        const allowedFilters = new Set(['client_id', 'status', 'category', 'priority', 'limit']);
+        const forbiddenFilter = Array.from(searchParams.keys()).find(key => !allowedFilters.has(key));
+
+        if (forbiddenFilter) {
+            return sendJson(res, 400, { status: 'error', error_code: 'FORBIDDEN_FIELD', message: 'Filtro no permitido.' });
+        }
+
+        const limit = normalizeClientPortalCommunicationLimit(searchParams.get('limit'));
+        if (limit === null) {
+            return sendJson(res, 400, { status: 'error', error_code: 'INVALID_LIMIT', message: 'limit no es valido.' });
+        }
+
+        const clauses = ['t.deleted_at IS NULL'];
+        const params = [];
+        const clientId = normalizeClientPortalCommunicationText(searchParams.get('client_id'), 120);
+        const statusFilter = String(searchParams.get('status') || '').trim();
+        const categoryFilter = String(searchParams.get('category') || '').trim();
+        const priorityFilter = String(searchParams.get('priority') || '').trim();
+
+        if (!clientId.ok) {
+            return sendJson(res, 400, { status: 'error', error_code: 'INVALID_CLIENT_ID_FILTER', message: 'client_id no es valido.' });
+        }
+
+        if (clientId.value) {
+            clauses.push('t.client_id = ?');
+            params.push(clientId.value);
+        }
+
+        if (statusFilter) {
+            const statusToken = normalizeClientPortalCommunicationToken(statusFilter, 40);
+            if (!statusToken) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_STATUS_FILTER', message: 'status no es valido.' });
+            }
+            clauses.push('t.status = ?');
+            params.push(statusToken);
+        }
+
+        if (categoryFilter) {
+            if (!CLIENT_PORTAL_COMMUNICATION_CATEGORIES.has(categoryFilter)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_CATEGORY_FILTER', message: 'category no es valido.' });
+            }
+            clauses.push('t.category = ?');
+            params.push(categoryFilter);
+        }
+
+        if (priorityFilter) {
+            if (!CLIENT_PORTAL_COMMUNICATION_PRIORITIES.has(priorityFilter)) {
+                return sendJson(res, 400, { status: 'error', error_code: 'INVALID_PRIORITY_FILTER', message: 'priority no es valido.' });
+            }
+            clauses.push('t.priority = ?');
+            params.push(priorityFilter);
+        }
+
+        const db = new DatabaseSync(DB_PATH);
+        try {
+            const threads = db.prepare(`
+                SELECT
+                    t.*,
+                    (
+                        SELECT COUNT(*)
+                        FROM client_portal_thread_events e
+                        WHERE e.thread_id = t.id AND e.client_id = t.client_id
+                    ) AS events_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM client_portal_document_items d
+                        WHERE d.thread_id = t.id AND d.client_id = t.client_id AND d.deleted_at IS NULL
+                    ) AS document_items_count
+                FROM client_portal_threads t
+                WHERE ${clauses.join(' AND ')}
+                ORDER BY t.updated_at DESC, t.last_event_at DESC
+                LIMIT ?
+            `).all(...params, limit).map(row => mapManagerClientCommunicationThread(row));
+            db.close();
+
+            return sendJson(res, 200, {
+                status: 'success',
+                count: threads.length,
+                threads
+            });
+        } catch (err) {
+            try { db.close(); } catch {}
+            console.error('manager client communications list error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'MANAGER_CLIENT_COMMUNICATIONS_LIST_FAILED', message: 'No se pudieron cargar las comunicaciones.' });
+        }
+    }
+
+    // API Route: GET /api/manager/client-communications/:threadId
+    const managerClientCommunicationDetailMatch = pathname.match(/^\/api\/manager\/client-communications\/([^/]+)$/);
+    if (managerClientCommunicationDetailMatch && req.method === 'GET') {
+        if (!isClientPortalCommunicationsEnabled()) {
+            return sendClientPortalCommunicationsFeatureDisabled(res);
+        }
+
+        const threadId = decodeURIComponent(managerClientCommunicationDetailMatch[1]);
+        const db = new DatabaseSync(DB_PATH);
+
+        try {
+            const thread = db.prepare('SELECT * FROM client_portal_threads WHERE id = ? AND deleted_at IS NULL').get(threadId);
+            if (!thread) {
+                db.close();
+                return sendJson(res, 404, { status: 'error', error_code: 'CLIENT_COMMUNICATION_NOT_FOUND', message: 'Comunicacion no encontrada.' });
+            }
+
+            const hydrated = hydrateManagerClientCommunicationThread(db, thread);
+            db.close();
+
+            return sendJson(res, 200, {
+                status: 'success',
+                thread: hydrated
+            });
+        } catch (err) {
+            try { db.close(); } catch {}
+            console.error('manager client communication detail error:', err);
+            return sendJson(res, 500, { status: 'error', error_code: 'MANAGER_CLIENT_COMMUNICATION_LOAD_FAILED', message: 'No se pudo cargar la comunicacion.' });
+        }
+    }
     // API Route: GET /api/manager/client-procedures
     if (pathname === '/api/manager/client-procedures' && req.method === 'GET') {
         try {

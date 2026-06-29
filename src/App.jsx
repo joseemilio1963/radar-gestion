@@ -6219,6 +6219,30 @@ function managerClientCommunicationPriorityClass(priority) {
     return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300';
 }
 
+const MANAGER_CLIENT_COMMUNICATION_STATUS_OPTIONS = [
+    { value: 'open', label: 'Abierta' },
+    { value: 'in_review', label: 'En revision' },
+    { value: 'waiting_client', label: 'Pendiente del cliente' },
+    { value: 'closed', label: 'Cerrada' },
+    { value: 'archived', label: 'Archivada' }
+];
+
+const MANAGER_CLIENT_COMMUNICATION_PRIORITY_OPTIONS = [
+    { value: 'low', label: 'Baja' },
+    { value: 'normal', label: 'Normal' },
+    { value: 'high', label: 'Alta' }
+];
+
+function normalizeManagerClientCommunicationStatus(value) {
+    const normalized = String(value || '').trim();
+    return MANAGER_CLIENT_COMMUNICATION_STATUS_OPTIONS.some(option => option.value === normalized) ? normalized : 'open';
+}
+
+function normalizeManagerClientCommunicationPriority(value) {
+    const normalized = String(value || '').trim();
+    return MANAGER_CLIENT_COMMUNICATION_PRIORITY_OPTIONS.some(option => option.value === normalized) ? normalized : 'normal';
+}
+
 function ManagerClientCommunicationsPanel() {
     const [threads, setThreads] = useState([]);
     const [selectedThreadId, setSelectedThreadId] = useState('');
@@ -6227,6 +6251,10 @@ function ManagerClientCommunicationsPanel() {
     const [detailLoading, setDetailLoading] = useState(false);
     const [error, setError] = useState('');
     const [detailError, setDetailError] = useState('');
+    const [trackingDraft, setTrackingDraft] = useState({ status: 'open', priority: 'normal' });
+    const [trackingSubmitting, setTrackingSubmitting] = useState(false);
+    const [trackingError, setTrackingError] = useState('');
+    const [trackingSuccess, setTrackingSuccess] = useState('');
     const [replyMessage, setReplyMessage] = useState('');
     const [replySubmitting, setReplySubmitting] = useState(false);
     const [replyError, setReplyError] = useState('');
@@ -6247,6 +6275,8 @@ function ManagerClientCommunicationsPanel() {
         setSelectedThreadId(threadId);
         setThreadDetail(null);
         setDetailError('');
+        setTrackingError('');
+        setTrackingSuccess('');
         setReplyMessage('');
         setReplyError('');
         setReplySuccess('');
@@ -6280,6 +6310,9 @@ function ManagerClientCommunicationsPanel() {
                 setSelectedThreadId('');
                 setThreadDetail(null);
                 setDetailError('');
+                setTrackingDraft({ status: 'open', priority: 'normal' });
+                setTrackingError('');
+                setTrackingSuccess('');
                 setReplyMessage('');
                 setReplyError('');
                 setReplySuccess('');
@@ -6292,6 +6325,9 @@ function ManagerClientCommunicationsPanel() {
             setSelectedThreadId('');
             setThreadDetail(null);
             setDetailError('');
+            setTrackingDraft({ status: 'open', priority: 'normal' });
+            setTrackingError('');
+            setTrackingSuccess('');
             setReplyMessage('');
             setReplyError('');
             setReplySuccess('');
@@ -6301,6 +6337,53 @@ function ManagerClientCommunicationsPanel() {
         }
     };
 
+    const handleSubmitTracking = async (event) => {
+        event.preventDefault();
+
+        if (!threadDetail?.id) return;
+
+        const nextStatus = normalizeManagerClientCommunicationStatus(trackingDraft.status);
+        const nextPriority = normalizeManagerClientCommunicationPriority(trackingDraft.priority);
+
+        setTrackingSubmitting(true);
+        setTrackingError('');
+        setTrackingSuccess('');
+
+        try {
+            const response = await fetch(`/api/manager/client-communications/${encodeURIComponent(threadDetail.id)}`, {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: nextStatus, priority: nextPriority })
+            });
+
+            if (!response.ok) {
+                if (response.status === 404) throw new Error('La funcionalidad de comunicaciones todavia no esta activa.');
+                if (response.status === 401 || response.status === 403) throw new Error('Sesion de gestor requerida.');
+                throw new Error('No se pudieron guardar los cambios.');
+            }
+
+            const data = await response.json();
+            if (data.status !== 'success' || !data.thread) {
+                throw new Error('No se pudieron guardar los cambios.');
+            }
+
+            setThreadDetail(data.thread);
+            setTrackingDraft({
+                status: normalizeManagerClientCommunicationStatus(data.thread.status),
+                priority: normalizeManagerClientCommunicationPriority(data.thread.priority)
+            });
+            setTrackingSuccess('Cambios guardados correctamente.');
+
+            try {
+                await loadThreads({ showLoading: false, preserveOnError: true });
+            } catch {}
+        } catch (err) {
+            setTrackingError(String(err).replace(/^Error: /, '') || 'No se pudieron guardar los cambios.');
+        } finally {
+            setTrackingSubmitting(false);
+        }
+    };
     const handleSubmitReply = async (event) => {
         event.preventDefault();
 
@@ -6345,6 +6428,15 @@ function ManagerClientCommunicationsPanel() {
     useEffect(() => {
         loadThreads();
     }, []);
+
+    useEffect(() => {
+        if (!threadDetail) return;
+
+        setTrackingDraft({
+            status: normalizeManagerClientCommunicationStatus(threadDetail.status),
+            priority: normalizeManagerClientCommunicationPriority(threadDetail.priority)
+        });
+    }, [threadDetail?.id, threadDetail?.status, threadDetail?.priority]);
 
     const detailEvents = Array.isArray(threadDetail?.events) ? threadDetail.events : [];
     const detailDocumentItems = Array.isArray(threadDetail?.document_items) ? threadDetail.document_items : [];
@@ -6418,6 +6510,53 @@ function ManagerClientCommunicationsPanel() {
                                         <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Documento esperado relacionado</span><span className="text-slate-200">{threadDetail.related_expected_document_id || 'Sin documento'}</span></div>
                                     </div>
                                 </div>
+
+                                <form onSubmit={handleSubmitTracking} className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-widest text-slate-400">Estado y prioridad</h4>
+                                        <p className="mt-1 text-sm font-semibold text-slate-500">Actualiza el seguimiento interno de esta comunicacion.</p>
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <label className="block">
+                                            <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">Estado</span>
+                                            <select
+                                                value={trackingDraft.status}
+                                                onChange={(event) => {
+                                                    setTrackingDraft(prev => ({ ...prev, status: event.target.value }));
+                                                    if (trackingError) setTrackingError('');
+                                                    if (trackingSuccess) setTrackingSuccess('');
+                                                }}
+                                                disabled={trackingSubmitting || !threadDetail?.id}
+                                                className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm font-bold text-slate-100 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {MANAGER_CLIENT_COMMUNICATION_STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                            </select>
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">Prioridad</span>
+                                            <select
+                                                value={trackingDraft.priority}
+                                                onChange={(event) => {
+                                                    setTrackingDraft(prev => ({ ...prev, priority: event.target.value }));
+                                                    if (trackingError) setTrackingError('');
+                                                    if (trackingSuccess) setTrackingSuccess('');
+                                                }}
+                                                disabled={trackingSubmitting || !threadDetail?.id}
+                                                className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm font-bold text-slate-100 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {MANAGER_CLIENT_COMMUNICATION_PRIORITY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                            </select>
+                                        </label>
+                                    </div>
+                                    {trackingError && <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{trackingError}</div>}
+                                    {trackingSuccess && <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200">{trackingSuccess}</div>}
+                                    <div className="mt-4 flex justify-end">
+                                        <button type="submit" disabled={trackingSubmitting || !threadDetail?.id} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400">
+                                            <Save className="h-4 w-4" />
+                                            {trackingSubmitting ? 'Guardando...' : 'Guardar cambios'}
+                                        </button>
+                                    </div>
+                                </form>
 
                                 <form onSubmit={handleSubmitReply} className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
                                     <div>

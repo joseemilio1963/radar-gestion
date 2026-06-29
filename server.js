@@ -43,6 +43,10 @@ function getClientDocumentsStorageBucket() {
 function isSupabaseReadonlyEnabled() {
     return String(process.env.SUPABASE_READONLY_ENABLED || '').toLowerCase() === 'true';
 }
+function isClientPortalCommunicationsEnabled() {
+    return ['true', '1', 'yes', 'on'].includes(String(process.env.RADAR_CLIENT_PORTAL_COMMUNICATIONS_ENABLED || '').toLowerCase());
+}
+
 function isQuarterlyDocumentationEnabled() {
     return String(process.env.RADAR_QUARTERLY_DOCUMENTATION_ENABLED || '').toLowerCase() === 'true';
 }
@@ -602,6 +606,89 @@ function initClientPortalAccessTables() {
 }
 initClientPortalAccessTables();
 
+function initClientPortalCommunicationsTables(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS client_portal_threads (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            entity_id TEXT,
+            category TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            priority TEXT NOT NULL DEFAULT 'normal',
+            origin TEXT NOT NULL DEFAULT 'client_portal',
+            source_type TEXT NOT NULL DEFAULT 'spontaneous',
+            related_period_id TEXT,
+            related_expected_document_id TEXT,
+            related_procedure_id TEXT,
+            created_by_type TEXT NOT NULL DEFAULT 'client',
+            created_by_id TEXT,
+            last_event_at TEXT NOT NULL,
+            closed_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS client_portal_thread_events (
+            id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL,
+            client_id TEXT NOT NULL,
+            actor_type TEXT NOT NULL,
+            actor_id TEXT,
+            event_type TEXT NOT NULL,
+            body TEXT,
+            metadata_json TEXT,
+            visible_to_client INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS client_portal_document_items (
+            id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL,
+            client_id TEXT NOT NULL,
+            entity_id TEXT,
+            document_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            document_date TEXT,
+            supplier_or_customer TEXT,
+            original_filename TEXT,
+            file_mime TEXT,
+            file_size INTEGER,
+            review_status TEXT NOT NULL DEFAULT 'received_metadata',
+            related_period_id TEXT,
+            related_expected_document_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_threads_client_status_updated
+            ON client_portal_threads(client_id, status, updated_at);
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_threads_client_category
+            ON client_portal_threads(client_id, category, created_at);
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_threads_related_period
+            ON client_portal_threads(related_period_id);
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_events_thread_created
+            ON client_portal_thread_events(thread_id, created_at);
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_events_client_created
+            ON client_portal_thread_events(client_id, created_at);
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_document_items_thread
+            ON client_portal_document_items(thread_id, created_at);
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_document_items_client_status
+            ON client_portal_document_items(client_id, review_status, created_at);
+
+        CREATE INDEX IF NOT EXISTS idx_client_portal_document_items_related_expected
+            ON client_portal_document_items(related_expected_document_id);
+    `);
+}
 function initQuarterlyDocumentationTables(db) {
     db.exec(`
         PRAGMA foreign_keys = ON;
@@ -792,6 +879,15 @@ function initClientProcedureTables() {
     db.close();
 }
 initClientProcedureTables();
+
+if (isClientPortalCommunicationsEnabled()) {
+    const db = new DatabaseSync(DB_PATH);
+    try {
+        initClientPortalCommunicationsTables(db);
+    } finally {
+        db.close();
+    }
+}
 
 if (isQuarterlyDocumentationEnabled()) {
     const db = new DatabaseSync(DB_PATH);
@@ -990,6 +1086,12 @@ function sendQuarterlyDocumentationFeatureDisabled(res) {
     });
 }
 
+function sendClientPortalCommunicationsFeatureDisabled(res) {
+    return sendJson(res, 404, {
+        status: 'error',
+        error_code: 'FEATURE_DISABLED'
+    });
+}
 function getQuarterlyDocumentationNow() {
     return new Date().toISOString();
 }

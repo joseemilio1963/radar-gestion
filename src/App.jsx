@@ -6227,6 +6227,10 @@ function ManagerClientCommunicationsPanel() {
     const [detailLoading, setDetailLoading] = useState(false);
     const [error, setError] = useState('');
     const [detailError, setDetailError] = useState('');
+    const [replyMessage, setReplyMessage] = useState('');
+    const [replySubmitting, setReplySubmitting] = useState(false);
+    const [replyError, setReplyError] = useState('');
+    const [replySuccess, setReplySuccess] = useState('');
 
     const buildErrorMessage = async (response, fallback) => {
         let data = null;
@@ -6243,6 +6247,9 @@ function ManagerClientCommunicationsPanel() {
         setSelectedThreadId(threadId);
         setThreadDetail(null);
         setDetailError('');
+        setReplyMessage('');
+        setReplyError('');
+        setReplySuccess('');
         setDetailLoading(true);
         try {
             const response = await fetch(`/api/manager/client-communications/${encodeURIComponent(threadId)}`, { credentials: 'same-origin' });
@@ -6257,9 +6264,12 @@ function ManagerClientCommunicationsPanel() {
         }
     };
 
-    const loadThreads = async () => {
-        setLoading(true);
-        setError('');
+    const loadThreads = async (options = {}) => {
+        const showLoading = options.showLoading !== false;
+        const preserveOnError = options.preserveOnError === true;
+
+        if (showLoading) setLoading(true);
+        if (!preserveOnError) setError('');
         try {
             const response = await fetch('/api/manager/client-communications', { credentials: 'same-origin' });
             if (!response.ok) throw new Error(await buildErrorMessage(response, 'No se pudieron cargar las comunicaciones de clientes.'));
@@ -6270,15 +6280,65 @@ function ManagerClientCommunicationsPanel() {
                 setSelectedThreadId('');
                 setThreadDetail(null);
                 setDetailError('');
+                setReplyMessage('');
+                setReplyError('');
+                setReplySuccess('');
             }
         } catch (err) {
+            if (preserveOnError) {
+                throw err;
+            }
             setThreads([]);
             setSelectedThreadId('');
             setThreadDetail(null);
             setDetailError('');
+            setReplyMessage('');
+            setReplyError('');
+            setReplySuccess('');
             setError(err.message || 'No se pudieron cargar las comunicaciones de clientes.');
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
+        }
+    };
+
+    const handleSubmitReply = async (event) => {
+        event.preventDefault();
+
+        const message = replyMessage.trim();
+        if (!threadDetail?.id || !message) return;
+
+        setReplySubmitting(true);
+        setReplyError('');
+        setReplySuccess('');
+
+        try {
+            const response = await fetch(`/api/manager/client-communications/${encodeURIComponent(threadDetail.id)}/events`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, event_type: 'message' })
+            });
+
+            if (!response.ok) {
+                throw new Error(await buildErrorMessage(response, 'No se pudo enviar la respuesta.'));
+            }
+
+            const data = await response.json();
+            if (data.status !== 'success' || !data.thread) {
+                throw new Error(data.message || 'No se pudo enviar la respuesta.');
+            }
+
+            setThreadDetail(data.thread);
+            setReplyMessage('');
+            setReplySuccess('Respuesta enviada correctamente.');
+
+            try {
+                await loadThreads({ showLoading: false, preserveOnError: true });
+            } catch {}
+        } catch (err) {
+            setReplyError(err.message || 'No se pudo enviar la respuesta.');
+        } finally {
+            setReplySubmitting(false);
         }
     };
 
@@ -6358,6 +6418,33 @@ function ManagerClientCommunicationsPanel() {
                                         <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><span className="block text-xs text-slate-500">Documento esperado relacionado</span><span className="text-slate-200">{threadDetail.related_expected_document_id || 'Sin documento'}</span></div>
                                     </div>
                                 </div>
+
+                                <form onSubmit={handleSubmitReply} className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-widest text-slate-400">Responder al cliente</h4>
+                                        <p className="mt-1 text-sm font-semibold text-slate-500">La respuesta quedara registrada en el hilo.</p>
+                                    </div>
+                                    <textarea
+                                        value={replyMessage}
+                                        onChange={(event) => {
+                                            setReplyMessage(event.target.value);
+                                            if (replyError) setReplyError('');
+                                            if (replySuccess) setReplySuccess('');
+                                        }}
+                                        disabled={replySubmitting || !threadDetail?.id}
+                                        rows={4}
+                                        placeholder="Escribe la respuesta para el cliente..."
+                                        className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm font-semibold text-slate-100 placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                                    />
+                                    {replyError && <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{replyError}</div>}
+                                    {replySuccess && <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200">{replySuccess}</div>}
+                                    <div className="mt-4 flex justify-end">
+                                        <button type="submit" disabled={replySubmitting || !threadDetail?.id || !replyMessage.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            {replySubmitting ? 'Enviando...' : 'Enviar respuesta'}
+                                        </button>
+                                    </div>
+                                </form>
 
                                 <div>
                                     <h4 className="text-sm font-black uppercase tracking-widest text-slate-400">Mensajes</h4>

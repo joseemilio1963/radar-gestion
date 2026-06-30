@@ -4723,11 +4723,44 @@ function formatPortalCommunicationDate(value) {
     return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function formatPortalCommunicationToken(value, fallback = 'Sin dato') {
-    if (value === null || value === undefined || value === '') return fallback;
-    return String(value).replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+function formatPortalCommunicationToken(value, fallback = "Sin dato") {
+    if (value === null || value === undefined || value === "") return fallback;
+    const labels = {
+        question: "Consulta",
+        document: "Documento",
+        tax_notice: "Requerimiento o aviso",
+        invoice: "Factura",
+        contract: "Contrato",
+        certificate: "Certificado",
+        other: "Otro",
+        client: "Cliente",
+        manager: "Asesoria",
+        system: "Sistema",
+        thread_created: "Comunicacion creada",
+        message: "Mensaje",
+        clarification_request: "Solicitud de aclaracion",
+        clarification_response: "Respuesta de aclaracion",
+        document_metadata_added: "Documento informado",
+        open: "Abierta",
+        in_review: "En revision",
+        waiting_client: "Pendiente del cliente",
+        pending_manager: "Pendiente de asesoria",
+        pending_client: "Pendiente del cliente",
+        closed: "Cerrada",
+        archived: "Archivada",
+        low: "Baja",
+        normal: "Normal",
+        high: "Alta",
+        urgent: "Alta",
+        received_metadata: "Recibido para revision",
+        pending_review: "Pendiente de revision",
+        accepted: "Aceptado",
+        rejected: "Rechazado",
+        not_applicable: "No aplicable"
+    };
+    const key = String(value).trim();
+    return labels[key] || String(value).replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
 }
-
 function getPortalCommunicationStatusLabel(value) {
     const labels = {
         open: 'Abierta',
@@ -6518,11 +6551,44 @@ function formatManagerClientCommunicationSize(value) {
     return `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: size >= 10 ? 0 : 1 }).format(size)} ${units[unitIndex]}`;
 }
 
-function formatManagerClientCommunicationToken(value, fallback = 'Sin dato') {
-    if (value === null || value === undefined || value === '') return fallback;
-    return String(value).replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+function formatManagerClientCommunicationToken(value, fallback = "Sin dato") {
+    if (value === null || value === undefined || value === "") return fallback;
+    const labels = {
+        question: "Consulta",
+        document: "Documento",
+        tax_notice: "Requerimiento o aviso",
+        invoice: "Factura",
+        contract: "Contrato",
+        certificate: "Certificado",
+        other: "Otro",
+        client: "Cliente",
+        manager: "Asesoria",
+        system: "Sistema",
+        thread_created: "Comunicacion creada",
+        message: "Mensaje",
+        clarification_request: "Solicitud de aclaracion",
+        clarification_response: "Respuesta de aclaracion",
+        document_metadata_added: "Documento informado",
+        open: "Abierta",
+        in_review: "En revision",
+        waiting_client: "Pendiente del cliente",
+        pending_manager: "Pendiente de asesoria",
+        pending_client: "Pendiente del cliente",
+        closed: "Cerrada",
+        archived: "Archivada",
+        low: "Baja",
+        normal: "Normal",
+        high: "Alta",
+        urgent: "Alta",
+        received_metadata: "Recibido para revision",
+        pending_review: "Pendiente de revision",
+        accepted: "Aceptado",
+        rejected: "Rechazado",
+        not_applicable: "No aplicable"
+    };
+    const key = String(value).trim();
+    return labels[key] || String(value).replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
 }
-
 function managerClientCommunicationStatusClass(status) {
     if (status === 'closed') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
     if (status === 'pending_manager') return 'border-amber-500/30 bg-amber-500/10 text-amber-300';

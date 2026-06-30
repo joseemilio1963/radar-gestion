@@ -4773,6 +4773,10 @@ function PortalClientCommunicationsPanel() {
     const [detailLoading, setDetailLoading] = useState(false);
     const [error, setError] = useState('');
     const [detailError, setDetailError] = useState('');
+    const [createDraft, setCreateDraft] = useState({ category: 'question', subject: '', description: '', priority: 'normal' });
+    const [createSubmitting, setCreateSubmitting] = useState(false);
+    const [createError, setCreateError] = useState('');
+    const [createSuccess, setCreateSuccess] = useState('');
 
     const buildErrorMessage = async (response, fallback) => {
         let data = null;
@@ -4828,6 +4832,57 @@ function PortalClientCommunicationsPanel() {
         }
     };
 
+
+    // PORTAL_CLIENT_COMMUNICATION_CREATE_UI_V1
+    const handleSubmitCreateCommunication = async (event) => {
+        event.preventDefault();
+
+        const subject = createDraft.subject.trim();
+        const description = createDraft.description.trim();
+        const category = createDraft.category || 'question';
+        const priority = createDraft.priority || 'normal';
+
+        if (!subject || !description) {
+            setCreateError('Indica un asunto y un mensaje antes de enviar la comunicacion.');
+            setCreateSuccess('');
+            return;
+        }
+
+        setCreateSubmitting(true);
+        setCreateError('');
+        setCreateSuccess('');
+
+        try {
+            const response = await fetch('/api/portal/client-communications', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category, subject, description, priority })
+            });
+
+            if (!response.ok) {
+                throw new Error(await buildErrorMessage(response, 'No se pudo enviar la comunicacion.'));
+            }
+
+            const data = await response.json();
+            if (data.status !== 'success' || !data.thread) {
+                throw new Error(data.message || 'No se pudo enviar la comunicacion.');
+            }
+
+            setCreateDraft({ category: 'question', subject: '', description: '', priority: 'normal' });
+            setCreateSuccess('Comunicacion enviada a tu asesoria.');
+            setSelectedThreadId(String(data.thread.id));
+            setThreadDetail(data.thread);
+
+            try {
+                await loadThreads();
+            } catch {}
+        } catch (err) {
+            setCreateError(String(err).replace(/^Error: /, '') || 'No se pudo enviar la comunicacion.');
+        } finally {
+            setCreateSubmitting(false);
+        }
+    };
     useEffect(() => {
         loadThreads();
     }, []);
@@ -4847,6 +4902,59 @@ function PortalClientCommunicationsPanel() {
                     Actualizar
                 </button>
             </div>
+
+            {/* PORTAL_CLIENT_COMMUNICATION_CREATE_FORM_V1 */}
+            <form onSubmit={handleSubmitCreateCommunication} className="mt-5 rounded-xl border border-blue-500/20 bg-blue-950/20 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h4 className="text-sm font-black uppercase tracking-widest text-blue-200">Nueva comunicacion</h4>
+                        <p className="mt-1 text-xs font-semibold text-slate-400">Envia una consulta o informacion a tu asesoria. Quedara registrada en este panel.</p>
+                    </div>
+                    <span className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-blue-200">Portal Cliente</span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_minmax(0,0.8fr)]">
+                    <label className="text-xs font-bold text-slate-400">
+                        Categoria
+                        <select value={createDraft.category} onChange={(event) => { setCreateDraft(prev => ({ ...prev, category: event.target.value })); setCreateError(''); setCreateSuccess(''); }} disabled={createSubmitting} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="question">Consulta</option>
+                            <option value="document">Documento</option>
+                            <option value="tax_notice">Requerimiento o aviso</option>
+                            <option value="contract">Contrato</option>
+                            <option value="certificate">Certificado</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </label>
+
+                    <label className="text-xs font-bold text-slate-400">
+                        Asunto
+                        <input type="text" value={createDraft.subject} onChange={(event) => { setCreateDraft(prev => ({ ...prev, subject: event.target.value })); setCreateError(''); setCreateSuccess(''); }} disabled={createSubmitting} maxLength={200} placeholder="Ej. Consulta sobre documentacion" className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </label>
+
+                    <label className="text-xs font-bold text-slate-400">
+                        Prioridad
+                        <select value={createDraft.priority} onChange={(event) => { setCreateDraft(prev => ({ ...prev, priority: event.target.value })); setCreateError(''); setCreateSuccess(''); }} disabled={createSubmitting} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="low">Baja</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">Alta</option>
+                        </select>
+                    </label>
+                </div>
+
+                <label className="mt-3 block text-xs font-bold text-slate-400">
+                    Mensaje
+                    <textarea value={createDraft.description} onChange={(event) => { setCreateDraft(prev => ({ ...prev, description: event.target.value })); setCreateError(''); setCreateSuccess(''); }} disabled={createSubmitting} maxLength={4000} rows={4} placeholder="Escribe aqui el mensaje para tu asesoria." className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </label>
+
+                {createError && <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{createError}</div>}
+                {createSuccess && <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200">{createSuccess}</div>}
+
+                <div className="mt-4 flex justify-end">
+                    <button type="submit" disabled={createSubmitting} className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400">
+                        {createSubmitting ? 'Enviando...' : 'Enviar comunicacion'}
+                    </button>
+                </div>
+            </form>
 
             {error && <div className="mt-5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">{error}</div>}
             {loading && <div className="mt-5 rounded-xl border border-slate-700 bg-slate-900/50 px-4 py-8 text-center text-sm font-semibold text-slate-400">Cargando comunicaciones...</div>}

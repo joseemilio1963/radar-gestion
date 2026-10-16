@@ -7954,40 +7954,19 @@ export default function App() {
         }
     })();
 
-    const storedPortalClient = (() => {
-        try {
-            return (window.localStorage.getItem('radar_portal_client') || '').trim();
-        } catch {
-            return '';
-        }
-    })();
-
-    const effectivePortalClient = portalClientFromUrl || storedPortalClient;
+    // RADAR_ENTRY_MULTICLIENTE_GUARD_V1
+    // El gestor es la entrada predeterminada; el portal requiere ?portal_client=...
+    const effectivePortalClient = portalClientFromUrl;
     const isClientExclusivePortal = Boolean(effectivePortalClient);
     const [view, setView] = useState(() => isClientExclusivePortal ? 'portal' : 'radar');
 
-
     useEffect(() => {
-        if (!portalClientFromUrl) {
-            return;
-        }
-
+        if (portalClientFromUrl) return;
         try {
-            window.localStorage.setItem('radar_portal_client', portalClientFromUrl);
+            window.localStorage.removeItem('radar_portal_client');
         } catch {}
     }, [portalClientFromUrl]);
 
-    useEffect(() => {
-        if (portalClientFromUrl || !storedPortalClient) {
-            return;
-        }
-
-        try {
-            const url = new URL(window.location.href);
-            url.searchParams.set('portal_client', storedPortalClient);
-            window.history.replaceState({}, '', url.toString());
-        } catch {}
-    }, [portalClientFromUrl, storedPortalClient]);
     const [managerAuthenticated, setManagerAuthenticated] = useState(false);
 
     // MANAGER_MOBILE_VIEW_SCROLL_V1_SAFE_AFTER_AUTH
